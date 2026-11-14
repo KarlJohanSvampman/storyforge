@@ -116,28 +116,30 @@ def invite_member(project_id: uuid.UUID, payload: InvitationCreate, db: DbSessio
     membership = _membership(db, project.id, user.id)
     if membership.role != "owner":
         raise HTTPException(status_code=403, detail="Only the project owner can invite members.")
+
     email = str(payload.email).lower()
     existing_user = db.scalar(select(User).where(User.email == email))
+    duplicate_query = select(ProjectMembership).where(ProjectMembership.project_id == project.id)
     if existing_user:
-        existing = db.scalar(select(ProjectMembership).where(
-            ProjectMembership.project_id == project.id, ProjectMembership.user_id == existing_user.id
-        ))
+        duplicate_query = duplicate_query.where(
+            (ProjectMembership.user_id == existing_user.id)
+            | (ProjectMembership.invited_email == email)
+        )
     else:
-        existing = db.scalar(select(ProjectMembership).where(
-            ProjectMembership.project_id == project.id, ProjectMembership.invited_email == email
-        ))
-    if existing:
+        duplicate_query = duplicate_query.where(ProjectMembership.invited_email == email)
+    if db.scalar(duplicate_query):
         raise HTTPException(status_code=409, detail="This person is already a project member or has been invited.")
+
+    # Invitations remain pending until the recipient authenticates and accepts them.
     invitation = ProjectMembership(
-        project_id=project.id, user_id=existing_user.id if existing_user else None,
-        invited_email=None if existing_user else email, role=payload.role,
-        status="active" if existing_user else "invited",
+        project_id=project.id, invited_email=email, role=payload.role, status="invited",
     )
     db.add(invitation)
     db.commit()
     db.refresh(invitation)
     return MemberRead(
-        id=invitation.id, display_name=existing_user.display_name if existing_user else None,
-        email=existing_user.email if existing_user else None, invited_email=invitation.invited_email,
-        role=invitation.role, status=invitation.status, created_at=invitation.created_at,
+        id=invitation.id, display_name=None,
+        email=existing_user.email if existing_user else None,
+        invited_email=invitation.invited_email, role=invitation.role,
+        status=invitation.status, created_at=invitation.created_at,
     )
