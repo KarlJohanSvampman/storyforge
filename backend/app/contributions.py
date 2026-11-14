@@ -1,6 +1,5 @@
 import uuid
-from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -40,7 +39,7 @@ def _contribution_read(db: Session, contribution: StoryContribution) -> Contribu
         id=contribution.id, project_id=contribution.project_id,
         author_user_id=contribution.author_user_id,
         author_display_name=author.display_name if author else "Unknown participant",
-        title=contribution.title, status=contribution.status,
+        title=revision.title, status=contribution.status,
         current_revision_number=revision.revision_number, current_body=revision.body,
         created_at=contribution.created_at, updated_at=contribution.updated_at,
     )
@@ -48,7 +47,7 @@ def _contribution_read(db: Session, contribution: StoryContribution) -> Contribu
 
 def _revision_read(revision: ContributionRevision) -> ContributionRevisionRead:
     return ContributionRevisionRead(
-        id=revision.id, revision_number=revision.revision_number, body=revision.body,
+        id=revision.id, revision_number=revision.revision_number, title=revision.title, body=revision.body,
         author_user_id=revision.author_user_id,
         author_display_name=revision.author.display_name if revision.author else "Unknown participant",
         created_at=revision.created_at,
@@ -76,13 +75,13 @@ def create_contribution(project_id: uuid.UUID, payload: ContributionCreate, db: 
         raise HTTPException(status_code=422, detail="Contribution title and body cannot be blank.")
 
     contribution = StoryContribution(
-        project_id=project_id, author_user_id=user.id, title=payload.title, status="active",
+        project_id=project_id, author_user_id=user.id, status="active",
     )
     db.add(contribution)
     db.flush()
     revision = ContributionRevision(
         contribution_id=contribution.id, revision_number=1,
-        body=payload.body, author_user_id=user.id,
+        title=payload.title, body=payload.body, author_user_id=user.id,
     )
     db.add(revision)
     db.commit()
@@ -114,7 +113,7 @@ def revise_contribution(
     _, membership = _require_project_member(db, project_id, user.id)
     contribution = db.scalar(select(StoryContribution).where(
         StoryContribution.id == contribution_id, StoryContribution.project_id == project_id,
-    ))
+    ).with_for_update())
     if contribution is None:
         raise HTTPException(status_code=404, detail="Contribution not found.")
     if contribution.status != "active":
@@ -128,12 +127,9 @@ def revise_contribution(
     latest = _latest_revision(db, contribution.id)
     revision = ContributionRevision(
         contribution_id=contribution.id, revision_number=latest.revision_number + 1,
+        title=payload.title if payload.title is not None else latest.title,
         body=payload.body, author_user_id=user.id,
     )
-    if payload.title is not None:
-        if not payload.title:
-            raise HTTPException(status_code=422, detail="Contribution title cannot be blank.")
-        contribution.title = payload.title
     db.add(revision)
     db.commit()
     db.refresh(contribution)
