@@ -1,6 +1,6 @@
 import uuid
 from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from .database import get_db
@@ -84,6 +84,7 @@ def create_contribution(project_id: uuid.UUID, payload: ContributionCreate, db: 
         title=payload.title, body=payload.body, author_user_id=user.id,
     )
     db.add(revision)
+    contribution.updated_at = func.now()
     db.commit()
     db.refresh(contribution)
     return _contribution_read(db, contribution)
@@ -150,6 +151,7 @@ def withdraw_contribution(
     if not can_withdraw:
         raise HTTPException(status_code=403, detail="You cannot withdraw this contribution.")
     contribution.status = "withdrawn"
+    contribution.updated_at = func.now()
     db.commit()
     db.refresh(contribution)
     return _contribution_read(db, contribution)
