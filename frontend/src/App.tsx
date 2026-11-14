@@ -28,6 +28,9 @@ type ContributionRevision = {
   author_display_name: string; created_at: string;
 };
 type ContributionDetail = Contribution & { revisions: ContributionRevision[] };
+type Comment = { id: string; contribution_id: string; revision_id: string | null; parent_comment_id: string | null; author_user_id: string; author_display_name: string; body: string; created_at: string };
+type SuggestionDecision = { id: string; actor_user_id: string; actor_display_name: string; previous_status: string | null; new_status: string; note: string; created_at: string };
+type Suggestion = { id: string; contribution_id: string; target_revision_id: string; author_user_id: string; author_display_name: string; title: string; rationale: string; proposed_text: string; status: string; created_at: string; updated_at: string; decisions: SuggestionDecision[] };
 
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
@@ -59,6 +62,12 @@ function App() {
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [selectedContribution, setSelectedContribution] = useState<ContributionDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [commentBody, setCommentBody] = useState("");
+  const [suggestionTitle, setSuggestionTitle] = useState("");
+  const [suggestionRationale, setSuggestionRationale] = useState("");
+  const [suggestionText, setSuggestionText] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<ProjectForm>(emptyForm);
   const [contributionTitle, setContributionTitle] = useState("");
@@ -182,12 +191,57 @@ function App() {
     try {
       const detail = await api<ContributionDetail>(`/api/projects/${selectedProject.id}/contributions/${item.id}`);
       setSelectedContribution(detail);
+      const [commentItems, suggestionItems] = await Promise.all([
+        api<Comment[]>("/api/projects/" + selectedProject.id + "/contributions/" + item.id + "/comments"),
+        api<Suggestion[]>("/api/projects/" + selectedProject.id + "/contributions/" + item.id + "/suggestions"),
+      ]);
+      setComments(commentItems);
+      setSuggestions(suggestionItems);
       setContributionTitle(detail.title);
       setContributionBody(detail.current_body);
       setEditingContribution(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load contribution.");
     }
+  }
+
+
+  async function submitComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !selectedContribution || !commentBody.trim()) return;
+    setError("");
+    try {
+      const latest = selectedContribution.revisions[selectedContribution.revisions.length - 1];
+      const created = await api<Comment>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/comments", {
+        method: "POST", body: JSON.stringify({ body: commentBody, revision_id: latest?.id || null }),
+      });
+      setComments([...comments, created]); setCommentBody("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not add comment."); }
+  }
+
+  async function submitSuggestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !selectedContribution) return;
+    const latest = selectedContribution.revisions[selectedContribution.revisions.length - 1];
+    if (!latest) return;
+    setError("");
+    try {
+      const created = await api<Suggestion>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/suggestions", {
+        method: "POST", body: JSON.stringify({ target_revision_id: latest.id, title: suggestionTitle, rationale: suggestionRationale, proposed_text: suggestionText }),
+      });
+      setSuggestions([...suggestions, created]); setSuggestionTitle(""); setSuggestionRationale(""); setSuggestionText("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not submit suggestion."); }
+  }
+
+  async function decideSuggestion(suggestion: Suggestion, status: "accepted" | "rejected" | "deferred") {
+    if (!selectedProject || !selectedContribution) return;
+    setError("");
+    try {
+      const updated = await api<Suggestion>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/suggestions/" + suggestion.id + "/decision", {
+        method: "POST", body: JSON.stringify({ status, note: "" }),
+      });
+      setSuggestions(suggestions.map(item => item.id === updated.id ? updated : item));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not update suggestion."); }
   }
 
   function startRevision() {
