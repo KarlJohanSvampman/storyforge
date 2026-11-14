@@ -95,6 +95,7 @@ class ContributionRevisionCreate(BaseModel):
 class ContributionRevisionRead(BaseModel):
     id: uuid.UUID
     revision_number: int
+    title: str
     body: str
     author_user_id: uuid.UUID
     author_display_name: str
