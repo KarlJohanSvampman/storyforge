@@ -2,9 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
   Film, Lightbulb, Plus, Sparkles, Users, FolderOpen, LoaderCircle,
+  FileText, History, Send, Clock3, RotateCcw, X,
 } from "lucide-react";
 
 type ApiHealth = { status: string; service: string; version: string };
+type CurrentUser = { id: string; display_name: string; email: string };
 type Project = {
   id: string; title: string; description: string; logline: string; genre: string;
   visibility: string; current_phase: string; owner_user_id: string;
@@ -16,6 +18,16 @@ type Member = {
 };
 type ProjectDetail = Project & { members: Member[] };
 type ProjectForm = { title: string; logline: string; genre: string; description: string; visibility: string };
+type Contribution = {
+  id: string; project_id: string; author_user_id: string; author_display_name: string;
+  title: string; status: string; current_revision_number: number; current_body: string;
+  created_at: string; updated_at: string;
+};
+type ContributionRevision = {
+  id: string; revision_number: number; body: string; author_user_id: string;
+  author_display_name: string; created_at: string;
+};
+type ContributionDetail = Contribution & { revisions: ContributionRevision[] };
 
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
@@ -41,11 +53,17 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
 function App() {
   const [health, setHealth] = useState<ApiHealth | null>(null);
   const [apiError, setApiError] = useState(false);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [view, setView] = useState<"overview" | "projects" | "detail">("overview");
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
+  const [contributions, setContributions] = useState<Contribution[]>([]);
+  const [selectedContribution, setSelectedContribution] = useState<ContributionDetail | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<ProjectForm>(emptyForm);
+  const [contributionTitle, setContributionTitle] = useState("");
+  const [contributionBody, setContributionBody] = useState("");
+  const [editingContribution, setEditingContribution] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -53,12 +71,16 @@ function App() {
   const [inviteMessage, setInviteMessage] = useState("");
 
   async function loadProjects() {
-    const data = await api<Project[]>("/api/projects");
-    setProjects(data);
+    setProjects(await api<Project[]>("/api/projects"));
+  }
+
+  async function loadContributions(projectId: string) {
+    setContributions(await api<Contribution[]>(`/api/projects/${projectId}/contributions`));
   }
 
   useEffect(() => {
     api<ApiHealth>("/api/health").then(setHealth).catch(() => setApiError(true));
+    api<CurrentUser>("/api/me").then(setCurrentUser).catch(() => undefined);
     loadProjects().catch((err: Error) => setError(err.message));
   }, []);
 
@@ -66,8 +88,16 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const detail = await api<ProjectDetail>(`/api/projects/${projectId}`);
+      const [detail, items] = await Promise.all([
+        api<ProjectDetail>(`/api/projects/${projectId}`),
+        api<Contribution[]>(`/api/projects/${projectId}/contributions`),
+      ]);
       setSelectedProject(detail);
+      setContributions(items);
+      setSelectedContribution(null);
+      setContributionTitle("");
+      setContributionBody("");
+      setEditingContribution(false);
       setView("detail");
       setShowCreate(false);
     } catch (err) {
@@ -103,8 +133,7 @@ function App() {
     setError("");
     try {
       await api<Member>(`/api/projects/${selectedProject.id}/invitations`, {
-        method: "POST",
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
+        method: "POST", body: JSON.stringify({ email: inviteEmail, role: inviteRole }),
       });
       const updated = await api<ProjectDetail>(`/api/projects/${selectedProject.id}`);
       setSelectedProject(updated);
@@ -115,12 +144,85 @@ function App() {
     }
   }
 
+  async function submitContribution(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject) return;
+    setLoading(true);
+    setError("");
+    try {
+      if (editingContribution && selectedContribution) {
+        await api<Contribution>(`/api/projects/${selectedProject.id}/contributions/${selectedContribution.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ title: contributionTitle, body: contributionBody }),
+        });
+      } else {
+        await api<Contribution>(`/api/projects/${selectedProject.id}/contributions`, {
+          method: "POST",
+          body: JSON.stringify({ title: contributionTitle, body: contributionBody }),
+        });
+      }
+      await loadContributions(selectedProject.id);
+      if (selectedContribution) {
+        const refreshed = await api<ContributionDetail>(`/api/projects/${selectedProject.id}/contributions/${selectedContribution.id}`);
+        setSelectedContribution(refreshed);
+      }
+      setContributionTitle("");
+      setContributionBody("");
+      setEditingContribution(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save contribution.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function openContribution(item: Contribution) {
+    if (!selectedProject) return;
+    setError("");
+    try {
+      const detail = await api<ContributionDetail>(`/api/projects/${selectedProject.id}/contributions/${item.id}`);
+      setSelectedContribution(detail);
+      setContributionTitle(detail.title);
+      setContributionBody(detail.current_body);
+      setEditingContribution(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load contribution.");
+    }
+  }
+
+  function startRevision() {
+    if (!selectedContribution) return;
+    setContributionTitle(selectedContribution.title);
+    setContributionBody(selectedContribution.current_body);
+    setEditingContribution(true);
+  }
+
+  async function withdrawContribution(item: ContributionDetail) {
+    if (!selectedProject || !window.confirm("Withdraw this contribution? Its existing revisions will remain in the project history.")) return;
+    setError("");
+    try {
+      await api<Contribution>(`/api/projects/${selectedProject.id}/contributions/${item.id}/withdraw`, { method: "POST" });
+      await loadContributions(selectedProject.id);
+      const refreshed = await api<ContributionDetail>(`/api/projects/${selectedProject.id}/contributions/${item.id}`);
+      setSelectedContribution(refreshed);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not withdraw contribution.");
+    }
+  }
+
   function showProjects() {
     setView("projects");
     setSelectedProject(null);
+    setSelectedContribution(null);
     setShowCreate(false);
     setError("");
   }
+
+  const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
+  const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
+  const canReviseSelected = !!selectedContribution && !!currentUser && (
+    selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
+  );
 
   return (
     <main className="app-shell">
@@ -141,8 +243,8 @@ function App() {
             <div><strong>The StoryForge Collective</strong><span>Many minds. Many stories.</span></div>
           </div>
           <div className="profile-row">
-            <div className="avatar">S</div>
-            <div className="profile-copy"><strong>Storyteller</strong><span>Local development account</span></div>
+            <div className="avatar">{(currentUser?.display_name || "S").charAt(0)}</div>
+            <div className="profile-copy"><strong>{currentUser?.display_name || "Storyteller"}</strong><span>Local development account</span></div>
             <span className="profile-dots">···</span>
           </div>
         </div>
@@ -151,7 +253,7 @@ function App() {
       <section className="main-panel">
         <header className="topbar">
           <div className="breadcrumb">Workspace <span>/</span> {view === "overview" ? "Overview" : view === "detail" ? selectedProject?.title || "Project" : "My projects"}</div>
-          <div className="topbar-right"><span className="beta-pill">EARLY ACCESS</span><div className="avatar small">S</div></div>
+          <div className="topbar-right"><span className="beta-pill">EARLY ACCESS</span><div className="avatar small">{(currentUser?.display_name || "S").charAt(0)}</div></div>
         </header>
 
         <div className="content">
@@ -172,7 +274,7 @@ function App() {
                   <span className="step-count">A creative journey <span>·</span> 4 stages</span>
                 </div>
                 <div className="phase-grid">
-                  {phases.map((phase) => {
+                  {phases.map(phase => {
                     const Icon = phase.icon;
                     return <article className={`phase-card ${phase.state}`} key={phase.number}>
                       <div className="phase-top"><span>{phase.number}</span><Icon size={19} /></div>
@@ -221,7 +323,7 @@ function App() {
                 <button className="project-card" key={project.id} onClick={() => openProject(project.id)}>
                   <div className="project-card-top"><span className="project-genre">{project.genre || "Untitled genre"}</span><span className="project-visibility">{project.visibility}</span></div>
                   <h2>{project.title}</h2><p>{project.logline || project.description || "A new story is waiting to be told."}</p>
-                  <div className="project-card-bottom"><span><Users size={14} /> {project.member_count} {project.member_count === 1 ? "member" : "members"}</span><span>Contributions <ArrowUpRight size={14} /></span></div>
+                  <div className="project-card-bottom"><span><Users size={14} /> {project.member_count} {project.member_count === 1 ? "member" : "members"}</span><span>{project.current_phase} <ArrowUpRight size={14} /></span></div>
                 </button>
               ))}</div>}
             </section>
@@ -238,13 +340,56 @@ function App() {
                 {selectedProject.logline && <p className="detail-logline">{selectedProject.logline}</p>}
                 {selectedProject.description && <p className="detail-description">{selectedProject.description}</p>}
               </div>
+
               <div className="detail-columns">
-                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>Story contributions</h2><p>This is the starting point for the project. The next milestone will let each participant submit an independent story contribution.</p><span className="stage-pill"><span className="status-dot" /> IN PROGRESS</span></div>
+                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>Story contributions</h2><p>Each participant can contribute an independent idea, scene, character, plot direction or piece of narrative. Contributions remain separate so no one's original work is lost when the group begins developing the story.</p><span className="stage-pill"><span className="status-dot" /> IN PROGRESS</span></div>
                 <div className="detail-panel members-panel"><div className="panel-heading"><div><div className="section-kicker">THE CREATIVE TEAM</div><h2>Members <span>{selectedProject.members.length}</span></h2></div></div>
                   <div className="member-list">{selectedProject.members.map(member => <div className="member-row" key={member.id}><div className="avatar">{(member.display_name || member.invited_email || "?").charAt(0).toUpperCase()}</div><div className="member-copy"><strong>{member.display_name || member.invited_email}</strong><span>{member.email || (member.status === "invited" ? "Invitation pending" : "")}</span></div><span className={member.status === "invited" ? "role-tag pending" : "role-tag"}>{member.role}</span></div>)}</div>
                   <form className="invite-form" onSubmit={inviteMember}><div className="section-kicker">INVITE A COLLABORATOR</div><input type="email" required placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} /><div className="invite-controls"><select value={inviteRole} onChange={e => setInviteRole(e.target.value)}><option value="contributor">Contributor</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button className="primary-button" type="submit"><Plus size={15} /> Invite</button></div>{inviteMessage && <p className="success-message">{inviteMessage}</p>}</form>
                 </div>
               </div>
+
+              <section className="contributions-section">
+                <div className="section-heading contribution-heading">
+                  <div><div className="section-kicker">THE STORY TAKES SHAPE</div><h2>Contributions <span className="contribution-count">{contributions.length}</span></h2></div>
+                  <span className="step-count">Independent ideas, preserved by author</span>
+                </div>
+
+                {canContribute && (
+                  <form className="contribution-form" onSubmit={submitContribution}>
+                    <div className="form-title"><div><div className="section-kicker">{editingContribution ? "NEW REVISION" : "ADD YOUR VOICE"}</div><h2>{editingContribution ? "Revise your contribution." : "Share a story contribution."}</h2></div>
+                      {editingContribution && <button type="button" className="quiet-button" onClick={() => { setEditingContribution(false); setContributionTitle(""); setContributionBody(""); }}><X size={14} /> Cancel revision</button>}
+                    </div>
+                    <label>Contribution title<input required maxLength={160} placeholder="A working title for your idea" value={contributionTitle} onChange={e => setContributionTitle(e.target.value)} /></label>
+                    <label>Your contribution<textarea required rows={7} maxLength={30000} placeholder="Write a scene, a character idea, a plot development, a setting, or any piece of the story you want to contribute…" value={contributionBody} onChange={e => setContributionBody(e.target.value)} /></label>
+                    <div className="form-actions"><span>{editingContribution ? "Saving creates a new revision; previous versions remain available." : "Your contribution is saved separately and attributed to you."}</span><button className="primary-button" disabled={loading || !contributionTitle.trim() || !contributionBody.trim()} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Send size={15} />} {editingContribution ? "Save new revision" : "Submit contribution"}</button></div>
+                  </form>
+                )}
+                {!canContribute && <p className="muted-note">You have read-only access to this project's contributions.</p>}
+
+                {contributions.length === 0 ? (
+                  <div className="empty-state compact-empty"><div className="empty-icon"><FileText size={23} /></div><h2>No contributions yet.</h2><p>This is where each participant's independent story ideas will appear.</p></div>
+                ) : (
+                  <div className="contribution-list">{contributions.map(item => (
+                    <button className={selectedContribution?.id === item.id ? "contribution-card selected" : "contribution-card"} key={item.id} onClick={() => openContribution(item)}>
+                      <div className="contribution-card-top"><span className="contribution-author">{item.author_display_name}</span><span className={item.status === "withdrawn" ? "status-tag withdrawn" : "status-tag"}>{item.status}</span></div>
+                      <h3>{item.title}</h3><p>{item.current_body.length > 210 ? item.current_body.slice(0, 210) + "…" : item.current_body}</p>
+                      <div className="contribution-card-bottom"><span><Clock3 size={13} /> {new Date(item.created_at).toLocaleString()}</span><span><History size={13} /> Revision {item.current_revision_number}</span></div>
+                    </button>
+                  ))}</div>
+                )}
+
+                {selectedContribution && (
+                  <div className="contribution-detail">
+                    <div className="contribution-detail-heading"><div><div className="section-kicker">CONTRIBUTION HISTORY</div><h2>{selectedContribution.title}</h2><p>By {selectedContribution.author_display_name} · {selectedContribution.status}</p></div><button className="quiet-button" onClick={() => setSelectedContribution(null)}><X size={15} /> Close</button></div>
+                    <div className="current-contribution-text">{selectedContribution.current_body}</div>
+                    {canReviseSelected && selectedContribution.status === "active" && <div className="contribution-actions"><button className="secondary-button" onClick={startRevision}><RotateCcw size={14} /> Create a revision</button><button className="quiet-button danger-button" onClick={() => withdrawContribution(selectedContribution)}>Withdraw contribution</button></div>}
+                    <div className="revision-list"><div className="section-kicker">REVISION HISTORY</div>{[...selectedContribution.revisions].reverse().map(revision => (
+                      <article className="revision-item" key={revision.id}><div className="revision-meta"><strong>Revision {revision.revision_number}</strong><span>{revision.author_display_name} · {new Date(revision.created_at).toLocaleString()}</span></div><p>{revision.body}</p></article>
+                    ))}</div>
+                  </div>
+                )}
+              </section>
             </section>
           )}
           <footer className="footer"><span>STORYFORGE COLLECTIVE</span><span>Built together, one story at a time.</span></footer>
