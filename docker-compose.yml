@@ -21,7 +21,10 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      DATABASE_URL: postgresql://storyforge:change-me-locally@db:5432/storyforge
+      DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
+      STORYFORGE_AUTH_MODE: development
+      STORYFORGE_DEV_USER_EMAIL: storyteller@storyforge.local
+      STORYFORGE_DEV_USER_NAME: Storyteller
     depends_on:
       db:
         condition: service_healthy
