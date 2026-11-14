@@ -151,7 +151,6 @@ def decide_suggestion(
     suggestion = db.scalar(
         select(StorySuggestion)
         .where(StorySuggestion.id == suggestion_id, StorySuggestion.contribution_id == contribution_id)
-        .options(joinedload(StorySuggestion.decisions).joinedload(SuggestionDecision.actor))
         .with_for_update()
     )
     if suggestion is None:
