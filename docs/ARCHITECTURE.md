@@ -50,6 +50,11 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **PhaseTransition:** project, previous phase, next phase, actor, timestamp, rationale.
 - **PublishedRelease (future):** immutable publication snapshot linked to its source project and approved narrative/production versions.
 - **ReleaseCredit / ReleaseRating / ReleaseReview (future):** public attribution and audience evaluation attached to one release.
+- **ActorProfile (future):** a public performer identity that may be created and managed by a user, including users who do not create stories themselves.
+- **ActorManagement (future):** a manager-to-actor relationship with explicit authority and consent.
+- **ActorCredit (future):** a performer's credited participation in a release or production, forming the actor's public track record.
+- **ProductionBudget / BudgetLedgerEntry (future):** a production's budget configuration and auditable record of estimated, committed, and actual costs.
+- **CastingEngagement (future):** a production-specific booking of an actor, including the quoted and agreed fee captured at booking time.
 
 ## 5. Realtime behavior
 
@@ -73,7 +78,27 @@ A published release is a separately versioned snapshot with a stable public URL,
 
 Performance data should remain separable: body motion, facial controls, lip-sync events, audio, camera tracks, and scene events should not be flattened into a video-only artifact during authoring.
 
-## 8. Decisions to revisit
+## 8. Actor marketplace and production economics (future)
+
+StoryForge may support a performer ecosystem alongside its creator community. Any user, whether or not they write or produce stories, can create one or more actor personas and manage them. Actor profiles are public, IMDb-style portfolios with a stable identity, biography, image/media, skills, availability/preferences, representation/manager information where consented, and verified credits from published productions. A manager is a user acting on behalf of an actor; the relationship and its permissions must be explicit, revocable, and auditable. An actor may self-manage or appoint a manager.
+
+Actor identity is distinct from account identity. The public profile should not expose private account details. A user may manage multiple actor personas, and the same actor persona may later be portrayed by its owner or controlled by an AI performer agent. Human and AI performers should use compatible casting/credit contracts while clearly disclosing the performer type. Future workflows may let users direct and perform alongside AI-controlled actors.
+
+### Economic model principles
+
+- Treat production economics as a first-class simulation system, not as a hidden quality score or arbitrary penalty system.
+- Every production should display a budget, committed costs, actual costs, remaining budget, and eventual gross revenue, even when the project uses an effectively unlimited or sandbox budget.
+- Costs should be explicit ledger entries linked to the action or resource that caused them: casting/actor fees, crew, locations, props, sets, equipment, production time, post-production, and reshoots/retakes where applicable.
+- A retake is not inherently a score penalty. It may create an additional cost because it consumes production resources; the amount should be explainable and configurable.
+- Actor hiring fees may grow as an actor gains credits, experience, audience demand, or reputation. Keep the pricing calculation explainable and snapshot the quoted/agreed fee on each casting engagement so later price changes do not rewrite historical budgets.
+- Do not confuse production cost with artistic quality. A costly production is not automatically better; ratings and audience response remain separate measures.
+- Views can later drive simulated gross revenue using a published, transparent revenue model. Gross revenue, production cost, and net result must remain separate metrics.
+- Support an unlimited-budget mode for low-friction creative play, but continue recording notional costs and revenue so productions can be compared economically if desired.
+- Use virtual/in-game budgets and revenue only unless a separate real-money feature is deliberately designed, reviewed, and consented to. No real-money payout is implied by these systems.
+
+The first implementation should not build an actor marketplace, dynamic hiring prices, budgets, or revenue calculations yet. It should avoid hard-coding the idea that retakes are a score deduction. Production actions should eventually emit cost events into a ledger, with the budget and pricing policies applied by a separate economics service.
+
+## 9. Decisions to revisit
 
 - Markdown versus structured rich-text narrative content.
 - Conflict handling for concurrent edits.
@@ -83,3 +108,7 @@ Performance data should remain separable: body motion, facial controls, lip-sync
 - Media storage and upload pipeline.
 - WebSocket scaling strategy.
 - Whether rendering should happen in-browser, server-side, or both.
+- Actor profile ownership, manager permissions, performer consent, and public-credit verification.
+- Actor fee formula, rate-card snapshots, cost categories, and budget modes.
+- View-to-revenue conversion and whether revenue is only a simulation metric.
+- How human-controlled and AI-controlled actors share casting, performance, and credit contracts.
