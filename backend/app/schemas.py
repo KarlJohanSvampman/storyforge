@@ -185,4 +185,4 @@ class SuggestionRead(BaseModel):
     status: str
     created_at: datetime
     updated_at: datetime
-    decisions: list[SuggestionDecisionRead] = []
+    decisions: list[SuggestionDecisionRead] = Field(default_factory=list)
