@@ -24,7 +24,7 @@ type Contribution = {
   created_at: string; updated_at: string;
 };
 type ContributionRevision = {
-  id: string; revision_number: number; body: string; author_user_id: string;
+  id: string; revision_number: number; title: string; body: string; author_user_id: string;
   author_display_name: string; created_at: string;
 };
 type ContributionDetail = Contribution & { revisions: ContributionRevision[] };
@@ -385,7 +385,7 @@ function App() {
                     <div className="current-contribution-text">{selectedContribution.current_body}</div>
                     {canReviseSelected && selectedContribution.status === "active" && <div className="contribution-actions"><button className="secondary-button" onClick={startRevision}><RotateCcw size={14} /> Create a revision</button><button className="quiet-button danger-button" onClick={() => withdrawContribution(selectedContribution)}>Withdraw contribution</button></div>}
                     <div className="revision-list"><div className="section-kicker">REVISION HISTORY</div>{[...selectedContribution.revisions].reverse().map(revision => (
-                      <article className="revision-item" key={revision.id}><div className="revision-meta"><strong>Revision {revision.revision_number}</strong><span>{revision.author_display_name} · {new Date(revision.created_at).toLocaleString()}</span></div><p>{revision.body}</p></article>
+                      <article className="revision-item" key={revision.id}><div className="revision-meta"><strong>Revision {revision.revision_number} · {revision.title}</strong><span>{revision.author_display_name} · {new Date(revision.created_at).toLocaleString()}</span></div><p>{revision.body}</p></article>
                     ))}</div>
                   </div>
                 )}
