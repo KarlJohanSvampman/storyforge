@@ -17,7 +17,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.UniqueConstraint("email", name="uq_users_email"),
     )
-    op.create_index("ix_users_email", "users", ["email"], unique=True)
     op.create_table(
         "projects",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
@@ -53,5 +52,4 @@ def downgrade() -> None:
     op.drop_index("ix_project_memberships_project_id", table_name="project_memberships")
     op.drop_table("project_memberships")
     op.drop_table("projects")
-    op.drop_index("ix_users_email", table_name="users")
     op.drop_table("users")
