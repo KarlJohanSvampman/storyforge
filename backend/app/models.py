@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, UniqueConstraint, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -11,6 +12,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     memberships: Mapped[list["ProjectMembership"]] = relationship(back_populates="user")
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -29,6 +31,8 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     memberships: Mapped[list["ProjectMembership"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    contributions: Mapped[list["StoryContribution"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
 
 class ProjectMembership(Base):
     __tablename__ = "project_memberships"
@@ -47,3 +51,41 @@ class ProjectMembership(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     project: Mapped[Project] = relationship(back_populates="memberships")
     user: Mapped[User | None] = relationship(back_populates="memberships")
+
+
+class StoryContribution(Base):
+    """A participant's contribution identity; revisions preserve every submitted text."""
+    __tablename__ = "story_contributions"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'withdrawn')", name="ck_story_contributions_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    project: Mapped[Project] = relationship(back_populates="contributions")
+    author: Mapped[User] = relationship()
+    revisions: Mapped[list["ContributionRevision"]] = relationship(
+        back_populates="contribution", cascade="all, delete-orphan",
+        order_by="ContributionRevision.revision_number",
+    )
+
+
+class ContributionRevision(Base):
+    """Immutable snapshot of a contribution at a point in its history."""
+    __tablename__ = "contribution_revisions"
+    __table_args__ = (
+        UniqueConstraint("contribution_id", "revision_number", name="uq_contribution_revisions_number"),
+        CheckConstraint("revision_number >= 1", name="ck_contribution_revisions_positive_number"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    contribution_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("story_contributions.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    contribution: Mapped[StoryContribution] = relationship(back_populates="revisions")
+    author: Mapped[User] = relationship()
