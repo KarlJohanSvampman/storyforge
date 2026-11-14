@@ -1,0 +1,50 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    container_name: storyforge-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+    container_name: storyforge-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      DATABASE_URL: postgresql://storyforge:change-me-locally@db:5432/storyforge
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: storyforge-db
+    environment:
+      POSTGRES_DB: storyforge
+      POSTGRES_USER: storyforge
+      POSTGRES_PASSWORD: change-me-locally
+    ports:
+      - "5432:5432"
+    volumes:
+      - storyforge_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U storyforge -d storyforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  frontend_node_modules:
+  storyforge_postgres_data:
