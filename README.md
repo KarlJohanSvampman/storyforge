@@ -105,13 +105,13 @@ The repository will grow with the implementation. Avoid creating empty abstracti
 
 ## Development status
 
-**Status: project bootstrap.** No production features have been implemented yet.
+**Status: M0.1 bootstrap implemented on `feature/m0-1-runnable-skeleton`.** The initial React/Vite frontend, FastAPI health endpoint, Docker Compose stack, and local development guide are in place. This is a runnable scaffold, not yet a collaborative storytelling product.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for the first delivery plan and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for initial architectural boundaries.
 
 ## Development
 
-The local development instructions will be added alongside the first runnable frontend and backend slice.
+See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for prerequisites, startup commands, service URLs, and troubleshooting. Start the stack from the repository root with `docker compose up --build`.
 
 ## Naming
 
