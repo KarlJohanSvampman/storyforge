@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .projects import router as projects_router
 from .contributions import router as contributions_router
+from .projects import CurrentUser
 
 app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.3.0")
 app.add_middleware(
@@ -13,6 +14,11 @@ app.add_middleware(
 )
 app.include_router(projects_router)
 app.include_router(contributions_router)
+
+
+@app.get("/api/me", tags=["users"])
+async def current_user(user: CurrentUser) -> dict[str, str]:
+    return {"id": str(user.id), "display_name": user.display_name, "email": user.email}
 
 
 @app.get("/api/health", tags=["system"])
