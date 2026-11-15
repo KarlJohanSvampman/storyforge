@@ -506,6 +506,14 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
         if requested_episode_id != scene.episode_id:
             episode = _validate_scene_episode(db, project, storyboard, requested_episode_id)
             values["episode_id"] = episode.id if episode else None
+            destination_order = select(func.max(StoryboardScene.scene_order)).where(
+                StoryboardScene.storyboard_id == storyboard.id,
+            )
+            if episode is None:
+                destination_order = destination_order.where(StoryboardScene.episode_id.is_(None))
+            else:
+                destination_order = destination_order.where(StoryboardScene.episode_id == episode.id)
+            values["scene_order"] = (db.scalar(destination_order) or 0) + 1
     if character_ids is not None:
         characters = _validate_characters(db, project_id, character_ids)
         db.query(SceneCharacterAssignment).filter(
