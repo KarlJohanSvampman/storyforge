@@ -711,6 +711,15 @@ function App() {
     }));
   }
 
+  function cancelStructuredScriptEdit(sceneId: string) {
+    setScriptElementDrafts(current => {
+      const next = { ...current };
+      delete next[sceneId];
+      return next;
+    });
+    setScriptEditorOpen(current => ({ ...current, [sceneId]: false }));
+  }
+
   function moveScriptElement(sceneId: string, index: number, direction: -1 | 1) {
     setScriptElementDrafts(current => {
       const elements = [...(current[sceneId] || [])];
@@ -1401,7 +1410,7 @@ function App() {
                                         </div>
                                         <div className="script-editor-actions">
                                           <span>{(scriptElementDrafts[scene.id] || []).length} ordered blocks · Save creates a new immutable revision</span>
-                                          <button type="button" className="quiet-button" onClick={() => setScriptEditorOpen(current => ({ ...current, [scene.id]: false }))}>Cancel</button>
+                                          <button type="button" className="quiet-button" onClick={() => cancelStructuredScriptEdit(scene.id)}>Discard changes</button>
                                           <button type="button" className="primary-button" disabled={loading || !(scriptElementDrafts[scene.id] || []).length || (scriptElementDrafts[scene.id] || []).some(item => !item.content.trim() || (item.element_type === "dialogue" && !item.character_id))} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new revision" : "Save screenplay"}</button>
                                         </div>
                                       </div>
