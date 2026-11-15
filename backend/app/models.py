@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -19,12 +19,16 @@ class Project(Base):
     __table_args__ = (
         CheckConstraint("visibility IN ('private', 'unlisted', 'public')", name="ck_projects_visibility"),
         CheckConstraint("current_phase IN ('contributions', 'development', 'storyboard', 'production', 'published')", name="ck_projects_phase"),
+        CheckConstraint("format IN ('movie', 'tv_series')", name="ck_projects_format"),
+        CheckConstraint("category IN ('fiction', 'documentary')", name="ck_projects_category"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     logline: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     genre: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    format: Mapped[str] = mapped_column(String(20), default="movie", nullable=False)
+    category: Mapped[str] = mapped_column(String(20), default="fiction", nullable=False)
     visibility: Mapped[str] = mapped_column(String(20), default="private", nullable=False)
     current_phase: Mapped[str] = mapped_column(String(30), default="contributions", nullable=False)
     owner_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
@@ -358,16 +362,64 @@ class Storyboard(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class StoryboardSeason(Base):
+    """A season within a TV-series storyboard interpretation."""
+    __tablename__ = "storyboard_seasons"
+    __table_args__ = (
+        UniqueConstraint("storyboard_id", "season_number", name="uq_storyboard_seasons_number"),
+        CheckConstraint("season_number >= 1", name="ck_storyboard_seasons_positive_number"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_storyboard_seasons_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="CASCADE"), nullable=False, index=True)
+    season_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    story_arc: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class StoryboardEpisode(Base):
+    """An episode within a season; its scenes and screenplay are authored independently."""
+    __tablename__ = "storyboard_episodes"
+    __table_args__ = (
+        UniqueConstraint("season_id", "episode_number", name="uq_storyboard_episodes_number"),
+        CheckConstraint("episode_number >= 1", name="ck_storyboard_episodes_positive_number"),
+        CheckConstraint("estimated_duration_seconds IS NULL OR estimated_duration_seconds > 0", name="ck_storyboard_episodes_duration"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_storyboard_episodes_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    season_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_seasons.id", ondelete="CASCADE"), nullable=False, index=True)
+    episode_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    logline: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    synopsis: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    estimated_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
 class StoryboardScene(Base):
-    """An ordered scene plan; the script is revised separately in append-only versions."""
+    """An ordered scene plan; each TV-series scene belongs to one episode."""
     __tablename__ = "storyboard_scenes"
     __table_args__ = (
-        UniqueConstraint("storyboard_id", "scene_order", name="uq_storyboard_scenes_order"),
+        UniqueConstraint("storyboard_id", "episode_id", "scene_order", name="uq_storyboard_scenes_episode_order"),
+        Index(
+            "uq_storyboard_scenes_movie_order", "storyboard_id", "scene_order",
+            unique=True, postgresql_where=text("episode_id IS NULL"),
+            sqlite_where=text("episode_id IS NULL"),
+        ),
         CheckConstraint("scene_order >= 1", name="ck_storyboard_scenes_positive_order"),
         CheckConstraint("estimated_duration_seconds IS NULL OR estimated_duration_seconds > 0", name="ck_storyboard_scenes_duration"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="CASCADE"), nullable=False, index=True)
+    episode_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("storyboard_episodes.id", ondelete="RESTRICT"), nullable=True, index=True)
     scene_order: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
