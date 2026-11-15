@@ -81,6 +81,8 @@ function App() {
   const [selectedContribution, setSelectedContribution] = useState<ContributionDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [acceptedDraftSuggestions, setAcceptedDraftSuggestions] = useState<Suggestion[]>([]);
+  const [selectedDraftSuggestionIds, setSelectedDraftSuggestionIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
   const [draftTitle, setDraftTitle] = useState("");
@@ -107,10 +109,24 @@ function App() {
     setProjects(await api<Project[]>("/api/projects"));
   }
 
+  async function loadAcceptedDraftSuggestions(projectId: string, items: Contribution[]) {
+    const active = items.filter(item => item.status === "active");
+    const groups = await Promise.all(active.map(item =>
+      api<Suggestion[]>(`/api/projects/${projectId}/contributions/${item.id}/suggestions`)
+    ));
+    const accepted = groups.flat().filter(suggestion =>
+      suggestion.status === "accepted" &&
+      active.some(item => item.current_revision_id === suggestion.target_revision_id)
+    );
+    setAcceptedDraftSuggestions(accepted);
+    setSelectedDraftSuggestionIds([]);
+  }
+
   async function loadContributions(projectId: string) {
     const items = await api<Contribution[]>(`/api/projects/${projectId}/contributions`);
     setContributions(items);
     setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
+    await loadAcceptedDraftSuggestions(projectId, items);
   }
 
   useEffect(() => {
@@ -130,6 +146,7 @@ function App() {
       ]);
       setSelectedProject(detail);
       setContributions(items);
+      await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
       setDraftTitle(currentDraft?.title || detail.title);
       setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
@@ -273,6 +290,12 @@ function App() {
         method: "POST", body: JSON.stringify({ status, note: "" }),
       });
       setSuggestions(suggestions.map(item => item.id === updated.id ? updated : item));
+      setAcceptedDraftSuggestions(current => status === "accepted"
+        ? [...current.filter(item => item.id !== updated.id), updated]
+        : current.filter(item => item.id !== updated.id));
+      if (status !== "accepted") {
+        setSelectedDraftSuggestionIds(current => current.filter(id => id !== updated.id));
+      }
     } catch (err) { setError(err instanceof Error ? err.message : "Could not update suggestion."); }
   }
 
@@ -287,7 +310,12 @@ function App() {
         method: "POST",
         body: JSON.stringify({
           title: draftTitle.trim() || selectedProject.title,
-          sources: draftSourceIds.map(revision_id => ({ revision_id, accepted_suggestion_ids: [] })),
+          sources: draftSourceIds.map(revision_id => ({
+            revision_id,
+            accepted_suggestion_ids: acceptedDraftSuggestions
+              .filter(suggestion => suggestion.target_revision_id === revision_id && selectedDraftSuggestionIds.includes(suggestion.id))
+              .map(suggestion => suggestion.id),
+          })),
         }),
       });
       setDraft(created);
@@ -521,6 +549,18 @@ function App() {
                           />
                           <span><strong>{item.title}</strong><small>{item.author_display_name} · revision {item.current_revision_number}</small></span>
                         </label>
+                        {acceptedDraftSuggestions.filter(suggestion => suggestion.target_revision_id === item.current_revision_id).map(suggestion => (
+                          <label className="draft-suggestion-option" key={suggestion.id}>
+                            <input
+                              type="checkbox"
+                              checked={selectedDraftSuggestionIds.includes(suggestion.id)}
+                              onChange={event => setSelectedDraftSuggestionIds(current => event.target.checked
+                                ? [...current, suggestion.id]
+                                : current.filter(id => id !== suggestion.id))}
+                            />
+                            <span><strong>Include accepted suggestion: {suggestion.title}</strong><small>{suggestion.author_display_name}</small></span>
+                          </label>
+                        ))}
                       ))}
                       {contributions.every(item => item.status !== "active") && <p className="muted-note">Add an active contribution before compiling a draft.</p>}
                     </div>
