@@ -3,7 +3,7 @@ import { Activity, Camera, Check, ChevronDown, ChevronUp, CircleDot, Clapperboar
 import ThreeSceneViewport from "./ThreeSceneViewport";
 
 type SceneOption = { id: string; title: string; characters: Array<{ id: string; name: string }> };
-type Member = { id: string; display_name: string | null; email: string | null; role: string; status: string };
+type Member = { id: string; user_id: string | null; display_name: string | null; email: string | null; role: string; status: string };
 type ControllerType = "user" | "ai_agent" | "script_engine" | "system";
 type ControlMode = "direct" | "command" | "assisted" | "autonomous" | "scripted";
 type CastMember = {
