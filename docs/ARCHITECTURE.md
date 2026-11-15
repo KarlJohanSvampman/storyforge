@@ -52,6 +52,12 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeApprovalVote:** append-only vote events for an exact immutable narrative version.
 - **NarrativeApprovalDecision:** one final approved/rejected decision per narrative version, including a snapshot of the rule and tally.
 - **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
+- **Storyboard:** one project storyboard permanently anchored to the exact narrative version approved to enter the storyboard phase.
+- **StoryboardScene:** ordered scene breakdown with summary, requirements, estimated duration, optional primary location, and working script history.
+- **ScenePassageReference:** exact excerpt reference into the approved narrative snapshot, retaining source offsets and passage text.
+- **SceneScriptVersion:** append-only revision history for script material attached to a scene.
+- **ProjectCharacter / ProjectLocation:** project-level story bible records describing fictional characters and locations. These are not actor profiles, casting engagements, or 3D production assets.
+- **SceneCharacterAssignment:** explicit list of which story characters participate in each scene.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
 - **PublishedRelease (future):** immutable publication snapshot linked to its source project and approved narrative/production versions.
@@ -102,6 +108,17 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Once the project enters `storyboard`, narrative compilation, manual draft revision, voting, and approval-rule changes are blocked. The approved narrative version remains available as the authoritative input for M1.
 - Approval rules become locked after the first vote, preventing a rule change from altering a tally already in progress.
 - The client may display and submit votes, but all eligibility checks, tally calculations, finalization, and phase changes are enforced by the API.
+
+### M1.1 storyboard and creative asset contract
+
+- A storyboard is created only after the project has entered the `storyboard` phase through an approved narrative decision. Initialization resolves the exact `ProjectPhaseTransition.narrative_version_id` and verifies its approval decision.
+- One storyboard exists per project. Its `narrative_version_id` is fixed; the storyboard never silently follows a later narrative proposal.
+- Scenes are ordered within the storyboard. Every scene can carry a summary, production requirements, estimated duration, one primary location, and a set of participating story characters.
+- Scene passage links are exact excerpts from the immutable approved narrative. The API resolves the requested occurrence and stores character offsets plus the exact excerpt snapshot. It rejects text that cannot be found in the approved source. This prevents links from drifting when editable project material changes.
+- Working script text is separate from the approved narrative. Each saved script is an append-only `SceneScriptVersion`; clients submit the version they edited as `base_version_id`, and stale saves receive HTTP 409 rather than overwriting a newer version.
+- Project character and location records are lightweight story-bible entities. They are distinct from performer/actor identity, casting, built 3D sets, props, or media assets.
+- Owners, editors, and contributors may edit while the project is in `storyboard`; viewers are read-only. API permissions are authoritative. The API blocks storyboard writes once the project advances beyond that phase.
+- Character and location records can be archived without deleting them or breaking existing scene references. Scene and script history is retained; scenes are reordered rather than destructively rewritten.
 
 ## 7. Later production and publication data
 
