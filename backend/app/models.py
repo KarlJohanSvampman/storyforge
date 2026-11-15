@@ -426,3 +426,28 @@ class SceneScriptVersion(Base):
     parent_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("scene_script_versions.id", ondelete="RESTRICT"), nullable=True)
     author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SceneScriptElement(Base):
+    """One typed screenplay block inside an immutable script version."""
+    __tablename__ = "scene_script_elements"
+    __table_args__ = (
+        UniqueConstraint("script_version_id", "element_order", name="uq_scene_script_elements_order"),
+        CheckConstraint("element_order >= 1", name="ck_scene_script_elements_positive_order"),
+        CheckConstraint(
+            "element_type IN ('action', 'dialogue', 'parenthetical', 'transition', 'production_note')",
+            name="ck_scene_script_elements_type",
+        ),
+        CheckConstraint(
+            "element_type != 'dialogue' OR character_id IS NOT NULL",
+            name="ck_scene_script_elements_dialogue_character",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    script_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scene_script_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    element_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    element_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    character_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("project_characters.id", ondelete="RESTRICT"), nullable=True)
+    character_name_snapshot: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
