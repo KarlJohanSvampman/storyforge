@@ -1526,8 +1526,9 @@ function App() {
       if (documentaryUploadDuration.trim()) body.append("duration_seconds", documentaryUploadDuration);
       const updated = await apiUpload<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/media`, body);
       setDocumentaryProduction(updated);
-      const latest = updated.media_assets[updated.media_assets.length - 1];
-      if (latest?.asset_type === "release_document") setReleaseDocumentAssetId(latest.id);
+      const previousAssetIds = new Set((documentaryProduction?.media_assets || []).map(asset => asset.id));
+      const newlyUploadedAsset = updated.media_assets.find(asset => !previousAssetIds.has(asset.id));
+      if (newlyUploadedAsset?.asset_type === "release_document") setReleaseDocumentAssetId(newlyUploadedAsset.id);
       setDocumentaryUploadTitle(""); setDocumentaryUploadType("document"); setDocumentaryUploadSourceId("");
       setDocumentaryUploadSessionId(""); setDocumentaryUploadDuration(""); setDocumentaryUploadFile(null);
       const input = document.getElementById("documentary-media-file") as HTMLInputElement | null;
