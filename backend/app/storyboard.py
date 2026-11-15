@@ -473,6 +473,8 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
     script_content = payload.content if payload.content is not None else render_elements()
     if not script_content.strip():
         raise HTTPException(status_code=422, detail="Script content cannot be blank.")
+    if len(script_content) > 50000:
+        raise HTTPException(status_code=422, detail="The rendered screenplay exceeds the 50,000-character limit.")
 
     version = SceneScriptVersion(
         scene_id=scene.id, revision_number=(latest.revision_number + 1 if latest else 1),
