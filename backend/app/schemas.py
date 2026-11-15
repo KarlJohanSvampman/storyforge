@@ -110,6 +110,7 @@ class ContributionRead(BaseModel):
     title: str
     status: str
     current_revision_number: int
+    current_revision_id: uuid.UUID
     current_body: str
     created_at: datetime
     updated_at: datetime
