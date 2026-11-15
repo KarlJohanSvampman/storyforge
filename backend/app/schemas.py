@@ -542,7 +542,7 @@ ScriptElementType = Literal["action", "dialogue", "parenthetical", "transition",
 
 class SceneScriptElementCreate(BaseModel):
     element_type: ScriptElementType
-    content: str = Field(min_length=1, max_length=10000)
+    content: str = Field(min_length=1, max_length=50000)
     character_id: uuid.UUID | None = None
 
     @field_validator("content")
@@ -589,6 +589,8 @@ class SceneScriptVersionCreate(BaseModel):
         has_elements = bool(self.elements)
         if has_text == has_elements:
             raise ValueError("Provide either plain-text content or a non-empty list of structured elements.")
+        if self.elements and sum(len(item.content) for item in self.elements) > 50000:
+            raise ValueError("Combined screenplay element text cannot exceed 50,000 characters.")
         return self
 
 
