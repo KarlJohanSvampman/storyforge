@@ -539,7 +539,7 @@ function App() {
                       <div><div className="section-kicker">CURRENT PROPOSAL</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
                         <p>Version {selectedDraftVersion?.version_number || latestDraftVersion.version_number} · {selectedDraftVersion?.origin === "manual" ? "Manually revised" : "Compiled proposal"} · {selectedDraftVersion?.author_display_name}</p>
                       </div>
-                      {canContribute && !editingDraft && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
+                      {canContribute && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
                     </div>
                     {editingDraft ? (
                       <form className="draft-editor" onSubmit={saveDraftRevision}>
@@ -556,11 +556,14 @@ function App() {
                     <div className="draft-provenance">
                       <div className="section-kicker">SOURCE PROVENANCE · {selectedDraftVersion?.sources.length || 0} REFERENCES</div>
                       {(selectedDraftVersion?.sources || []).map(source => (
-                        <div className="draft-provenance-row" key={source.id}>
-                          <span>{source.source_order.toString().padStart(2, "0")}</span>
-                          <strong>{source.source_title}</strong>
-                          <small>{source.source_kind === "accepted_suggestion" ? "Accepted suggestion" : "Contribution revision"}</small>
-                        </div>
+                        <details className="draft-provenance-item" key={source.id}>
+                          <summary className="draft-provenance-row">
+                            <span>{source.source_order.toString().padStart(2, "0")}</span>
+                            <strong>{source.source_title}</strong>
+                            <small>{source.source_kind === "accepted_suggestion" ? "Accepted suggestion" : "Contribution revision"}</small>
+                          </summary>
+                          <pre>{source.source_text_snapshot}</pre>
+                        </details>
                       ))}
                       <p className="muted-note">Each reference stores the exact source text snapshot as well as its contribution and revision identifiers.</p>
                     </div>
