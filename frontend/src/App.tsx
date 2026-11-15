@@ -539,28 +539,30 @@ function App() {
                     <div className="draft-source-picker">
                       <div className="section-kicker">SELECT ACTIVE CONTRIBUTIONS</div>
                       {contributions.filter(item => item.status === "active").map(item => (
-                        <label className="draft-source-option" key={item.id}>
-                          <input
-                            type="checkbox"
-                            checked={draftSourceIds.includes(item.current_revision_id)}
-                            onChange={event => setDraftSourceIds(current => event.target.checked
-                              ? [...current, item.current_revision_id]
-                              : current.filter(id => id !== item.current_revision_id))}
-                          />
-                          <span><strong>{item.title}</strong><small>{item.author_display_name} · revision {item.current_revision_number}</small></span>
-                        </label>
-                        {acceptedDraftSuggestions.filter(suggestion => suggestion.target_revision_id === item.current_revision_id).map(suggestion => (
-                          <label className="draft-suggestion-option" key={suggestion.id}>
+                        <div className="draft-source-group" key={item.id}>
+                          <label className="draft-source-option">
                             <input
                               type="checkbox"
-                              checked={selectedDraftSuggestionIds.includes(suggestion.id)}
-                              onChange={event => setSelectedDraftSuggestionIds(current => event.target.checked
-                                ? [...current, suggestion.id]
-                                : current.filter(id => id !== suggestion.id))}
+                              checked={draftSourceIds.includes(item.current_revision_id)}
+                              onChange={event => setDraftSourceIds(current => event.target.checked
+                                ? [...current, item.current_revision_id]
+                                : current.filter(id => id !== item.current_revision_id))}
                             />
-                            <span><strong>Include accepted suggestion: {suggestion.title}</strong><small>{suggestion.author_display_name}</small></span>
+                            <span><strong>{item.title}</strong><small>{item.author_display_name} · revision {item.current_revision_number}</small></span>
                           </label>
-                        ))}
+                          {acceptedDraftSuggestions.filter(suggestion => suggestion.target_revision_id === item.current_revision_id).map(suggestion => (
+                            <label className="draft-suggestion-option" key={suggestion.id}>
+                              <input
+                                type="checkbox"
+                                checked={selectedDraftSuggestionIds.includes(suggestion.id)}
+                                onChange={event => setSelectedDraftSuggestionIds(current => event.target.checked
+                                  ? [...current, suggestion.id]
+                                  : current.filter(id => id !== suggestion.id))}
+                              />
+                              <span><strong>Include accepted suggestion: {suggestion.title}</strong><small>{suggestion.author_display_name}</small></span>
+                            </label>
+                          ))}
+                        </div>
                       ))}
                       {contributions.every(item => item.status !== "active") && <p className="muted-note">Add an active contribution before compiling a draft.</p>}
                     </div>
