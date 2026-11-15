@@ -742,3 +742,60 @@ class DocumentaryClaimUsage(Base):
     reference_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Actor(Base):
+    """Persistent performer profile owned by a user, independent of any production."""
+    __tablename__ = "actors"
+    __table_args__ = (CheckConstraint("status IN ('active', 'archived')", name="ck_actors_status"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    biography: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    performance_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ProjectPerformanceSettings(Base):
+    """Project-level controller defaults and casting constraints."""
+    __tablename__ = "project_performance_settings"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_project_performance_settings_project"),
+        CheckConstraint("default_controller_type IN ('user', 'ai_agent', 'script_engine', 'system')", name="ck_performance_settings_controller"),
+        CheckConstraint("default_control_mode IN ('direct', 'command', 'assisted', 'autonomous', 'scripted')", name="ck_performance_settings_mode"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    default_controller_type: Mapped[str] = mapped_column(String(30), default="ai_agent", nullable=False)
+    default_control_mode: Mapped[str] = mapped_column(String(20), default="autonomous", nullable=False)
+    allow_actor_reuse: Mapped[bool] = mapped_column(default=True, nullable=False)
+    allow_character_recasting: Mapped[bool] = mapped_column(default=True, nullable=False)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class CastingAssignment(Base):
+    """Production-scoped link between one persistent Actor and one story Character."""
+    __tablename__ = "casting_assignments"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'ended', 'replaced')", name="ck_casting_assignments_status"),
+        CheckConstraint("controller_type IN ('user', 'ai_agent', 'script_engine', 'system')", name="ck_casting_assignments_controller"),
+        CheckConstraint("control_mode IN ('direct', 'command', 'assisted', 'autonomous', 'scripted')", name="ck_casting_assignments_mode"),
+        Index("uq_casting_assignments_active_character", "project_id", "character_id", unique=True, postgresql_where=text("status = 'active'"), sqlite_where=text("status = 'active'")),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False, index=True)
+    character_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("project_characters.id", ondelete="RESTRICT"), nullable=False, index=True)
+    role_label: Mapped[str] = mapped_column(String(100), default="Cast", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    controller_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    control_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    control_settings: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    assigned_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
