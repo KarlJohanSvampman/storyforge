@@ -298,13 +298,17 @@ def _validate_source_media_clearance(
         select(DocumentaryMediaAsset).where(
             DocumentaryMediaAsset.project_id == project_id,
             DocumentaryMediaAsset.source_id.in_(set(evidence_source_ids)),
-            DocumentaryMediaAsset.status == "active",
         )
     ).all()
     permission = _claim_usage_permission(usage_type)
     now = datetime.now(timezone.utc)
 
     for asset in assets:
+        if asset.status != "active":
+            raise HTTPException(
+                status_code=409,
+                detail=f'Media evidence "{asset.title}" is archived and cannot be used in new production material.',
+            )
         rights = _latest_rights(db, asset.id)
         if rights is None or rights.status != "active":
             raise HTTPException(
@@ -330,6 +334,11 @@ def _validate_source_media_clearance(
                     DocumentaryRelease.status == "signed",
                     DocumentaryRelease.scope_type.in_(("project", "production")),
                     DocumentaryRelease.signed_at.is_not(None),
+                    DocumentaryRelease.signed_at <= now,
+                    (
+                        DocumentaryRelease.interview_session_id.is_(None)
+                        | (DocumentaryRelease.interview_session_id == session.id)
+                    ),
                 )
             ).all()
             release_covers_use = any(
