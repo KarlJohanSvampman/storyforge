@@ -1003,6 +1003,136 @@ function App() {
     }
   }
 
+  async function createResearchSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !researchSourceTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: researchSourceTitle,
+          source_type: researchSourceType,
+          creator: researchSourceCreator,
+          publisher: researchSourcePublisher,
+          publication_date: researchSourceDate,
+          url: researchSourceUrl.trim() || null,
+          citation_text: researchSourceCitation,
+          research_notes: researchSourceNotes,
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createDocumentaryClaim(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !claimStatement.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims`, {
+        method: "POST",
+        body: JSON.stringify({ statement: claimStatement, context: claimContext, origin: claimOrigin }),
+      });
+      setDocumentaryResearch(updated);
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the factual claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addClaimEvidence(claim: DocumentaryClaim) {
+    if (!selectedProject || !evidenceSourceId) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/evidence`, {
+        method: "POST",
+        body: JSON.stringify({
+          source_id: evidenceSourceId,
+          evidence_relation: evidenceRelation,
+          excerpt: evidenceExcerpt,
+          locator: evidenceLocator,
+          notes: evidenceNotes,
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setEvidenceSourceId(""); setEvidenceRelation("supports");
+      setEvidenceExcerpt(""); setEvidenceLocator(""); setEvidenceNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link evidence to the claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitClaimReview(claim: DocumentaryClaim) {
+    if (!selectedProject || !reviewRationale.trim()) {
+      setError("Add a rationale before submitting a fact-check decision.");
+      return;
+    }
+    if (!window.confirm(`Record a human fact-check decision of “${reviewResult.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify({ result: reviewResult, rationale: reviewRationale }),
+      });
+      setDocumentaryResearch(updated);
+      setReviewRationale("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record the fact-check review.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateResearchSourceStatus(source: DocumentaryResearchSource, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} “${source.title}”? Existing claim citations will remain, but any current fact-check that relied on this source will need review.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources/${source.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateDocumentaryClaimStatus(claim: DocumentaryClaim, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} this claim? Its evidence and fact-check history will be preserved.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update documentary claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function showProjects() {
     setView("projects");
     setSelectedProject(null);
