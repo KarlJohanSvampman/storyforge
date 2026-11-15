@@ -114,8 +114,8 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Separate controller identity (user, AI agent, script engine, system) from control mode (direct, command, assisted, autonomous, scripted).
 - [x] Validate human controllers against active project membership and actor ownership before casting.
 - [x] Preserve casting history and prevent archiving actors with active assignments.
-- [ ] Add browser casting workspace and controller inspector.
-- [ ] Add further integration tests for ownership, project isolation, recasting, reuse policy, and controller validation.
+- [x] Add browser casting workspace, actor talent library, production cast, controller inspector, and project performance policy.
+- [ ] Expand integration coverage for ownership, project isolation, recasting, reuse policy, and controller validation.
 
 ### M2.1 — Scene runtime foundation
 - [ ] Create isolated SceneRuns and CastMemberInstances from approved casting assignments.
