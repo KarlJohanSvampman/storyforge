@@ -52,10 +52,14 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, permission, voting, rejection, approval, phase-lock, and persistence verification.
 
 ## M1 — Storyboard and creative assets
-- [ ] Convert an approved narrative into ordered scenes.
-- [ ] Define scene summaries, participants, requirements, and estimated duration.
-- [ ] Create basic character and location records.
-- [ ] Connect scenes to relevant story passages and script material.
+
+### M1.1 — Approved narrative storyboard foundation
+- [x] Initialize one storyboard from the exact narrative version that triggered the approved storyboard phase transition.
+- [x] Create and reorder scenes with summaries, production requirements, estimated duration, primary location, and participating story characters.
+- [x] Create and update project-level character and location story-bible records.
+- [x] Link scenes to exact excerpts from the immutable approved narrative, preserving offsets and excerpt snapshots.
+- [x] Add append-only, optimistic-concurrency-protected working script revisions per scene.
+- [ ] Local migration, API, permissions, passage-link, script revision, ordering, and persistence verification.
 
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.
