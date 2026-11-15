@@ -2014,7 +2014,7 @@ function App() {
                     {canEditDocumentaryResearch && (
                       <form className="documentary-form" onSubmit={submitDocumentaryRelease}>
                         <div className="documentary-form-row">
-                          <label>Subject<select required value={releaseSubjectId} onChange={event => setReleaseSubjectId(event.target.value)}>
+                          <label>Subject<select required value={releaseSubjectId} onChange={event => { setReleaseSubjectId(event.target.value); setReleaseSessionId(""); }}>
                             <option value="">Choose subject</option>
                             {documentaryProduction.subjects.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name_or_pseudonym}</option>)}
                           </select></label>
