@@ -76,3 +76,72 @@ def test_actor_cannot_be_archived_while_casting_is_active() -> None:
     assert cast.status_code == 201
     archived = client.patch(f"/api/actors/{actor['id']}", json={"status": "archived"})
     assert archived.status_code == 409
+
+
+def test_project_casting_policies_enforce_reuse_and_recasting() -> None:
+    client = TestClient(app)
+    project_id, first_character_id = _project_with_character("Casting policy integration")
+    second_character_id = str(uuid.uuid4())
+    with SessionLocal() as db:
+        project = db.scalar(select(Project).where(Project.id == uuid.UUID(project_id)))
+        db.add(ProjectCharacter(
+            id=uuid.UUID(second_character_id), project_id=project.id, name="Jon",
+            description="", visual_description="", personality_notes="",
+            status="active", created_by_user_id=project.owner_user_id,
+        ))
+        db.commit()
+
+    actor = client.post("/api/actors", json={"display_name": "One Role Actor"}).json()
+    settings = client.patch(
+        f"/api/projects/{project_id}/performance-settings",
+        json={"allow_actor_reuse": False, "allow_character_recasting": False},
+    )
+    assert settings.status_code == 200
+
+    first = client.post(
+        f"/api/projects/{project_id}/casting",
+        json={"actor_id": actor["id"], "character_id": first_character_id},
+    )
+    assert first.status_code == 201
+
+    # A different character cannot reuse the same actor when the policy is disabled.
+    reuse = client.post(
+        f"/api/projects/{project_id}/casting",
+        json={"actor_id": actor["id"], "character_id": second_character_id},
+    )
+    assert reuse.status_code == 409
+
+    # Replacing the same character is independently governed by the recasting policy.
+    replacement_actor = client.post("/api/actors", json={"display_name": "Replacement"}).json()
+    recast = client.post(
+        f"/api/projects/{project_id}/casting",
+        json={"actor_id": replacement_actor["id"], "character_id": first_character_id},
+    )
+    assert recast.status_code == 409
+
+
+def test_casting_rejects_blank_role_label_and_non_member_controller() -> None:
+    client = TestClient(app)
+    project_id, character_id = _project_with_character("Controller validation integration")
+    actor = client.post("/api/actors", json={"display_name": "Controller Test"}).json()
+
+    blank_role = client.post(
+        f"/api/projects/{project_id}/casting",
+        json={"actor_id": actor["id"], "character_id": character_id, "role_label": "   "},
+    )
+    assert blank_role.status_code == 422
+
+    foreign_user_id = uuid.uuid4()
+    invalid_controller = client.post(
+        f"/api/projects/{project_id}/casting",
+        json={"actor_id": actor["id"], "character_id": character_id, "controller_type": "user", "controller_user_id": str(foreign_user_id)},
+    )
+    assert invalid_controller.status_code == 422
+
+
+def test_actor_library_is_private_to_owner() -> None:
+    client = TestClient(app)
+    actor = client.post("/api/actors", json={"display_name": "Private Library Entry"}).json()
+    listed = client.get("/api/actors")
+    assert listed.status_code == 200
+    assert any(item["id"] == actor["id"] for item in listed.json())
