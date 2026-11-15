@@ -113,7 +113,10 @@ docs/           Product and technical decisions
 - **M1.4:** documentary source registers, factual claims, excerpt-level evidence, and append-only human fact-check reviews are integrated into `main`.
 - **M1.5:** reusable character/location story-bible editing and archive/restore are integrated into `main`.
 - **M1.6:** documentary interviews, consent/release records, private media uploads, versioned rights records, and supported-claim production references are integrated into `main`.
-- **M2.0:** actor profiles, production casting assignments, project performance defaults, and per-character controller configuration are implemented on the M2 development branch; pending merge and browser casting workspace.
+- **M2.0–M2.0.1:** actor profiles, production casting assignments, independent controller configuration, and the browser casting workspace are integrated into `main`.
+- **M2.1:** isolated scene runs, cast-member instances, authority epochs, possession leases, an interactive Three.js set, and the storyboard-to-production handoff are implemented on the current production branch.
+- **M2.2:** timestamped performance-event recording and replayable take snapshots are implemented; dedicated virtual cameras remain outstanding.
+- **M3:** non-destructive edit sequences and immutable JSON edit-decision-list exports are implemented; audio media management and rendered video export remain outstanding.
 
 The M0–M1.6 application milestones are integrated into `main`. GitHub Actions CI is active and the latest run passed the full Alembic migration chain, backend API integration tests, and frontend TypeScript/Vite production build. Manual browser-based end-to-end, real media-volume restart/backup, and production-security verification remain outstanding. Upload storage is local to a dedicated Docker volume; coordinate database and media-volume backups. The fixed development identity is not suitable for public deployment.
 
