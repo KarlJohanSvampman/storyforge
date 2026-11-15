@@ -340,17 +340,27 @@ def add_scene_passage(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Scene
     narrative = db.get(NarrativeDraftVersion, storyboard.narrative_version_id)
     if narrative is None:
         raise HTTPException(status_code=409, detail="The approved narrative source is unavailable.")
-    if payload.end_offset <= payload.start_offset or payload.end_offset > len(narrative.content):
-        raise HTTPException(status_code=422, detail="The passage offsets must select a non-empty range inside the approved narrative.")
-    snapshot = narrative.content[payload.start_offset:payload.end_offset]
-    if not snapshot.strip():
-        raise HTTPException(status_code=422, detail="The selected narrative range cannot contain only whitespace.")
+    if not payload.passage_text.strip():
+        raise HTTPException(status_code=422, detail="The selected narrative passage cannot be blank.")
+    # Find the requested occurrence using Python code-point offsets. The browser
+    # never supplies offsets, avoiding JavaScript UTF-16 / Python Unicode drift.
+    start_offset = -1
+    search_from = 0
+    for _ in range(payload.occurrence):
+        start_offset = narrative.content.find(payload.passage_text, search_from)
+        if start_offset < 0:
+            break
+        search_from = start_offset + 1
+    if start_offset < 0:
+        raise HTTPException(status_code=422, detail="The exact passage text was not found in the approved narrative. Copy it from the source panel and try again.")
+    end_offset = start_offset + len(payload.passage_text)
+    snapshot = narrative.content[start_offset:end_offset]
     next_order = (db.scalar(select(func.max(ScenePassageReference.reference_order)).where(
         ScenePassageReference.scene_id == scene.id,
     )) or 0) + 1
     db.add(ScenePassageReference(
         scene_id=scene.id, reference_order=next_order,
-        start_offset=payload.start_offset, end_offset=payload.end_offset,
+        start_offset=start_offset, end_offset=end_offset,
         passage_snapshot=snapshot, created_by_user_id=user.id,
     ))
     db.commit()
