@@ -114,7 +114,7 @@ docs/           Product and technical decisions
 - **M1.5:** reusable character/location story-bible editing and archive/restore are integrated into `main`.
 - **M1.6:** documentary interviews, consent/release records, private media uploads, versioned rights records, and supported-claim production references are integrated into `main`.
 
-The integration work is in the default branch, but the full migration, permission, persistence, browser, and production-security verification suite is still pending. The repository CI workflow is being added separately and must run successfully before calling the stack verified. Upload storage is local to a dedicated Docker volume; coordinate database and media-volume backups. The fixed development identity is not suitable for public deployment.
+The M0–M1.6 application milestones are integrated into `main`. GitHub Actions CI is active and the latest run passed the full Alembic migration chain, backend API integration tests, and frontend TypeScript/Vite production build. Manual browser-based end-to-end, real media-volume restart/backup, and production-security verification remain outstanding. Upload storage is local to a dedicated Docker volume; coordinate database and media-volume backups. The fixed development identity is not suitable for public deployment.
 
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
