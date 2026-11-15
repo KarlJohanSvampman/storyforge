@@ -1547,9 +1547,9 @@ function App() {
 
   function updateMediaRightsDraft(assetId: string, changes: Partial<DocumentaryMediaRightsDraft>) {
     setMediaRightsDrafts(current => {
-      const existing = current[assetId] || {
+      const existing: DocumentaryMediaRightsDraft = current[assetId] || {
         rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
-        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"] as DocumentaryConsentUse[],
+        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"],
         attribution_required: false, attribution_text: "", restrictions: "",
       };
       return { ...current, [assetId]: { ...existing, ...changes } };
@@ -1558,9 +1558,9 @@ function App() {
 
   function toggleMediaRightsUse(assetId: string, use: DocumentaryConsentUse) {
     setMediaRightsDrafts(current => {
-      const existing = current[assetId] || {
+      const existing: DocumentaryMediaRightsDraft = current[assetId] || {
         rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
-        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"] as DocumentaryConsentUse[],
+        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"],
         attribution_required: false, attribution_text: "", restrictions: "",
       };
       return {
