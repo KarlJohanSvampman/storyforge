@@ -1088,7 +1088,9 @@ function App() {
                   {!storyboard ? (
                     <div className="storyboard-empty">
                       <p>The narrative is approved. Initialize a storyboard anchored to that exact immutable version before adding scenes, characters or locations.</p>
-                      <button className="primary-button" type="button" disabled={loading} onClick={initializeStoryboard}><Clapperboard size={15} /> Initialize storyboard</button>
+                      {canContribute
+                        ? <button className="primary-button" type="button" disabled={loading} onClick={initializeStoryboard}><Clapperboard size={15} /> Initialize storyboard</button>
+                        : <p className="muted-note">A project owner, editor or contributor can initialize the storyboard. You have read-only access.</p>}
                     </div>
                   ) : (
                     <>
@@ -1182,6 +1184,7 @@ function App() {
                         {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
                         {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
                           const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          const edit = sceneEditDraft(scene);
                           return (
                             <article className="storyboard-scene-card" key={scene.id}>
                               <div className="storyboard-scene-heading">
@@ -1192,6 +1195,23 @@ function App() {
                               {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
                               {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
                               <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => <span key={character.id}>{character.name}</span>) : <small>None assigned</small>}</div>
+
+                              {canContribute && (
+                                <details className="scene-edit-panel">
+                                  <summary>Edit scene details</summary>
+                                  <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
+                                    <label>Scene title<input required maxLength={160} value={edit.title} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, title: event.target.value } }))} /></label>
+                                    <label>Summary<textarea rows={3} maxLength={10000} value={edit.summary} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, summary: event.target.value } }))} /></label>
+                                    <label>Production requirements<textarea rows={2} maxLength={10000} value={edit.requirements} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, requirements: event.target.value } }))} /></label>
+                                    <div className="storyboard-scene-form-row">
+                                      <label>Estimated duration (seconds)<input type="number" min="1" max="86400" value={edit.estimated_duration_seconds} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, estimated_duration_seconds: event.target.value } }))} /></label>
+                                      <label>Primary location<select value={edit.location_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, location_id: event.target.value } }))}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                    </div>
+                                    <label>Characters in this scene<select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={edit.character_ids} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, character_ids: Array.from(event.target.selectedOptions, option => option.value) } }))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                    <button className="secondary-button" type="submit" disabled={loading || !edit.title.trim()}>Save scene details</button>
+                                  </form>
+                                </details>
+                              )}
 
                               <div className="scene-passage-area">
                                 <div className="section-kicker">LINKED STORY PASSAGES · {scene.passages.length}</div>
