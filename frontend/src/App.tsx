@@ -2831,7 +2831,6 @@ function App() {
                   projectId={selectedProject.id}
                   phase={selectedProject.current_phase}
                   characters={storyboard.characters}
-                  members={selectedProject.members}
                   currentUserId={currentUser?.id || null}
                   canManage={myMembership?.status === "active" && (myMembership.role === "owner" || myMembership.role === "editor")}
                 />
