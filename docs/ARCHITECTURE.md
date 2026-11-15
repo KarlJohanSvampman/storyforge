@@ -39,7 +39,7 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 ## 4. Current entities
 
 - **User:** account identity.
-- **Project:** title, description, owner, current phase, visibility, timestamps.
+- **Project:** title, description, owner, current phase, visibility, timestamps, production format (movie or tv_series), and independent content category (fiction or documentary). Genre/subject is descriptive metadata and does not determine either dimension.
 - **ProjectMembership:** user, project, role, status.
 - **StoryContribution:** project, author, title, status, timestamps.
 - **ContributionRevision:** contribution, revision number, body, author, timestamp. Revisions are append-only.
@@ -53,10 +53,15 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeApprovalDecision:** one final approved/rejected decision per narrative version, including a snapshot of the rule and tally.
 - **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
 - **Storyboard:** one project storyboard permanently anchored to the exact narrative version approved to enter the storyboard phase.
-- **StoryboardScene:** ordered scene breakdown with summary, requirements, estimated duration, optional primary location, and working script history.
+- **StoryboardSeason / StoryboardEpisode:** ordered season and episode hierarchy belonging to a TV-series storyboard interpretation. Episode numbers are unique within a season; season numbers are unique within a storyboard. Archiving preserves their history and references.
+- **StoryboardScene:** ordered scene breakdown with summary, requirements, estimated duration, optional primary location, optional episode assignment for a TV series, and working script history. Movie scenes remain directly under the storyboard.
 - **ScenePassageReference:** exact excerpt reference into the approved narrative snapshot, retaining source offsets and passage text.
 - **SceneScriptVersion:** append-only revision history for script material attached to a scene.
 - **ProjectCharacter / ProjectLocation:** project-level story bible records describing fictional characters and locations. These are not actor profiles, casting engagements, or 3D production assets.
+- **DocumentaryResearchSource:** a project-level bibliographic/source record with creator, publisher, date, URL, citation, access timestamp, notes, and active/archived status.
+- **DocumentaryClaim:** one discrete factual proposition, with human or AI-assisted origin and a current fact-check state.
+- **DocumentaryClaimEvidence:** a link from one claim to one source, recording whether the source supports, challenges, or contextualises the claim, plus an exact excerpt and page/section/timecode locator.
+- **DocumentaryClaimReview:** append-only human review event recording the result, rationale, reviewer, and snapshot of all active evidence considered at that time.
 - **SceneCharacterAssignment:** explicit list of which story characters participate in each scene.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
@@ -119,6 +124,46 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Project character and location records are lightweight story-bible entities. They are distinct from performer/actor identity, casting, built 3D sets, props, or media assets.
 - Owners, editors, and contributors may edit while the project is in `storyboard`; viewers are read-only. API permissions are authoritative. The API blocks storyboard writes once the project advances beyond that phase.
 - Character and location records can be archived without deleting them or breaking existing scene references. Scene and script history is retained; scenes are reordered rather than destructively rewritten.
+
+### M1.2 structured screenplay contract
+
+- A scene can have append-only script revisions. M1.1 plain-text revisions remain valid and readable; new revisions may contain either legacy plain text or a structured ordered list of screenplay elements.
+- Supported element types are `action`, `dialogue`, `parenthetical`, `transition`, and `production_note`. Each element stores its explicit order and content.
+- A dialogue element must identify the speaking story character. A parenthetical may optionally identify a character. Any referenced character must be active, belong to the same project, and already be assigned to the scene.
+- Structured revisions store both the individual elements and a deterministic plain-text rendering for preview and downstream compatibility. The character's name is snapshotted into the element at save time so renaming the story character cannot change historical script meaning.
+- A script revision is immutable. The client supplies the latest `base_version_id`; a stale save receives HTTP 409. Every newly saved structured screenplay creates a new revision and never mutates an earlier revision.
+- A legacy plain-text script can be opened in the structured editor as one initial action block. Saving it creates a new structured revision; the original plain-text revision remains unchanged.
+- Screenplay character references identify fictional roles only. They do not select or hire a performer, create a casting contract, or imply a human/AI control mode.
+
+### M1.3 project format and category contract
+
+- Project format and content category are separate, orthogonal fields. Supported formats are movie and tv_series; supported categories are fiction and documentary. Existing projects migrate to movie + fiction.
+- Genre remains descriptive metadata. For fiction it can hold genre labels; for documentaries it can hold subject areas such as history, nature, science, or current affairs. It must not be used to infer project format or category.
+- A TV-series storyboard contains ordered seasons, each containing ordered episodes. Episodes carry their own title, logline, synopsis, and estimated runtime. Scenes and their screenplay revisions belong to one episode; scene order is scoped to that episode.
+- Movie projects retain the existing storyboard and project-level scene sequence. Their scene episode_id is null.
+- Project format cannot be switched after a storyboard has been initialized, because doing so would invalidate the scene hierarchy. Content category remains editable as project metadata.
+- Documentary is a first-class category for either format, not a genre or separate format. M1.4 adds project-level research sources, claim-to-source evidence links, and append-only human fact-check reviews. Interview records, releases, archival-media provenance, rights/permissions, and source-file storage remain later work. AI-assisted claims remain unreviewed until a person submits a fact-check decision.
+### M1.4 documentary research and fact-checking contract
+
+- Documentary research is project-level and independent of storyboard initialization. It is available to both documentary movies and documentary series, including during contributions, development, storyboard, and production phases. Published projects are read-only.
+- A source access timestamp may be entered by the researcher; if omitted, the server records when the source entry was created. It is a recorded access/registration time, not proof that the source itself was retrieved by StoryForge.
+- Research sources store bibliographic identity, source type, creator/author, publisher/holding institution, publication date, URL, citation text, research notes, and an access timestamp supplied by the researcher or defaulted to source-entry creation time. A source is a reference record; M1.4 does not download, crawl, or preserve the source document itself.
+- Factual claims are discrete statements. Their origin is recorded as human-authored or AI-assisted. Both begin unreviewed; an AI-assisted claim cannot mark itself supported or verified.
+- Evidence links identify one source and an explicit relationship: supports, challenges, or context. They retain the exact excerpt supplied by the researcher and a page, section, table, or timecode locator. Evidence links are append-only in this initial slice.
+- Fact-check results are supported, contested, not_supported, or insufficient_evidence. Supported requires at least one active supporting source; contested requires both supporting and challenging evidence; not_supported requires at least one active challenging source. Insufficient evidence may be recorded when the available sources do not support a stronger conclusion.
+- Each review is a human-authored append-only event with reviewer identity, rationale, and a snapshot of active source metadata and linked excerpts. The claim's current status points to the latest review.
+- Adding evidence or changing/archiving a cited source moves a previously reviewed claim to needs_review. The earlier review event and its evidence snapshot remain unchanged. A later human review is required to establish a current result.
+- Claims are not edited in place in this slice. To materially change a claim's wording, archive it and create a new claim so an earlier review cannot silently be carried over to a different proposition. Claims and sources are archived rather than deleted.
+- The initial register supports URLs and manually entered citations/excerpts only. Source file uploads, automated source retrieval, interview releases, participant consent, archival-media rights/licensing, and claim-to-scene/script integration are subsequent work.
+### M1.5 project story-bible management contract
+
+- ProjectCharacter and ProjectLocation are project-level story-bible entities, not storyboard-scoped assets. They remain available across later storyboard interpretations for the same project.
+- Owners, editors, and contributors may update a character's name, story description, visual description, and personality notes, or archive/restore the character. Location profiles similarly support name, environment type, time period, description, visual notes, and archive/restore.
+- Archiving never deletes the record or removes its existing scene references. Archived characters remain visible as existing scene participants, and archived locations remain visible as existing scene locations.
+- Archived characters and locations cannot be newly added to scenes. While editing an existing scene, unchanged archived references may be retained so unrelated scene edits do not fail; the user may explicitly remove them. A removed archived participant cannot be newly assigned again unless restored.
+- New screenplay dialogue must refer to active characters assigned to that scene. Existing immutable screenplay revisions and their character-name snapshots remain unchanged when a character is renamed or archived.
+- Renaming a character updates current scene-participant labels, but does not rewrite saved screenplay text or its name snapshots. Renaming a location updates the current location label in scenes that reference it.
+- Story-bible writes obey the existing storyboard-phase permission boundary. Viewers are read-only; all edits and archive/restore actions are blocked once the project leaves the storyboard phase.
 
 ## 7. Later production and publication data
 

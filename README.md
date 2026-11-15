@@ -64,10 +64,14 @@ Not every project must use every phase. Projects should be able to skip or revis
 
 ### M1 — Storyboard and creative assets
 
+- Create projects as movies or TV series, independently classified as fiction or documentary.
+- For TV series, organise work into seasons and episodes, with each episode owning its own scenes and screenplay.
 - Convert an approved story into ordered scenes.
 - Define scene summaries, participants, requirements, and estimated duration.
-- Create basic character and location records.
+- Create and maintain reusable character and location story-bible records, with profile editing and archive/restore controls.
 - Connect scenes to relevant story passages and script material.
+
+Documentary is a first-class category for either a movie or a series. The research workspace now records sources, factual claims, claim-level evidence excerpts, and append-only human fact-check decisions. Interview releases, archival-media rights, source-file storage, and claim-to-scene/script integration remain planned work.
 
 ### M2 — Basic virtual production
 
@@ -110,6 +114,7 @@ docs/           Product and technical decisions
 - **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`.
 - **M0.6:** owner-only or majority approval rules, append-only vote history, immutable version decisions, and approval-gated storyboard phase progression are implemented on `feature/m0-6-approval-and-phase-progression`. Local migration and end-to-end verification are the next step.
 - **M1.1:** approved-narrative storyboard initialization, ordered scenes, character/location story-bible records, exact narrative passage links, and append-only per-scene script revisions are implemented on `feature/m1-1-storyboard-foundation`. Local migration and end-to-end verification are pending.
+- **M1.2:** structured screenplay revisions with ordered action, dialogue, parenthetical, transition, and production-note blocks; scene-bound speaker attribution; readable rendering; and legacy text compatibility are implemented on `feature/m1-2-structured-screenplay`. Local migration and end-to-end verification are pending.
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
 

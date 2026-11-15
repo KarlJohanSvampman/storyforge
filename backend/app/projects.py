@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from .database import get_db
-from .models import Project, ProjectMembership, User
+from .models import Project, ProjectMembership, Storyboard, User
 from .schemas import InvitationCreate, MemberRead, ProjectCreate, ProjectDetail, ProjectRead, ProjectUpdate
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -51,7 +51,7 @@ def _project_read(db: Session, project: Project) -> ProjectRead:
     )) or 0
     return ProjectRead(
         id=project.id, title=project.title, description=project.description,
-        logline=project.logline, genre=project.genre, visibility=project.visibility,
+        logline=project.logline, genre=project.genre, format=project.format, category=project.category, visibility=project.visibility,
         current_phase=project.current_phase, owner_user_id=project.owner_user_id,
         created_at=project.created_at, updated_at=project.updated_at, member_count=count,
     )
@@ -71,7 +71,7 @@ def create_project(payload: ProjectCreate, db: DbSession, user: CurrentUser):
         raise HTTPException(status_code=422, detail="Project title cannot be blank.")
     project = Project(
         title=payload.title, description=payload.description, logline=payload.logline,
-        genre=payload.genre, visibility=payload.visibility, owner_user_id=user.id,
+        genre=payload.genre, format=payload.format, category=payload.category, visibility=payload.visibility, owner_user_id=user.id,
     )
     db.add(project)
     db.flush()
@@ -103,7 +103,15 @@ def update_project(project_id: uuid.UUID, payload: ProjectUpdate, db: DbSession,
     membership = _membership(db, project.id, user.id)
     if membership.role not in ("owner", "editor"):
         raise HTTPException(status_code=403, detail="You do not have permission to edit this project.")
-    for key, value in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    if "format" in values and values["format"] != project.format:
+        existing_storyboard = db.scalar(select(Storyboard.id).where(Storyboard.project_id == project.id).limit(1))
+        if existing_storyboard is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Project format cannot be changed after a storyboard has been initialized. Create a new project for a different production format.",
+            )
+    for key, value in values.items():
         if value is not None:
             setattr(project, key, value)
     db.commit()

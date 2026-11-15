@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 Visibility = Literal["private", "unlisted", "public"]
+ProjectFormat = Literal["movie", "tv_series"]
+ProjectCategory = Literal["fiction", "documentary"]
 MemberRole = Literal["editor", "contributor", "viewer"]
 
 
@@ -12,6 +14,8 @@ class ProjectCreate(BaseModel):
     description: str = Field(default="", max_length=10000)
     logline: str = Field(default="", max_length=500)
     genre: str = Field(default="", max_length=80)
+    format: ProjectFormat = "movie"
+    category: ProjectCategory = "fiction"
     visibility: Visibility = "private"
 
     @field_validator("title")
@@ -25,6 +29,8 @@ class ProjectUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=10000)
     logline: str | None = Field(default=None, max_length=500)
     genre: str | None = Field(default=None, max_length=80)
+    format: ProjectFormat | None = None
+    category: ProjectCategory | None = None
     visibility: Visibility | None = None
 
     @field_validator("title")
@@ -40,6 +46,8 @@ class ProjectRead(BaseModel):
     description: str
     logline: str
     genre: str
+    format: ProjectFormat
+    category: ProjectCategory
     visibility: str
     current_phase: str
     owner_user_id: uuid.UUID
@@ -474,6 +482,7 @@ class StoryboardSceneCreate(BaseModel):
     requirements: str = Field(default="", max_length=10000)
     estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     location_id: uuid.UUID | None = None
+    episode_id: uuid.UUID | None = None
     character_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
 
     @field_validator("title", "summary", "requirements")
@@ -495,6 +504,7 @@ class StoryboardSceneUpdate(BaseModel):
     requirements: str | None = Field(default=None, max_length=10000)
     estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     location_id: uuid.UUID | None = None
+    episode_id: uuid.UUID | None = None
     character_ids: list[uuid.UUID] | None = Field(default=None, max_length=50)
 
     @field_validator("title", "summary", "requirements")
@@ -511,6 +521,7 @@ class StoryboardSceneUpdate(BaseModel):
 
 
 class SceneReorder(BaseModel):
+    episode_id: uuid.UUID | None = None
     scene_ids: list[uuid.UUID] = Field(max_length=200)
 
 
@@ -537,14 +548,61 @@ class ScenePassageRead(BaseModel):
     created_at: datetime
 
 
-class SceneScriptVersionCreate(BaseModel):
-    base_version_id: uuid.UUID | None = None
+ScriptElementType = Literal["action", "dialogue", "parenthetical", "transition", "production_note"]
+
+
+class SceneScriptElementCreate(BaseModel):
+    element_type: ScriptElementType
     content: str = Field(min_length=1, max_length=50000)
+    character_id: uuid.UUID | None = None
 
     @field_validator("content")
     @classmethod
-    def clean_script_content(cls, value: str) -> str:
+    def clean_element_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Script element content cannot be blank.")
         return value.strip()
+
+    @model_validator(mode="after")
+    def validate_character_assignment(self):
+        if self.element_type == "dialogue" and self.character_id is None:
+            raise ValueError("Dialogue elements must identify the speaking character.")
+        if self.element_type in ("action", "transition", "production_note") and self.character_id is not None:
+            raise ValueError("Only dialogue and parenthetical elements may reference a character.")
+        return self
+
+
+class SceneScriptElementRead(BaseModel):
+    id: uuid.UUID
+    element_order: int
+    element_type: ScriptElementType
+    content: str
+    character_id: uuid.UUID | None
+    character_name: str | None
+    created_at: datetime
+
+
+class SceneScriptVersionCreate(BaseModel):
+    base_version_id: uuid.UUID | None = None
+    content: str | None = Field(default=None, min_length=1, max_length=50000)
+    elements: list[SceneScriptElementCreate] | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("content")
+    @classmethod
+    def clean_script_content(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Script content cannot be blank.")
+        return value.strip() if value is not None else None
+
+    @model_validator(mode="after")
+    def require_one_script_representation(self):
+        has_text = self.content is not None
+        has_elements = bool(self.elements)
+        if has_text == has_elements:
+            raise ValueError("Provide either plain-text content or a non-empty list of structured elements.")
+        if self.elements and sum(len(item.content) for item in self.elements) > 50000:
+            raise ValueError("Combined screenplay element text cannot exceed 50,000 characters.")
+        return self
 
 
 class SceneScriptVersionRead(BaseModel):
@@ -555,6 +613,7 @@ class SceneScriptVersionRead(BaseModel):
     author_user_id: uuid.UUID
     author_display_name: str
     created_at: datetime
+    elements: list[SceneScriptElementRead] = Field(default_factory=list)
 
 
 class SceneCharacterRead(BaseModel):
@@ -562,6 +621,114 @@ class SceneCharacterRead(BaseModel):
     name: str
     role_label: str
     notes: str
+
+
+class StoryboardEpisodeCreate(BaseModel):
+    episode_number: int = Field(ge=1, le=1000)
+    title: str = Field(min_length=1, max_length=160)
+    logline: str = Field(default="", max_length=500)
+    synopsis: str = Field(default="", max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+
+    @field_validator("title", "logline", "synopsis")
+    @classmethod
+    def clean_episode_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_episode_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
+
+
+class StoryboardEpisodeUpdate(BaseModel):
+    episode_number: int | None = Field(default=None, ge=1, le=1000)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    logline: str | None = Field(default=None, max_length=500)
+    synopsis: str | None = Field(default=None, max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "logline", "synopsis")
+    @classmethod
+    def clean_episode_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_episode_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
+
+
+class StoryboardEpisodeRead(BaseModel):
+    id: uuid.UUID
+    season_id: uuid.UUID
+    episode_number: int
+    title: str
+    logline: str
+    synopsis: str
+    estimated_duration_seconds: int | None
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class StoryboardSeasonCreate(BaseModel):
+    season_number: int = Field(ge=1, le=100)
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=10000)
+    story_arc: str = Field(default="", max_length=10000)
+
+    @field_validator("title", "description", "story_arc")
+    @classmethod
+    def clean_season_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_season_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
+
+
+class StoryboardSeasonUpdate(BaseModel):
+    season_number: int | None = Field(default=None, ge=1, le=100)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=10000)
+    story_arc: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "description", "story_arc")
+    @classmethod
+    def clean_season_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_season_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
+
+
+class StoryboardSeasonRead(BaseModel):
+    id: uuid.UUID
+    storyboard_id: uuid.UUID
+    season_number: int
+    title: str
+    description: str
+    story_arc: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    episodes: list[StoryboardEpisodeRead] = Field(default_factory=list)
 
 
 class StoryboardSceneRead(BaseModel):
@@ -573,6 +740,10 @@ class StoryboardSceneRead(BaseModel):
     estimated_duration_seconds: int | None
     location_id: uuid.UUID | None
     location_name: str | None
+    episode_id: uuid.UUID | None
+    episode_title: str | None
+    season_number: int | None
+    episode_number: int | None
     characters: list[SceneCharacterRead] = Field(default_factory=list)
     passages: list[ScenePassageRead] = Field(default_factory=list)
     script_versions: list[SceneScriptVersionRead] = Field(default_factory=list)
@@ -592,5 +763,192 @@ class StoryboardDetail(BaseModel):
     created_by_user_id: uuid.UUID
     created_at: datetime
     scenes: list[StoryboardSceneRead] = Field(default_factory=list)
+    seasons: list[StoryboardSeasonRead] = Field(default_factory=list)
     characters: list[CharacterRead] = Field(default_factory=list)
     locations: list[LocationRead] = Field(default_factory=list)
+
+
+DocumentarySourceType = Literal[
+    "article", "book", "academic_paper", "official_record",
+    "government_data", "interview", "archival_record", "website", "other",
+]
+DocumentaryEvidenceRelation = Literal["supports", "challenges", "context"]
+DocumentaryReviewResult = Literal["supported", "contested", "not_supported", "insufficient_evidence"]
+
+
+class DocumentarySourceCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    source_type: DocumentarySourceType = "article"
+    creator: str = Field(default="", max_length=500)
+    publisher: str = Field(default="", max_length=240)
+    publication_date: str = Field(default="", max_length=80)
+    url: str | None = Field(default=None, max_length=2048)
+    accessed_at: datetime | None = None
+    citation_text: str = Field(default="", max_length=10000)
+    research_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("title", "creator", "publisher", "publication_date", "citation_text", "research_notes")
+    @classmethod
+    def clean_source_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_source_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Source title cannot be blank.")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        cleaned = value.strip() if value else None
+        if cleaned and not cleaned.startswith(("https://", "http://")):
+            raise ValueError("Source URLs must begin with http:// or https://.")
+        return cleaned
+
+
+class DocumentarySourceUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    source_type: DocumentarySourceType | None = None
+    creator: str | None = Field(default=None, max_length=500)
+    publisher: str | None = Field(default=None, max_length=240)
+    publication_date: str | None = Field(default=None, max_length=80)
+    url: str | None = Field(default=None, max_length=2048)
+    citation_text: str | None = Field(default=None, max_length=10000)
+    research_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "creator", "publisher", "publication_date", "citation_text", "research_notes")
+    @classmethod
+    def clean_source_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_source_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Source title cannot be blank.")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_source_update_url(cls, value: str | None) -> str | None:
+        cleaned = value.strip() if value else None
+        if cleaned and not cleaned.startswith(("https://", "http://")):
+            raise ValueError("Source URLs must begin with http:// or https://.")
+        return cleaned
+
+
+class DocumentarySourceRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    source_type: DocumentarySourceType
+    creator: str
+    publisher: str
+    publication_date: str
+    url: str | None
+    citation_text: str
+    research_notes: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    accessed_at: datetime
+
+
+class DocumentaryClaimCreate(BaseModel):
+    statement: str = Field(min_length=1, max_length=5000)
+    context: str = Field(default="", max_length=10000)
+    origin: Literal["human", "ai_assisted"] = "human"
+
+    @field_validator("statement", "context")
+    @classmethod
+    def clean_claim_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("statement")
+    @classmethod
+    def require_claim_statement(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Claim statement cannot be blank.")
+        return value
+
+
+class DocumentaryClaimUpdate(BaseModel):
+    status: Literal["active", "archived"]
+
+
+class DocumentaryClaimEvidenceCreate(BaseModel):
+    source_id: uuid.UUID
+    evidence_relation: DocumentaryEvidenceRelation
+    excerpt: str = Field(default="", max_length=12000)
+    locator: str = Field(default="", max_length=240)
+    notes: str = Field(default="", max_length=5000)
+
+    @field_validator("excerpt", "locator", "notes")
+    @classmethod
+    def clean_evidence_fields(cls, value: str) -> str:
+        return value.strip()
+
+
+class DocumentaryClaimReviewCreate(BaseModel):
+    result: DocumentaryReviewResult
+    rationale: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("rationale")
+    @classmethod
+    def require_review_rationale(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("A review rationale is required.")
+        return cleaned
+
+
+class DocumentaryClaimEvidenceRead(BaseModel):
+    id: uuid.UUID
+    source_id: uuid.UUID
+    source_title: str
+    source_type: DocumentarySourceType
+    source_url: str | None
+    source_status: str
+    evidence_relation: DocumentaryEvidenceRelation
+    excerpt: str
+    locator: str
+    notes: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class DocumentaryClaimReviewRead(BaseModel):
+    id: uuid.UUID
+    previous_status: str
+    result: DocumentaryReviewResult
+    rationale: str
+    reviewed_evidence_snapshot: list[dict]
+    reviewer_user_id: uuid.UUID
+    reviewer_display_name: str
+    created_at: datetime
+
+
+class DocumentaryClaimRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    statement: str
+    context: str
+    origin: Literal["human", "ai_assisted"]
+    status: str
+    current_review_status: str
+    created_by_user_id: uuid.UUID
+    created_by_display_name: str
+    created_at: datetime
+    updated_at: datetime
+    evidence: list[DocumentaryClaimEvidenceRead] = Field(default_factory=list)
+    reviews: list[DocumentaryClaimReviewRead] = Field(default_factory=list)
+
+
+class DocumentaryResearchOverview(BaseModel):
+    project_id: uuid.UUID
+    sources: list[DocumentarySourceRead] = Field(default_factory=list)
+    claims: list[DocumentaryClaimRead] = Field(default_factory=list)

@@ -62,6 +62,47 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add append-only, optimistic-concurrency-protected working script revisions per scene.
 - [ ] Local migration, API, permissions, passage-link, script revision, ordering, and persistence verification.
 
+### M1.2 — Structured screenplay
+- [x] Represent each scene script revision as ordered action, dialogue, parenthetical, transition, and production-note elements.
+- [x] Attribute dialogue to an active story character assigned to the scene, preserving the character-name snapshot in each immutable revision.
+- [x] Render structured blocks into a readable screenplay while preserving the typed element records.
+- [x] Edit, add, remove, and reorder screenplay blocks in the browser.
+- [x] Keep M1.1 plain-text script revisions readable and support converting them into a new structured revision without changing the original.
+- [ ] Local migration, screenplay validation, speaker assignment, revision concurrency, and persistence verification.
+
+### M1.3 — Project formats and TV-series structure
+- [x] Add independent project format (movie, tv_series) and content category (fiction, documentary) fields with backward-compatible defaults.
+- [x] Add TV-series seasons and episodes within each storyboard interpretation.
+- [x] Attach each TV-series scene to an episode and scope scene ordering to that episode.
+- [x] Preserve existing movie scenes as project-level scenes with no episode assignment.
+- [x] Add browser workflows to create seasons/episodes and archive/restore them without deleting scene or script history.
+- [ ] Local migration, API permissions, movie compatibility, series hierarchy, scene assignment, ordering, and persistence verification.
+
+### M1.4 — Documentary research and claim-level fact-checking
+- [x] Add a documentary source register with bibliographic metadata, URLs, citations, access timestamps, notes, and archive/restore controls.
+- [x] Add discrete documentary claims with human/AI-assisted origin labels.
+- [x] Link claims to exact supporting, challenging, or contextual evidence excerpts with page/section/timecode locators.
+- [x] Add append-only human review decisions with rationale, reviewer identity, and evidence snapshots.
+- [x] Invalidate a current fact-check when evidence is added or a cited source is changed/archived, preserving prior review history.
+- [x] Enforce source/evidence requirements for supported, contested, and not-supported outcomes.
+- [ ] Local migration, API permission, source/evidence integrity, review invalidation, and persistence verification.
+
+### M1.5 — Reusable story-bible management
+- [x] Edit character profiles: name, story description, visual description, and personality notes.
+- [x] Edit location profiles: name, environment type, time period, description, and visual notes.
+- [x] Archive and restore characters and locations without deleting their project-level records.
+- [x] Preserve existing scene references and script history when a character or location is archived.
+- [x] Keep archived existing references editable on their scenes while blocking new assignments until restored.
+- [x] Keep screenplay name snapshots immutable when story-bible character names change.
+- [ ] Local UI/API permission, existing-reference, archive/restore, name-snapshot, and persistence verification.
+
+### M1.6 — Documentary interviews, media and rights (planned)
+- [ ] Add interview subject and interview-session records, including interviewer, date, transcript/media references, and notes.
+- [ ] Track signed releases, consent scope, withdrawal terms, and permitted usage by release/production.
+- [ ] Add archival-media provenance, ownership/rights holder, licence, territory, duration, and permitted-use records.
+- [ ] Support source-file uploads and immutable file metadata/checksums with controlled access.
+- [ ] Link verified claims into documentary outlines, scenes, scripts, narration, and lower-third/caption references.
+
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.
 - [ ] Provide virtual cameras and basic character performance recording.

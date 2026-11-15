@@ -7,8 +7,11 @@ import {
 
 type ApiHealth = { status: string; service: string; version: string };
 type CurrentUser = { id: string; display_name: string; email: string };
+type ProjectFormat = "movie" | "tv_series";
+type ProjectCategory = "fiction" | "documentary";
 type Project = {
   id: string; title: string; description: string; logline: string; genre: string;
+  format: ProjectFormat; category: ProjectCategory;
   visibility: string; current_phase: string; owner_user_id: string;
   created_at: string; updated_at: string; member_count: number;
 };
@@ -17,7 +20,7 @@ type Member = {
   invited_email: string | null; role: string; status: string; created_at: string;
 };
 type ProjectDetail = Project & { members: Member[] };
-type ProjectForm = { title: string; logline: string; genre: string; description: string; visibility: string };
+type ProjectForm = { title: string; logline: string; genre: string; description: string; format: ProjectFormat; category: ProjectCategory; visibility: string };
 type Contribution = {
   id: string; project_id: string; author_user_id: string; author_display_name: string;
   title: string; status: string; current_revision_number: number; current_revision_id: string; current_body: string;
@@ -92,18 +95,45 @@ type ProjectLocation = {
   environment_type: string; time_period: string; visual_notes: string; status: string;
   created_by_user_id: string; created_at: string; updated_at: string;
 };
+type CharacterEditDraft = {
+  name: string; description: string; visual_description: string; personality_notes: string;
+};
+type LocationEditDraft = {
+  name: string; description: string; environment_type: string; time_period: string; visual_notes: string;
+};
+type StoryboardEpisode = {
+  id: string; season_id: string; episode_number: number; title: string;
+  logline: string; synopsis: string; estimated_duration_seconds: number | null;
+  status: string; created_by_user_id: string; created_at: string; updated_at: string;
+};
+type StoryboardSeason = {
+  id: string; storyboard_id: string; season_number: number; title: string;
+  description: string; story_arc: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+  episodes: StoryboardEpisode[];
+};
 type ScenePassage = {
   id: string; reference_order: number; start_offset: number; end_offset: number;
   passage_snapshot: string; created_by_user_id: string; created_at: string;
 };
+type ScriptElementType = "action" | "dialogue" | "parenthetical" | "transition" | "production_note";
+type SceneScriptElement = {
+  id: string; element_order: number; element_type: ScriptElementType; content: string;
+  character_id: string | null; character_name: string | null; created_at: string;
+};
+type SceneScriptElementDraft = {
+  element_type: ScriptElementType; content: string; character_id: string;
+};
 type SceneScriptVersion = {
   id: string; revision_number: number; content: string; parent_version_id: string | null;
   author_user_id: string; author_display_name: string; created_at: string;
+  elements: SceneScriptElement[];
 };
 type SceneCharacter = { id: string; name: string; role_label: string; notes: string };
 type StoryboardScene = {
   id: string; scene_order: number; title: string; summary: string; requirements: string;
   estimated_duration_seconds: number | null; location_id: string | null; location_name: string | null;
+  episode_id: string | null; episode_title: string | null; season_number: number | null; episode_number: number | null;
   characters: SceneCharacter[]; passages: ScenePassage[]; script_versions: SceneScriptVersion[];
   created_by_user_id: string; created_at: string; updated_at: string;
 };
@@ -111,11 +141,41 @@ type Storyboard = {
   id: string; project_id: string; title: string; narrative_version_id: string;
   narrative_version_number: number; narrative_title: string; narrative_content: string;
   created_by_user_id: string; created_at: string;
-  scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
+  scenes: StoryboardScene[]; seasons: StoryboardSeason[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
 };
 type SceneEditDraft = {
   title: string; summary: string; requirements: string;
-  estimated_duration_seconds: string; location_id: string; character_ids: string[];
+  estimated_duration_seconds: string; location_id: string; episode_id: string; character_ids: string[];
+};
+
+type DocumentarySourceType = "article" | "book" | "academic_paper" | "official_record" | "government_data" | "interview" | "archival_record" | "website" | "other";
+type DocumentaryEvidenceRelation = "supports" | "challenges" | "context";
+type DocumentaryReviewResult = "supported" | "contested" | "not_supported" | "insufficient_evidence";
+type DocumentaryResearchSource = {
+  id: string; project_id: string; title: string; source_type: DocumentarySourceType;
+  creator: string; publisher: string; publication_date: string; url: string | null;
+  citation_text: string; research_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string; accessed_at: string;
+};
+type DocumentaryClaimEvidence = {
+  id: string; source_id: string; source_title: string; source_type: DocumentarySourceType;
+  source_url: string | null; source_status: string; evidence_relation: DocumentaryEvidenceRelation;
+  excerpt: string; locator: string; notes: string; created_by_user_id: string; created_at: string;
+};
+type DocumentaryClaimReview = {
+  id: string; previous_status: string; result: DocumentaryReviewResult; rationale: string;
+  reviewed_evidence_snapshot: Array<Record<string, string | null>>;
+  reviewer_user_id: string; reviewer_display_name: string; created_at: string;
+};
+type DocumentaryClaim = {
+  id: string; project_id: string; statement: string; context: string;
+  origin: "human" | "ai_assisted"; status: string; current_review_status: string;
+  created_by_user_id: string; created_by_display_name: string;
+  created_at: string; updated_at: string;
+  evidence: DocumentaryClaimEvidence[]; reviews: DocumentaryClaimReview[];
+};
+type DocumentaryResearch = {
+  project_id: string; sources: DocumentaryResearchSource[]; claims: DocumentaryClaim[];
 };
 
 const phases = [
@@ -125,7 +185,7 @@ const phases = [
   { number: "04", title: "Bring it to life", detail: "Cast, perform, direct and edit.", icon: Film, state: "upcoming" },
 ];
 
-const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", visibility: "private" };
+const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", format: "movie", category: "fiction", visibility: "private" };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -155,10 +215,34 @@ function App() {
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [documentaryResearch, setDocumentaryResearch] = useState<DocumentaryResearch | null>(null);
+  const [researchSourceTitle, setResearchSourceTitle] = useState("");
+  const [researchSourceType, setResearchSourceType] = useState<DocumentarySourceType>("article");
+  const [researchSourceCreator, setResearchSourceCreator] = useState("");
+  const [researchSourcePublisher, setResearchSourcePublisher] = useState("");
+  const [researchSourceDate, setResearchSourceDate] = useState("");
+  const [researchSourceAccessedAt, setResearchSourceAccessedAt] = useState("");
+  const [researchSourceUrl, setResearchSourceUrl] = useState("");
+  const [researchSourceCitation, setResearchSourceCitation] = useState("");
+  const [researchSourceNotes, setResearchSourceNotes] = useState("");
+  const [claimStatement, setClaimStatement] = useState("");
+  const [claimContext, setClaimContext] = useState("");
+  const [claimOrigin, setClaimOrigin] = useState<"human" | "ai_assisted">("human");
+  const [evidenceSourceIds, setEvidenceSourceIds] = useState<Record<string, string>>({});
+  const [evidenceRelations, setEvidenceRelations] = useState<Record<string, DocumentaryEvidenceRelation>>({});
+  const [evidenceExcerpts, setEvidenceExcerpts] = useState<Record<string, string>>({});
+  const [evidenceLocators, setEvidenceLocators] = useState<Record<string, string>>({});
+  const [evidenceNotesByClaim, setEvidenceNotesByClaim] = useState<Record<string, string>>({});
+  const [reviewResults, setReviewResults] = useState<Record<string, DocumentaryReviewResult>>({});
+  const [reviewRationales, setReviewRationales] = useState<Record<string, string>>({});
   const [characterName, setCharacterName] = useState("");
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterVisual, setCharacterVisual] = useState("");
   const [characterPersonality, setCharacterPersonality] = useState("");
+  const [characterEdits, setCharacterEdits] = useState<Record<string, CharacterEditDraft>>({});
+  const [showArchivedCharacters, setShowArchivedCharacters] = useState(false);
+  const [locationEdits, setLocationEdits] = useState<Record<string, LocationEditDraft>>({});
+  const [showArchivedLocations, setShowArchivedLocations] = useState(false);
   const [locationName, setLocationName] = useState("");
   const [locationDescription, setLocationDescription] = useState("");
   const [locationType, setLocationType] = useState("interior");
@@ -169,9 +253,21 @@ function App() {
   const [sceneRequirements, setSceneRequirements] = useState("");
   const [sceneDuration, setSceneDuration] = useState("");
   const [sceneLocationId, setSceneLocationId] = useState("");
+  const [sceneEpisodeId, setSceneEpisodeId] = useState("");
+  const [seasonNumber, setSeasonNumber] = useState("1");
+  const [seasonTitle, setSeasonTitle] = useState("");
+  const [seasonDescription, setSeasonDescription] = useState("");
+  const [seasonStoryArc, setSeasonStoryArc] = useState("");
+  const [episodeSeasonId, setEpisodeSeasonId] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState("1");
+  const [episodeTitle, setEpisodeTitle] = useState("");
+  const [episodeLogline, setEpisodeLogline] = useState("");
+  const [episodeSynopsis, setEpisodeSynopsis] = useState("");
+  const [episodeDuration, setEpisodeDuration] = useState("");
   const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
   const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
-  const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
+  const [scriptElementDrafts, setScriptElementDrafts] = useState<Record<string, SceneScriptElementDraft[]>>({});
+  const [scriptEditorOpen, setScriptEditorOpen] = useState<Record<string, boolean>>({});
   const [passageDrafts, setPassageDrafts] = useState<Record<string, string>>({});
   const [passageOccurrences, setPassageOccurrences] = useState<Record<string, string>>({});
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
@@ -246,14 +342,29 @@ function App() {
         api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
         api<Storyboard | null>(`/api/projects/${projectId}/storyboard`),
       ]);
+      const currentResearch = detail.category === "documentary"
+        ? await api<DocumentaryResearch>(`/api/projects/${projectId}/documentary`)
+        : null;
       setSelectedProject(detail);
+      setDocumentaryResearch(currentResearch);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+      setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
+      setReviewResults({}); setReviewRationales({});
       setStoryboard(currentStoryboard);
+      setCharacterEdits({}); setShowArchivedCharacters(false);
+      setLocationEdits({}); setShowArchivedLocations(false);
       setSceneEdits({});
-      setScriptDrafts({});
+      setScriptElementDrafts({});
+      setScriptEditorOpen({});
       setPassageDrafts({});
       setPassageOccurrences({});
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
+      setSeasonNumber("1"); setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+      setEpisodeSeasonId(""); setEpisodeNumber("1"); setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -595,6 +706,217 @@ function App() {
     }
   }
 
+  function characterEditDraft(character: ProjectCharacter): CharacterEditDraft {
+    return characterEdits[character.id] || {
+      name: character.name,
+      description: character.description,
+      visual_description: character.visual_description,
+      personality_notes: character.personality_notes,
+    };
+  }
+
+  function locationEditDraft(location: ProjectLocation): LocationEditDraft {
+    return locationEdits[location.id] || {
+      name: location.name,
+      description: location.description,
+      environment_type: location.environment_type,
+      time_period: location.time_period,
+      visual_notes: location.visual_notes,
+    };
+  }
+
+  async function saveCharacterDetails(character: ProjectCharacter) {
+    if (!selectedProject) return;
+    const edit = characterEditDraft(character);
+    if (!edit.name.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters/${character.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: edit.name,
+          description: edit.description,
+          visual_description: edit.visual_description,
+          personality_notes: edit.personality_notes,
+        }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        characters: current.characters.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.name.localeCompare(b.name)),
+        scenes: current.scenes.map(scene => ({
+          ...scene,
+          characters: scene.characters.map(item => item.id === updated.id ? { ...item, name: updated.name } : item),
+        })),
+      } : current);
+      setCharacterEdits(current => {
+        const next = { ...current };
+        delete next[character.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update character profile.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateCharacterStatus(character: ProjectCharacter, status: "active" | "archived") {
+    if (!selectedProject) return;
+    const explanation = status === "archived"
+      ? "Archive this character? Existing scene participation and screenplay history will remain. The character cannot be newly assigned or selected for new dialogue."
+      : "Restore this character? It will become available for new scene assignments and dialogue again.";
+    if (!window.confirm(explanation)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters/${character.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        characters: current.characters.map(item => item.id === updated.id ? updated : item),
+      } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update character status.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveLocationDetails(location: ProjectLocation) {
+    if (!selectedProject) return;
+    const edit = locationEditDraft(location);
+    if (!edit.name.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations/${location.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: edit.name,
+          description: edit.description,
+          environment_type: edit.environment_type,
+          time_period: edit.time_period,
+          visual_notes: edit.visual_notes,
+        }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        locations: current.locations.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.name.localeCompare(b.name)),
+        scenes: current.scenes.map(scene => scene.location_id === updated.id ? { ...scene, location_name: updated.name } : scene),
+      } : current);
+      setLocationEdits(current => {
+        const next = { ...current };
+        delete next[location.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update location profile.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateLocationStatus(location: ProjectLocation, status: "active" | "archived") {
+    if (!selectedProject) return;
+    const explanation = status === "archived"
+      ? "Archive this location? Existing scenes will keep their location reference, but new scenes cannot use it."
+      : "Restore this location so it can be selected for new scenes again?";
+    if (!window.confirm(explanation)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations/${location.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        locations: current.locations.map(item => item.id === updated.id ? updated : item),
+      } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update location status.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitSeason(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !seasonTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons`, {
+        method: "POST",
+        body: JSON.stringify({
+          season_number: Number(seasonNumber), title: seasonTitle,
+          description: seasonDescription, story_arc: seasonStoryArc,
+        }),
+      });
+      setStoryboard(updated);
+      const createdSeason = updated.seasons.find(item => item.season_number === Number(seasonNumber));
+      if (createdSeason) setEpisodeSeasonId(createdSeason.id);
+      setSeasonNumber(String(Math.max(0, ...updated.seasons.map(item => item.season_number)) + 1));
+      setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create season.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitEpisode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !episodeSeasonId || !episodeTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${episodeSeasonId}/episodes`, {
+        method: "POST",
+        body: JSON.stringify({
+          episode_number: Number(episodeNumber), title: episodeTitle,
+          logline: episodeLogline, synopsis: episodeSynopsis,
+          estimated_duration_seconds: episodeDuration.trim() ? Number(episodeDuration) : null,
+        }),
+      });
+      setStoryboard(updated);
+      const selectedSeason = updated.seasons.find(item => item.id === episodeSeasonId);
+      setEpisodeNumber(String(Math.max(0, ...(selectedSeason?.episodes || []).map(item => item.episode_number)) + 1));
+      setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create episode.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateSeasonStatus(season: StoryboardSeason, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} Season ${season.season_number}? Existing episodes, scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${season.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update season.");
+    }
+  }
+
+  async function updateEpisodeStatus(episode: StoryboardEpisode, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} this episode? Its scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/episodes/${episode.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update episode.");
+    }
+  }
+
   async function submitScene(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject || !sceneTitle.trim()) return;
@@ -606,12 +928,14 @@ function App() {
         body: JSON.stringify({
           title: sceneTitle, summary: sceneSummary, requirements: sceneRequirements,
           estimated_duration_seconds: sceneDuration.trim() ? Number(sceneDuration) : null,
-          location_id: sceneLocationId || null, character_ids: sceneCharacterIds,
+          location_id: sceneLocationId || null,
+          episode_id: selectedProject.format === "tv_series" ? (sceneEpisodeId || null) : null,
+          character_ids: sceneCharacterIds,
         }),
       });
       setStoryboard(updated);
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create scene.");
     } finally {
@@ -626,6 +950,7 @@ function App() {
       requirements: scene.requirements,
       estimated_duration_seconds: scene.estimated_duration_seconds?.toString() || "",
       location_id: scene.location_id || "",
+      episode_id: scene.episode_id || "",
       character_ids: scene.characters.map(character => character.id),
     };
   }
@@ -642,7 +967,9 @@ function App() {
         body: JSON.stringify({
           title: edit.title, summary: edit.summary, requirements: edit.requirements,
           estimated_duration_seconds: edit.estimated_duration_seconds.trim() ? Number(edit.estimated_duration_seconds) : null,
-          location_id: edit.location_id || null, character_ids: edit.character_ids,
+          location_id: edit.location_id || null,
+          episode_id: selectedProject.format === "tv_series" ? (edit.episode_id || null) : null,
+          character_ids: edit.character_ids,
         }),
       });
       setStoryboard(updated);
@@ -658,24 +985,100 @@ function App() {
     }
   }
 
+  function startStructuredScriptEdit(scene: StoryboardScene) {
+    const latest = scene.script_versions[scene.script_versions.length - 1] || null;
+    setScriptElementDrafts(current => ({
+      ...current,
+      [scene.id]: current[scene.id] || (latest?.elements.length
+        ? latest.elements.map(element => ({
+            element_type: element.element_type,
+            content: element.content,
+            character_id: element.character_id || "",
+          }))
+        : [{ element_type: "action", content: latest?.content || "", character_id: "" }]),
+    }));
+    setScriptEditorOpen(current => ({ ...current, [scene.id]: true }));
+  }
+
+  function addScriptElement(sceneId: string, elementType: ScriptElementType) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: [
+        ...(current[sceneId] || []),
+        { element_type: elementType, content: "", character_id: "" },
+      ],
+    }));
+    setScriptEditorOpen(current => ({ ...current, [sceneId]: true }));
+  }
+
+  function updateScriptElement(sceneId: string, index: number, changes: Partial<SceneScriptElementDraft>) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: (current[sceneId] || []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...changes } : item
+      ),
+    }));
+  }
+
+  function removeScriptElement(sceneId: string, index: number) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: (current[sceneId] || []).filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }
+
+  function cancelStructuredScriptEdit(sceneId: string) {
+    setScriptElementDrafts(current => {
+      const next = { ...current };
+      delete next[sceneId];
+      return next;
+    });
+    setScriptEditorOpen(current => ({ ...current, [sceneId]: false }));
+  }
+
+  function moveScriptElement(sceneId: string, index: number, direction: -1 | 1) {
+    setScriptElementDrafts(current => {
+      const elements = [...(current[sceneId] || [])];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= elements.length) return current;
+      [elements[index], elements[targetIndex]] = [elements[targetIndex], elements[index]];
+      return { ...current, [sceneId]: elements };
+    });
+  }
+
   async function saveSceneScript(scene: StoryboardScene) {
     if (!selectedProject) return;
     const latest = scene.script_versions[scene.script_versions.length - 1] || null;
-    const content = scriptDrafts[scene.id] ?? latest?.content ?? "";
-    if (!content.trim()) return;
+    const elements = scriptElementDrafts[scene.id] || [];
+    if (elements.length === 0 || elements.some(item => !item.content.trim())) {
+      setError("Add at least one non-empty screenplay block before saving.");
+      return;
+    }
+    if (elements.some(item => item.element_type === "dialogue" && !item.character_id)) {
+      setError("Every dialogue block needs a speaking character.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/script`, {
         method: "POST",
-        body: JSON.stringify({ base_version_id: latest?.id || null, content }),
+        body: JSON.stringify({
+          base_version_id: latest?.id || null,
+          elements: elements.map(item => ({
+            element_type: item.element_type,
+            content: item.content,
+            character_id: item.character_id || null,
+          })),
+        }),
       });
       setStoryboard(updated);
-      setScriptDrafts(current => {
+      setScriptElementDrafts(current => {
         const next = { ...current };
         delete next[scene.id];
         return next;
       });
+      setScriptEditorOpen(current => ({ ...current, [scene.id]: false }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save script revision.");
     } finally {
@@ -707,7 +1110,9 @@ function App() {
 
   async function moveScene(scene: StoryboardScene, direction: -1 | 1) {
     if (!selectedProject || !storyboard) return;
-    const ordered = [...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order);
+    const ordered = [...storyboard.scenes]
+      .filter(item => item.episode_id === scene.episode_id)
+      .sort((a, b) => a.scene_order - b.scene_order);
     const index = ordered.findIndex(item => item.id === scene.id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= ordered.length) return;
@@ -716,7 +1121,7 @@ function App() {
     setError("");
     try {
       const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/reorder`, {
-        method: "PUT", body: JSON.stringify({ scene_ids: ordered.map(item => item.id) }),
+        method: "PUT", body: JSON.stringify({ episode_id: scene.episode_id, scene_ids: ordered.map(item => item.id) }),
       });
       setStoryboard(updated);
     } catch (err) {
@@ -746,11 +1151,148 @@ function App() {
     }
   }
 
+  async function createResearchSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !researchSourceTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: researchSourceTitle,
+          source_type: researchSourceType,
+          creator: researchSourceCreator,
+          publisher: researchSourcePublisher,
+          publication_date: researchSourceDate,
+          accessed_at: researchSourceAccessedAt ? new Date(researchSourceAccessedAt).toISOString() : null,
+          url: researchSourceUrl.trim() || null,
+          citation_text: researchSourceCitation,
+          research_notes: researchSourceNotes,
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createDocumentaryClaim(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !claimStatement.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims`, {
+        method: "POST",
+        body: JSON.stringify({ statement: claimStatement, context: claimContext, origin: claimOrigin }),
+      });
+      setDocumentaryResearch(updated);
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the factual claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addClaimEvidence(claim: DocumentaryClaim) {
+    if (!selectedProject || !evidenceSourceIds[claim.id]) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/evidence`, {
+        method: "POST",
+        body: JSON.stringify({
+          source_id: evidenceSourceIds[claim.id],
+          evidence_relation: evidenceRelations[claim.id] || "supports",
+          excerpt: evidenceExcerpts[claim.id] || "",
+          locator: evidenceLocators[claim.id] || "",
+          notes: evidenceNotesByClaim[claim.id] || "",
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setEvidenceSourceIds(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceRelations(current => ({ ...current, [claim.id]: "supports" }));
+      setEvidenceExcerpts(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceLocators(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link evidence to the claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitClaimReview(claim: DocumentaryClaim) {
+    const result = reviewResults[claim.id] || "supported";
+    const rationale = reviewRationales[claim.id] || "";
+    if (!selectedProject || !rationale.trim()) {
+      setError("Add a rationale before submitting a fact-check decision.");
+      return;
+    }
+    if (!window.confirm(`Record a human fact-check decision of “${result.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify({ result, rationale }),
+      });
+      setDocumentaryResearch(updated);
+      setReviewRationales(current => ({ ...current, [claim.id]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record the fact-check review.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateResearchSourceStatus(source: DocumentaryResearchSource, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} “${source.title}”? Existing claim citations will remain, but any current fact-check that relied on this source will need review.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources/${source.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateDocumentaryClaimStatus(claim: DocumentaryClaim, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} this claim? Its evidence and fact-check history will be preserved.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update documentary claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function showProjects() {
     setView("projects");
     setSelectedProject(null);
     setSelectedContribution(null);
     setStoryboard(null);
+    setDocumentaryResearch(null);
     setShowCreate(false);
     setError("");
   }
@@ -758,6 +1300,7 @@ function App() {
   const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
   const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
   const canEditStoryboard = canContribute && selectedProject?.current_phase === "storyboard";
+  const canEditDocumentaryResearch = canContribute && selectedProject?.current_phase !== "published";
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
@@ -853,10 +1396,15 @@ function App() {
                   <label>Project title<input autoFocus required maxLength={160} placeholder="Give your story a working title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
                   <label>Logline <span className="field-hint">A one-sentence hook (optional)</span><input maxLength={500} placeholder="What's the story about?" value={form.logline} onChange={e => setForm({ ...form, logline: e.target.value })} /></label>
                   <div className="form-row">
-                    <label>Genre<input maxLength={80} placeholder="e.g. Sci-fi, drama, fantasy" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
+                    <label>Production format<select value={form.format} onChange={e => setForm({ ...form, format: e.target.value as ProjectFormat })}><option value="movie">Movie</option><option value="tv_series">TV series</option></select></label>
+                    <label>Content category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ProjectCategory })}><option value="fiction">Fiction</option><option value="documentary">Documentary</option></select></label>
+                  </div>
+                  <div className="form-row">
+                    <label>Genre / subject<input maxLength={80} placeholder="e.g. Drama, history, nature, science" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
                     <label>Visibility<select value={form.visibility} onChange={e => setForm({ ...form, visibility: e.target.value })}><option value="private">Private · members only</option><option value="unlisted">Unlisted · link access later</option><option value="public">Public · discoverable later</option></select></label>
                   </div>
                   <label>Project description<textarea rows={3} maxLength={10000} placeholder="Set the scene. What do you want to make together?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+                  {form.category === "documentary" && <p className="field-hint">The documentary category is available for both movies and series. Research sources, interview records, rights tracking and fact-checking are planned for a dedicated later workflow.</p>}
                   <div className="form-actions"><span>You'll be the project owner. You can invite collaborators next.</span><button className="primary-button" disabled={loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create project</button></div>
                 </form>
               )}
@@ -865,7 +1413,7 @@ function App() {
               )}
               {projects.length > 0 && <div className="project-grid">{projects.map(project => (
                 <button className="project-card" key={project.id} onClick={() => openProject(project.id)}>
-                  <div className="project-card-top"><span className="project-genre">{project.genre || "Untitled genre"}</span><span className="project-visibility">{project.visibility}</span></div>
+                  <div className="project-card-top"><span className="project-genre">{project.genre || (project.category === "documentary" ? "Documentary" : "Untitled genre")}</span><span className="project-visibility">{project.format === "tv_series" ? "TV series" : "Movie"} · {project.category}</span></div>
                   <h2>{project.title}</h2><p>{project.logline || project.description || "A new story is waiting to be told."}</p>
                   <div className="project-card-bottom"><span><Users size={14} /> {project.member_count} {project.member_count === 1 ? "member" : "members"}</span><span>{project.current_phase} <ArrowUpRight size={14} /></span></div>
                 </button>
@@ -879,7 +1427,7 @@ function App() {
               {error && <div className="error-banner">{error}</div>}
               <div className="detail-hero">
                 <div className="eyebrow"><span className="eyebrow-line" /> PROJECT WORKSPACE</div>
-                <div className="detail-meta"><span>{selectedProject.genre || "Story project"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
+                <div className="detail-meta"><span>{selectedProject.format === "tv_series" ? "TV series" : "Movie"}</span><span>{selectedProject.category === "documentary" ? "Documentary" : "Fiction"}</span><span>{selectedProject.genre || "No genre / subject"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
                 <h1>{selectedProject.title}</h1>
                 {selectedProject.logline && <p className="detail-logline">{selectedProject.logline}</p>}
                 {selectedProject.description && <p className="detail-description">{selectedProject.description}</p>}
@@ -893,6 +1441,151 @@ function App() {
                 </div>
               </div>
 
+
+              {selectedProject.category === "documentary" && documentaryResearch && (
+                <section className="documentary-research-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">DOCUMENTARY WORKSPACE · M1.4</div><h2>Research & fact-checking</h2></div>
+                    <span className="step-count">{documentaryResearch.sources.length} sources · {documentaryResearch.claims.length} claims</span>
+                  </div>
+                  <div className="documentary-integrity-note">
+                    <strong>Evidence is not the same as verification.</strong>
+                    <p>Record where information came from, attach exact excerpts to individual claims, and have a person review the evidence. AI-assisted claims always begin unreviewed. Every review stores its rationale and a snapshot of the evidence considered.</p>
+                  </div>
+
+                  {!canEditDocumentaryResearch && <p className="muted-note">You have read-only access to this research register, or the project has been published.</p>}
+
+                  <div className="documentary-research-grid">
+                    <section className="documentary-panel">
+                      <div className="section-kicker">SOURCE REGISTER</div>
+                      <h3>Research sources <span>{documentaryResearch.sources.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createResearchSource}>
+                          <label>Source title<input required maxLength={240} value={researchSourceTitle} onChange={event => setResearchSourceTitle(event.target.value)} placeholder="Article, book, report, archive item…" /></label>
+                          <div className="documentary-form-row">
+                            <label>Source type<select value={researchSourceType} onChange={event => setResearchSourceType(event.target.value as DocumentarySourceType)}>
+                              <option value="article">Article</option><option value="book">Book</option><option value="academic_paper">Academic paper</option>
+                              <option value="official_record">Official record</option><option value="government_data">Government data</option>
+                              <option value="interview">Interview</option><option value="archival_record">Archival record</option>
+                              <option value="website">Website</option><option value="other">Other</option>
+                            </select></label>
+                            <label>Publication date<input maxLength={80} value={researchSourceDate} onChange={event => setResearchSourceDate(event.target.value)} placeholder="YYYY, YYYY-MM-DD or c. 1900" /></label>
+                          </div>
+                          <label>Accessed at<input type="datetime-local" value={researchSourceAccessedAt} onChange={event => setResearchSourceAccessedAt(event.target.value)} /><small>Leave blank to record the time this source entry is created.</small></label>
+                          <div className="documentary-form-row">
+                            <label>Creator / author<input maxLength={500} value={researchSourceCreator} onChange={event => setResearchSourceCreator(event.target.value)} placeholder="Author, organisation, interviewer…" /></label>
+                            <label>Publisher / institution<input maxLength={240} value={researchSourcePublisher} onChange={event => setResearchSourcePublisher(event.target.value)} placeholder="Publisher or holding institution" /></label>
+                          </div>
+                          <label>URL<input type="url" maxLength={2048} value={researchSourceUrl} onChange={event => setResearchSourceUrl(event.target.value)} placeholder="https://…" /></label>
+                          <label>Full citation<textarea rows={2} maxLength={10000} value={researchSourceCitation} onChange={event => setResearchSourceCitation(event.target.value)} placeholder="Bibliographic citation or archive reference…" /></label>
+                          <label>Research notes<textarea rows={2} maxLength={10000} value={researchSourceNotes} onChange={event => setResearchSourceNotes(event.target.value)} placeholder="Context, limitations, provenance, access conditions…" /></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !researchSourceTitle.trim()}><Plus size={13} /> Add source</button>
+                        </form>
+                      )}
+                      <div className="documentary-source-list">
+                        {documentaryResearch.sources.map(source => (
+                          <article className={source.status === "archived" ? "documentary-source-card archived" : "documentary-source-card"} key={source.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{source.source_type.replaceAll("_", " ").toUpperCase()} · {source.status.toUpperCase()}</span><strong>{source.title}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateResearchSourceStatus(source, source.status === "active" ? "archived" : "active")}>{source.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            {(source.creator || source.publisher || source.publication_date) && <small>{[source.creator, source.publisher, source.publication_date].filter(Boolean).join(" · ")}</small>}
+                            {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}
+                            {source.citation_text && <p>{source.citation_text}</p>}
+                            {source.research_notes && <small>Notes: {source.research_notes}</small>}
+                            <small>Added {new Date(source.created_at).toLocaleDateString()} · accessed {new Date(source.accessed_at).toLocaleDateString()}</small>
+                          </article>
+                        ))}
+                        {documentaryResearch.sources.length === 0 && <p className="muted-note">No sources registered yet. Add the first source before trying to verify a claim.</p>}
+                      </div>
+                    </section>
+
+                    <section className="documentary-panel">
+                      <div className="section-kicker">FACTUAL CLAIMS</div>
+                      <h3>Claim ledger <span>{documentaryResearch.claims.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createDocumentaryClaim}>
+                          <label>Factual claim<textarea required rows={3} maxLength={5000} value={claimStatement} onChange={event => setClaimStatement(event.target.value)} placeholder="Write one clear, testable factual statement…" /></label>
+                          <label>Context / scope<textarea rows={2} maxLength={10000} value={claimContext} onChange={event => setClaimContext(event.target.value)} placeholder="Where, when and in what context does this claim apply?" /></label>
+                          <label>Origin<select value={claimOrigin} onChange={event => setClaimOrigin(event.target.value as "human" | "ai_assisted")}><option value="human">Human-authored</option><option value="ai_assisted">AI-assisted · requires human review</option></select></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !claimStatement.trim()}><Plus size={13} /> Add claim</button>
+                        </form>
+                      )}
+                      <div className="documentary-claim-list">
+                        {documentaryResearch.claims.map(claim => (
+                          <article className={claim.status === "archived" ? "documentary-claim-card archived" : "documentary-claim-card"} key={claim.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{claim.current_review_status.replaceAll("_", " ").toUpperCase()} · {claim.status.toUpperCase()}</span><strong>{claim.statement}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateDocumentaryClaimStatus(claim, claim.status === "active" ? "archived" : "active")}>{claim.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            <div className="documentary-claim-meta"><span>{claim.origin === "ai_assisted" ? "AI-assisted · not verified" : "Human-authored"}</span><span>Added by {claim.created_by_display_name}</span></div>
+                            {claim.context && <p className="documentary-claim-context">{claim.context}</p>}
+
+                            <div className="documentary-evidence-list">
+                              <div className="section-kicker">LINKED EVIDENCE · {claim.evidence.length}</div>
+                              {claim.evidence.map(evidence => (
+                                <div className="documentary-evidence-card" key={evidence.id}>
+                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")} · SOURCE {evidence.source_status.toUpperCase()}</span>
+                                  {evidence.locator && <small>{evidence.locator}</small>}
+                                  {evidence.excerpt && <blockquote>{evidence.excerpt}</blockquote>}
+                                  {evidence.notes && <p>{evidence.notes}</p>}
+                                </div>
+                              ))}
+                              {claim.evidence.length === 0 && <p className="muted-note">No sources linked. A factual review needs traceable evidence.</p>}
+                            </div>
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-evidence-editor">
+                                <div className="section-kicker">LINK A SOURCE TO THIS CLAIM</div>
+                                <label>Source<select value={evidenceSourceIds[claim.id] || ""} onChange={event => setEvidenceSourceIds(current => ({ ...current, [claim.id]: event.target.value }))}>
+                                  <option value="">Choose an active source</option>
+                                  {documentaryResearch.sources.filter(source => source.status === "active" && !claim.evidence.some(item => item.source_id === source.id)).map(source => <option key={source.id} value={source.id}>{source.title}</option>)}
+                                </select></label>
+                                <label>Evidence relationship<select value={evidenceRelations[claim.id] || "supports"} onChange={event => setEvidenceRelations(current => ({ ...current, [claim.id]: event.target.value as DocumentaryEvidenceRelation }))}>
+                                  <option value="supports">Supports the claim</option><option value="challenges">Challenges the claim</option><option value="context">Provides context</option>
+                                </select></label>
+                                <label>Exact excerpt<textarea rows={2} maxLength={12000} value={evidenceExcerpts[claim.id] || ""} onChange={event => setEvidenceExcerpts(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Copy the relevant passage or data description…" /></label>
+                                <label>Page / section / timecode<input maxLength={240} value={evidenceLocators[claim.id] || ""} onChange={event => setEvidenceLocators(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="e.g. p. 42, table 3, 00:13:20" /></label>
+                                <label>Evidence notes<textarea rows={2} maxLength={5000} value={evidenceNotesByClaim[claim.id] || ""} onChange={event => setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain relevance, method or limitations…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !evidenceSourceIds[claim.id]} onClick={() => addClaimEvidence(claim)}>Link evidence</button>
+                              </div>
+                            )}
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-review-editor">
+                                <div className="section-kicker">HUMAN FACT-CHECK REVIEW</div>
+                                <p>Submitting a review records your decision, rationale and a snapshot of all active evidence linked to this claim.</p>
+                                <label>Review result<select value={reviewResults[claim.id] || "supported"} onChange={event => setReviewResults(current => ({ ...current, [claim.id]: event.target.value as DocumentaryReviewResult }))}>
+                                  <option value="supported">Supported by evidence</option><option value="contested">Contested evidence</option>
+                                  <option value="not_supported">Not supported</option><option value="insufficient_evidence">Insufficient evidence</option>
+                                </select></label>
+                                <label>Review rationale<textarea rows={2} maxLength={10000} value={reviewRationales[claim.id] || ""} onChange={event => setReviewRationales(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain the evidence, source quality, uncertainty and reasoning…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !(reviewRationales[claim.id] || "").trim()} onClick={() => submitClaimReview(claim)}>Record fact-check decision</button>
+                              </div>
+                            )}
+
+                            <details className="documentary-review-history">
+                              <summary>Review history · {claim.reviews.length}</summary>
+                              {claim.reviews.length === 0 && <p className="muted-note">No human fact-check review has been recorded.</p>}
+                              {[...claim.reviews].reverse().map(review => (
+                                <article key={review.id}>
+                                  <strong>{review.result.replaceAll("_", " ").toUpperCase()}</strong>
+                                  <span>{review.reviewer_display_name} · {new Date(review.created_at).toLocaleString()}</span>
+                                  <p>{review.rationale}</p>
+                                  <details><summary>Evidence snapshot · {review.reviewed_evidence_snapshot.length} sources</summary>
+                                    {review.reviewed_evidence_snapshot.map((item, index) => <pre key={index}>{[item.source_title, item.source_type, item.creator, item.publisher, item.publication_date, item.url, item.citation_text, item.evidence_relation, item.locator, item.excerpt, item.notes, item.accessed_at].filter(Boolean).join("\n")}</pre>)}
+                                  </details>
+                                </article>
+                              ))}
+                            </details>
+                          </article>
+                        ))}
+                        {documentaryResearch.claims.length === 0 && <p className="muted-note">No factual claims registered yet. Split documentary narration into individual claims that can each be checked against evidence.</p>}
+                      </div>
+                    </section>
+                  </div>
+                </section>
+              )}
 
               <section className="drafts-section">
                 <div className="section-heading contribution-heading">
@@ -1094,7 +1787,7 @@ function App() {
               {(selectedProject.current_phase === "storyboard" || storyboard !== null) && (
                 <section className="storyboard-section">
                   <div className="section-heading contribution-heading">
-                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
+                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>{selectedProject.format === "tv_series" ? "Build the series, episode by episode." : selectedProject.category === "documentary" ? "Shape the documentary, scene by scene." : "Build the film, scene by scene."}</h2></div>
                     <span className="step-count">{storyboard ? `${storyboard.scenes.length} scenes` : "Ready to initialize"}</span>
                   </div>
                   {!storyboard ? (
@@ -1118,6 +1811,71 @@ function App() {
                         <small>To connect a scene to its source, copy an exact passage from here and paste it into that scene's passage-link form.</small>
                       </details>
 
+                      {selectedProject.format === "tv_series" && (
+                        <section className="series-structure-panel">
+                          <div className="section-heading">
+                            <div><div className="section-kicker">SERIES STRUCTURE</div><h2>Seasons & episodes <span className="contribution-count">{storyboard.seasons.length}</span></h2></div>
+                            <span className="step-count">Each episode has its own scene sequence and screenplay.</span>
+                          </div>
+                          {canEditStoryboard && (
+                            <div className="series-forms-grid">
+                              <form className="storyboard-mini-form" onSubmit={submitSeason}>
+                                <h3>Create a season</h3>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Season number<input type="number" min="1" max="100" required value={seasonNumber} onChange={event => setSeasonNumber(event.target.value)} /></label>
+                                  <label>Season title<input required maxLength={160} value={seasonTitle} onChange={event => setSeasonTitle(event.target.value)} placeholder="e.g. The Beginning" /></label>
+                                </div>
+                                <label>Description<textarea rows={2} maxLength={10000} value={seasonDescription} onChange={event => setSeasonDescription(event.target.value)} placeholder="What defines this season?" /></label>
+                                <label>Season story arc<textarea rows={3} maxLength={10000} value={seasonStoryArc} onChange={event => setSeasonStoryArc(event.target.value)} placeholder="The larger narrative movement across the season…" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !seasonTitle.trim()}><Plus size={13} /> Add season</button>
+                              </form>
+                              <form className="storyboard-mini-form" onSubmit={submitEpisode}>
+                                <h3>Create an episode</h3>
+                                <label>Season<select required value={episodeSeasonId} onChange={event => setEpisodeSeasonId(event.target.value)}>
+                                  <option value="">Select a season</option>
+                                  {storyboard.seasons.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>Season {item.season_number} · {item.title}</option>)}
+                                </select></label>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Episode number<input type="number" min="1" max="1000" required value={episodeNumber} onChange={event => setEpisodeNumber(event.target.value)} /></label>
+                                  <label>Episode title<input required maxLength={160} value={episodeTitle} onChange={event => setEpisodeTitle(event.target.value)} placeholder="Episode title" /></label>
+                                </div>
+                                <label>Logline<input maxLength={500} value={episodeLogline} onChange={event => setEpisodeLogline(event.target.value)} placeholder="A one-sentence episode hook" /></label>
+                                <label>Synopsis<textarea rows={2} maxLength={10000} value={episodeSynopsis} onChange={event => setEpisodeSynopsis(event.target.value)} placeholder="What happens in this episode?" /></label>
+                                <label>Estimated runtime (seconds)<input type="number" min="1" max="86400" value={episodeDuration} onChange={event => setEpisodeDuration(event.target.value)} placeholder="e.g. 2700" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !episodeSeasonId || !episodeTitle.trim()}><Plus size={13} /> Add episode</button>
+                              </form>
+                            </div>
+                          )}
+                          <div className="series-season-list">
+                            {storyboard.seasons.map(season => (
+                              <article className={season.status === "archived" ? "series-season-card archived" : "series-season-card"} key={season.id}>
+                                <div className="series-season-heading">
+                                  <div><span>SEASON {season.season_number} · {season.status.toUpperCase()}</span><strong>{season.title}</strong></div>
+                                  {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateSeasonStatus(season, season.status === "active" ? "archived" : "active")}>{season.status === "active" ? "Archive season" : "Restore season"}</button>}
+                                </div>
+                                {season.description && <p>{season.description}</p>}
+                                {season.story_arc && <div className="series-story-arc"><strong>SEASON ARC</strong><p>{season.story_arc}</p></div>}
+                                <div className="series-episode-list">
+                                  {season.episodes.map(episode => (
+                                    <article className={episode.status === "archived" ? "series-episode-card archived" : "series-episode-card"} key={episode.id}>
+                                      <div>
+                                        <span>EPISODE {episode.episode_number} · {episode.status.toUpperCase()}{episode.estimated_duration_seconds ? ` · EST. ${Math.round(episode.estimated_duration_seconds / 60)} MIN` : ""}</span>
+                                        <strong>{episode.title}</strong>
+                                        {episode.logline && <small>{episode.logline}</small>}
+                                        {episode.synopsis && <p>{episode.synopsis}</p>}
+                                      </div>
+                                      {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateEpisodeStatus(episode, episode.status === "active" ? "archived" : "active")}>{episode.status === "active" ? "Archive" : "Restore"}</button>}
+                                    </article>
+                                  ))}
+                                  {season.episodes.length === 0 && <p className="muted-note">No episodes in this season yet.</p>}
+                                </div>
+                              </article>
+                            ))}
+                            {storyboard.seasons.length === 0 && <p className="muted-note">Start by creating Season 1, then add its episodes. Scenes are attached to an episode rather than a project-wide sequence.</p>}
+                          </div>
+                        </section>
+                      )}
+
                       <div className="storyboard-assets-grid">
                         <section className="storyboard-asset-panel">
                           <div className="section-kicker">CHARACTER DIRECTORY</div>
@@ -1132,15 +1890,63 @@ function App() {
                             </form>
                           )}
                           <div className="storyboard-asset-list">
-                            {storyboard.characters.map(character => (
-                              <article className={character.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={character.id}>
-                                <strong>{character.name}</strong><span>{character.status}</span>
-                                {character.description && <p>{character.description}</p>}
-                                {character.visual_description && <small>Visual: {character.visual_description}</small>}
-                                {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
-                              </article>
-                            ))}
-                            {storyboard.characters.length === 0 && <p className="muted-note">No characters yet.</p>}
+                            {storyboard.characters.filter(item => item.status === "active").map(character => {
+                              const edit = characterEditDraft(character);
+                              return (
+                                <article className="storyboard-asset" key={character.id}>
+                                  <div className="storyboard-asset-heading"><strong>{character.name}</strong><span>ACTIVE</span></div>
+                                  {character.description && <p>{character.description}</p>}
+                                  {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                  {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                                  {canEditStoryboard && (
+                                    <details className="story-bible-edit">
+                                      <summary>Edit character profile</summary>
+                                      <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveCharacterDetails(character); }}>
+                                        <label>Name<input required maxLength={160} value={edit.name} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, name: event.target.value } }))} /></label>
+                                        <label>Story description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, description: event.target.value } }))} /></label>
+                                        <label>Visual description<textarea rows={3} maxLength={10000} value={edit.visual_description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, visual_description: event.target.value } }))} /></label>
+                                        <label>Personality notes<textarea rows={3} maxLength={10000} value={edit.personality_notes} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, personality_notes: event.target.value } }))} /></label>
+                                        <div className="story-bible-edit-actions">
+                                          <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          <button className="quiet-button" type="button" onClick={() => setCharacterEdits(current => { const next = { ...current }; delete next[character.id]; return next; })}>Reset draft</button>
+                                        </div>
+                                      </form>
+                                    </details>
+                                  )}
+                                  {canEditStoryboard && <button type="button" className="quiet-button danger-button" disabled={loading} onClick={() => updateCharacterStatus(character, "archived")}>Archive character</button>}
+                                </article>
+                              );
+                            })}
+                            {storyboard.characters.filter(item => item.status === "active").length === 0 && <p className="muted-note">No active characters yet.</p>}
+                            {storyboard.characters.some(item => item.status === "archived") && (
+                              <details className="story-bible-archive-list" open={showArchivedCharacters} onToggle={event => setShowArchivedCharacters(event.currentTarget.open)}>
+                                <summary>Archived characters · {storyboard.characters.filter(item => item.status === "archived").length}</summary>
+                                {storyboard.characters.filter(item => item.status === "archived").map(character => {
+                                  const edit = characterEditDraft(character);
+                                  return (
+                                    <article className="storyboard-asset archived" key={character.id}>
+                                      <div className="storyboard-asset-heading"><strong>{character.name}</strong><span>ARCHIVED</span></div>
+                                      {character.description && <p>{character.description}</p>}
+                                      {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                      {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                                      {canEditStoryboard && (
+                                        <details className="story-bible-edit">
+                                          <summary>Edit archived profile</summary>
+                                          <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveCharacterDetails(character); }}>
+                                            <label>Name<input required maxLength={160} value={edit.name} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, name: event.target.value } }))} /></label>
+                                            <label>Story description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, description: event.target.value } }))} /></label>
+                                            <label>Visual description<textarea rows={3} maxLength={10000} value={edit.visual_description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, visual_description: event.target.value } }))} /></label>
+                                            <label>Personality notes<textarea rows={3} maxLength={10000} value={edit.personality_notes} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, personality_notes: event.target.value } }))} /></label>
+                                            <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          </form>
+                                        </details>
+                                      )}
+                                      {canEditStoryboard && <button type="button" className="secondary-button" disabled={loading} onClick={() => updateCharacterStatus(character, "active")}>Restore character</button>}
+                                    </article>
+                                  );
+                                })}
+                              </details>
+                            )}
                           </div>
                         </section>
 
@@ -1164,15 +1970,69 @@ function App() {
                             </form>
                           )}
                           <div className="storyboard-asset-list">
-                            {storyboard.locations.map(location => (
-                              <article className={location.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={location.id}>
-                                <strong>{location.name}</strong><span>{location.environment_type} · {location.status}</span>
-                                {location.time_period && <small>{location.time_period}</small>}
-                                {location.description && <p>{location.description}</p>}
-                                {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
-                              </article>
-                            ))}
-                            {storyboard.locations.length === 0 && <p className="muted-note">No locations yet.</p>}
+                            {storyboard.locations.filter(item => item.status === "active").map(location => {
+                              const edit = locationEditDraft(location);
+                              return (
+                                <article className="storyboard-asset" key={location.id}>
+                                  <div className="storyboard-asset-heading"><strong>{location.name}</strong><span>{location.environment_type} · ACTIVE</span></div>
+                                  {location.time_period && <small>{location.time_period}</small>}
+                                  {location.description && <p>{location.description}</p>}
+                                  {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                                  {canEditStoryboard && (
+                                    <details className="story-bible-edit">
+                                      <summary>Edit location profile</summary>
+                                      <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveLocationDetails(location); }}>
+                                        <label>Name<input required maxLength={160} value={edit.name} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, name: event.target.value } }))} /></label>
+                                        <label>Environment<select value={edit.environment_type} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, environment_type: event.target.value } }))}>
+                                          <option value="interior">Interior</option><option value="exterior">Exterior</option><option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option><option value="unspecified">Unspecified</option>
+                                        </select></label>
+                                        <label>Time period<input maxLength={120} value={edit.time_period} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, time_period: event.target.value } }))} /></label>
+                                        <label>Description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, description: event.target.value } }))} /></label>
+                                        <label>Visual notes<textarea rows={3} maxLength={10000} value={edit.visual_notes} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, visual_notes: event.target.value } }))} /></label>
+                                        <div className="story-bible-edit-actions">
+                                          <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          <button className="quiet-button" type="button" onClick={() => setLocationEdits(current => { const next = { ...current }; delete next[location.id]; return next; })}>Reset draft</button>
+                                        </div>
+                                      </form>
+                                    </details>
+                                  )}
+                                  {canEditStoryboard && <button type="button" className="quiet-button danger-button" disabled={loading} onClick={() => updateLocationStatus(location, "archived")}>Archive location</button>}
+                                </article>
+                              );
+                            })}
+                            {storyboard.locations.filter(item => item.status === "active").length === 0 && <p className="muted-note">No active locations yet.</p>}
+                            {storyboard.locations.some(item => item.status === "archived") && (
+                              <details className="story-bible-archive-list" open={showArchivedLocations} onToggle={event => setShowArchivedLocations(event.currentTarget.open)}>
+                                <summary>Archived locations · {storyboard.locations.filter(item => item.status === "archived").length}</summary>
+                                {storyboard.locations.filter(item => item.status === "archived").map(location => {
+                                  const edit = locationEditDraft(location);
+                                  return (
+                                    <article className="storyboard-asset archived" key={location.id}>
+                                      <div className="storyboard-asset-heading"><strong>{location.name}</strong><span>{location.environment_type} · ARCHIVED</span></div>
+                                      {location.time_period && <small>{location.time_period}</small>}
+                                      {location.description && <p>{location.description}</p>}
+                                      {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                                      {canEditStoryboard && (
+                                        <details className="story-bible-edit">
+                                          <summary>Edit archived profile</summary>
+                                          <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveLocationDetails(location); }}>
+                                            <label>Name<input required maxLength={160} value={edit.name} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, name: event.target.value } }))} /></label>
+                                            <label>Environment<select value={edit.environment_type} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, environment_type: event.target.value } }))}>
+                                              <option value="interior">Interior</option><option value="exterior">Exterior</option><option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option><option value="unspecified">Unspecified</option>
+                                            </select></label>
+                                            <label>Time period<input maxLength={120} value={edit.time_period} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, time_period: event.target.value } }))} /></label>
+                                            <label>Description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, description: event.target.value } }))} /></label>
+                                            <label>Visual notes<textarea rows={3} maxLength={10000} value={edit.visual_notes} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, visual_notes: event.target.value } }))} /></label>
+                                            <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          </form>
+                                        </details>
+                                      )}
+                                      {canEditStoryboard && <button type="button" className="secondary-button" disabled={loading} onClick={() => updateLocationStatus(location, "active")}>Restore location</button>}
+                                    </article>
+                                  );
+                                })}
+                              </details>
+                            )}
                           </div>
                         </section>
                       </div>
@@ -1180,6 +2040,10 @@ function App() {
                       {canEditStoryboard && (
                         <form className="storyboard-scene-form" onSubmit={submitScene}>
                           <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
+                          {selectedProject.format === "tv_series" && <label>Episode<select required value={sceneEpisodeId} onChange={event => setSceneEpisodeId(event.target.value)}>
+                            <option value="">Select an active episode</option>
+                            {storyboard.seasons.filter(season => season.status === "active").flatMap(season => season.episodes.filter(episode => episode.status === "active").map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                          </select><small className="field-hint">Create a season and episode above before adding scenes to a series.</small></label>}
                           <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
                           <label>Summary<textarea rows={3} maxLength={10000} value={sceneSummary} onChange={event => setSceneSummary(event.target.value)} placeholder="What happens in this scene?" /></label>
                           <label>Requirements<textarea rows={2} maxLength={10000} value={sceneRequirements} onChange={event => setSceneRequirements(event.target.value)} placeholder="Props, visual effects, stunts, special conditions, continuity…" /></label>
@@ -1188,39 +2052,51 @@ function App() {
                             <label>Primary location<select value={sceneLocationId} onChange={event => setSceneLocationId(event.target.value)}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                           </div>
                           <label>Characters in this scene <select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={sceneCharacterIds} onChange={event => setSceneCharacterIds(Array.from(event.target.selectedOptions, option => option.value))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="field-hint">Use Ctrl / Cmd to select more than one character.</small></label>
-                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim()}><Plus size={15} /> Add scene</button></div>
+                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim() || (selectedProject.format === "tv_series" && !sceneEpisodeId)}><Plus size={15} /> Add scene</button></div>
                         </form>
                       )}
 
                       <div className="storyboard-scene-list">
-                        <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
+                        <div className="section-kicker">{selectedProject.format === "tv_series" ? "EPISODE SCENES" : "SCENE SEQUENCE"} · {storyboard.scenes.length} SCENES</div>
                         {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
-                        {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
+                        {[...storyboard.scenes].sort((a, b) =>
+                          (a.season_number || 0) - (b.season_number || 0) ||
+                          (a.episode_number || 0) - (b.episode_number || 0) ||
+                          a.scene_order - b.scene_order
+                        ).map(scene => {
                           const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          const siblingScenes = storyboard.scenes.filter(item => item.episode_id === scene.episode_id).sort((a, b) => a.scene_order - b.scene_order);
+                          const siblingIndex = siblingScenes.findIndex(item => item.id === scene.id);
                           const edit = sceneEditDraft(scene);
                           return (
                             <article className="storyboard-scene-card" key={scene.id}>
                               <div className="storyboard-scene-heading">
                                 <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
-                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
-                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.episode_id ? `S${scene.season_number} · E${scene.episode_number} — ${scene.episode_title} · ` : ""}{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}${storyboard.locations.find(item => item.id === scene.location_id)?.status === "archived" ? " (archived)" : ""}` : ""}</span></div>
+                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || siblingIndex === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || siblingIndex === siblingScenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
                               </div>
                               {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
                               {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
-                              <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => <span key={character.id}>{character.name}</span>) : <small>None assigned</small>}</div>
+                              <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => {
+                                const archived = storyboard.characters.find(item => item.id === character.id)?.status === "archived";
+                                return <span key={character.id}>{character.name}{archived ? " · archived" : ""}</span>;
+                              }) : <small>None assigned</small>}</div>
 
                               {canEditStoryboard && (
                                 <details className="scene-edit-panel">
                                   <summary>Edit scene details</summary>
                                   <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
+                                    {selectedProject.format === "tv_series" && <label>Episode<select required value={edit.episode_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, episode_id: event.target.value } }))}>
+                                      {storyboard.seasons.flatMap(season => season.episodes.filter(episode => (season.status === "active" && episode.status === "active") || episode.id === scene.episode_id).map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                                    </select></label>}
                                     <label>Scene title<input required maxLength={160} value={edit.title} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, title: event.target.value } }))} /></label>
                                     <label>Summary<textarea rows={3} maxLength={10000} value={edit.summary} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, summary: event.target.value } }))} /></label>
                                     <label>Production requirements<textarea rows={2} maxLength={10000} value={edit.requirements} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, requirements: event.target.value } }))} /></label>
                                     <div className="storyboard-scene-form-row">
                                       <label>Estimated duration (seconds)<input type="number" min="1" max="86400" value={edit.estimated_duration_seconds} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, estimated_duration_seconds: event.target.value } }))} /></label>
-                                      <label>Primary location<select value={edit.location_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, location_id: event.target.value } }))}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                      <label>Primary location<select value={edit.location_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, location_id: event.target.value } }))}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active" || item.id === edit.location_id).map(item => <option key={item.id} value={item.id}>{item.name}{item.status === "archived" ? " · ARCHIVED (existing reference)" : ""}</option>)}</select></label>
                                     </div>
-                                    <label>Characters in this scene<select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={edit.character_ids} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, character_ids: Array.from(event.target.selectedOptions, option => option.value) } }))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                    <label>Characters in this scene<select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={edit.character_ids} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, character_ids: Array.from(event.target.selectedOptions, option => option.value) } }))}>{storyboard.characters.filter(item => item.status === "active" || edit.character_ids.includes(item.id)).map(item => <option key={item.id} value={item.id}>{item.name}{item.status === "archived" ? " · ARCHIVED (existing participant)" : ""}</option>)}</select></label>
                                     <button className="secondary-button" type="submit" disabled={loading || !edit.title.trim()}>Save scene details</button>
                                   </form>
                                 </details>
@@ -1233,9 +2109,125 @@ function App() {
                               </div>
 
                               <div className="scene-script-area">
-                                <div className="section-kicker">WORKING SCRIPT · {scene.script_versions.length} REVISIONS</div>
-                                {canEditStoryboard && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
-                                {scene.script_versions.length > 0 && <details className="scene-script-history"><summary>Script history</summary>{[...scene.script_versions].reverse().map(version => <article key={version.id}><strong>Revision {version.revision_number} · {version.author_display_name}</strong><pre>{version.content}</pre></article>)}</details>}
+                                <div className="section-kicker">WORKING SCREENPLAY · {scene.script_versions.length} REVISIONS</div>
+                                {latestScript && (
+                                  <details className="scene-current-script">
+                                    <summary>Current script · Revision {latestScript.revision_number}</summary>
+                                    <pre>{latestScript.content}</pre>
+                                  </details>
+                                )}
+                                {canEditStoryboard && (
+                                  <>
+                                    {!scriptEditorOpen[scene.id] && (
+                                      <button type="button" className="secondary-button" onClick={() => startStructuredScriptEdit(scene)}>
+                                        {latestScript ? "Edit as structured screenplay" : "Write screenplay"}
+                                      </button>
+                                    )}
+                                    {scriptEditorOpen[scene.id] && (
+                                      <div className="structured-script-editor">
+                                        <div className="script-editor-intro">
+                                          <strong>{latestScript ? `Create revision ${latestScript.revision_number + 1}` : "Create first screenplay revision"}</strong>
+                                          <span>Each block is stored separately and remains in order. Dialogue is attributed to a story character, not a performer.</span>
+                                        </div>
+                                        {(scriptElementDrafts[scene.id] || []).map((element, elementIndex) => (
+                                          <div className="script-element-card" key={elementIndex}>
+                                            <div className="script-element-heading">
+                                              <span>{(elementIndex + 1).toString().padStart(2, "0")}</span>
+                                              <select
+                                                aria-label="Screenplay block type"
+                                                value={element.element_type}
+                                                onChange={event => {
+                                                  const elementType = event.target.value as ScriptElementType;
+                                                  updateScriptElement(scene.id, elementIndex, {
+                                                    element_type: elementType,
+                                                    character_id: elementType === "dialogue" || elementType === "parenthetical" ? element.character_id : "",
+                                                  });
+                                                }}
+                                              >
+                                                <option value="action">Action</option>
+                                                <option value="dialogue">Dialogue</option>
+                                                <option value="parenthetical">Parenthetical</option>
+                                                <option value="transition">Transition</option>
+                                                <option value="production_note">Production note</option>
+                                              </select>
+                                              <button type="button" className="quiet-button" disabled={elementIndex === 0} onClick={() => moveScriptElement(scene.id, elementIndex, -1)} aria-label="Move screenplay block up">↑</button>
+                                              <button type="button" className="quiet-button" disabled={elementIndex === (scriptElementDrafts[scene.id] || []).length - 1} onClick={() => moveScriptElement(scene.id, elementIndex, 1)} aria-label="Move screenplay block down">↓</button>
+                                              <button type="button" className="quiet-button danger-button" onClick={() => removeScriptElement(scene.id, elementIndex)} aria-label="Remove screenplay block">Remove</button>
+                                            </div>
+                                            {(element.element_type === "dialogue" || element.element_type === "parenthetical") && (
+                                              <label className="script-speaker-select">
+                                                {element.element_type === "dialogue" ? "Speaking character" : "Associated character (optional)"}
+                                                <select
+                                                  required={element.element_type === "dialogue"}
+                                                  value={element.character_id}
+                                                  onChange={event => updateScriptElement(scene.id, elementIndex, { character_id: event.target.value })}
+                                                >
+                                                  <option value="">Select a character</option>
+                                                  {scene.characters.filter(character =>
+                                                    storyboard.characters.some(item => item.id === character.id && item.status === "active")
+                                                  ).map(character => (
+                                                    <option key={character.id} value={character.id}>{character.name}</option>
+                                                  ))}
+                                                </select>
+                                              </label>
+                                            )}
+                                            <label className="script-element-content">
+                                              {element.element_type === "action" ? "Action / description"
+                                                : element.element_type === "dialogue" ? "Spoken line"
+                                                : element.element_type === "parenthetical" ? "Delivery / parenthetical"
+                                                : element.element_type === "transition" ? "Transition"
+                                                : "Production note"}
+                                              <textarea
+                                                rows={element.element_type === "action" ? 4 : 2}
+                                                maxLength={50000}
+                                                value={element.content}
+                                                onChange={event => updateScriptElement(scene.id, elementIndex, { content: event.target.value })}
+                                                placeholder={element.element_type === "action" ? "Describe what happens on screen…"
+                                                  : element.element_type === "dialogue" ? "Write the character's spoken words…"
+                                                  : element.element_type === "parenthetical" ? "e.g. quietly, after a pause…"
+                                                  : element.element_type === "transition" ? "e.g. CUT TO:"
+                                                  : "Camera, sound, continuity, or production instruction…"}
+                                              />
+                                            </label>
+                                          </div>
+                                        ))}
+                                        <div className="script-add-blocks">
+                                          <span>Add a block</span>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "action")}>+ Action</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "dialogue")}>+ Dialogue</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "parenthetical")}>+ Parenthetical</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "transition")}>+ Transition</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "production_note")}>+ Production note</button>
+                                        </div>
+                                        <div className="script-editor-actions">
+                                          <span>{(scriptElementDrafts[scene.id] || []).length} ordered blocks · Save creates a new immutable revision</span>
+                                          <button type="button" className="quiet-button" onClick={() => cancelStructuredScriptEdit(scene.id)}>Discard changes</button>
+                                          <button type="button" className="primary-button" disabled={loading || !(scriptElementDrafts[scene.id] || []).length || (scriptElementDrafts[scene.id] || []).some(item => !item.content.trim() || (item.element_type === "dialogue" && !item.character_id))} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new revision" : "Save screenplay"}</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                                {scene.script_versions.length > 0 && (
+                                  <details className="scene-script-history">
+                                    <summary>Script history</summary>
+                                    {[...scene.script_versions].reverse().map(version => (
+                                      <article key={version.id}>
+                                        <strong>Revision {version.revision_number} · {version.author_display_name}</strong>
+                                        {version.elements.length > 0 ? (
+                                          <div className="script-history-elements">
+                                            {version.elements.map(element => (
+                                              <div className={`script-history-element ${element.element_type}`} key={element.id}>
+                                                <small>{element.element_order.toString().padStart(2, "0")} · {element.element_type.replace("_", " ")}{element.character_name ? ` · ${element.character_name}` : ""}</small>
+                                                <p>{element.content}</p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : <pre>{version.content}</pre>}
+                                      </article>
+                                    ))}
+                                  </details>
+                                )}
                               </div>
                             </article>
                           );
