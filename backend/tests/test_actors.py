@@ -47,6 +47,13 @@ def test_actor_profile_and_casting_controller_configuration() -> None:
     listed = client.get(f"/api/projects/{project_id}/casting")
     assert listed.status_code == 200
     assert len(listed.json()) == 1
+    switched = client.patch(
+        f"/api/projects/{project_id}/casting/{cast['id']}",
+        json={"controller_type": "ai_agent", "control_mode": "autonomous"},
+    )
+    assert switched.status_code == 200
+    assert switched.json()["controller_type"] == "ai_agent"
+    assert switched.json()["controller_user_id"] is None
 
 
 def test_casting_rejects_character_from_another_project() -> None:
