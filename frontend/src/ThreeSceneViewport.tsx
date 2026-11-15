@@ -9,7 +9,7 @@ type CastVisual = {
   state_snapshot: Record<string, unknown>;
 };
 
-type Props = { castMembers: CastVisual[]; sceneTitle: string };
+type Props = { castMembers: CastVisual[]; sceneTitle: string; cameraPreset: "wide" | "close" | "overhead" | "reverse" };
 
 function makeLabel(text: string): THREE.Sprite {
   const canvas = document.createElement("canvas");
@@ -53,7 +53,7 @@ function makeCharacter(index: number, total: number, label: string): THREE.Group
   return group;
 }
 
-export default function ThreeSceneViewport({ castMembers, sceneTitle }: Props) {
+export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPreset }: Props) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const element = host.current;
@@ -62,7 +62,8 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle }: Props) {
     scene.background = new THREE.Color(0x161c18);
     scene.fog = new THREE.Fog(0x161c18, 18, 48);
     const camera = new THREE.PerspectiveCamera(44, 1, .1, 100);
-    camera.position.set(8, 7, 11);
+    const cameraPositions = { wide: [8, 7, 11], close: [4, 3, 6], overhead: [0, 15, .1], reverse: [-8, 6, -10] } as const;
+    camera.position.set(...cameraPositions[cameraPreset]);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -138,7 +139,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle }: Props) {
       renderer.dispose();
       if (element.contains(renderer.domElement)) element.removeChild(renderer.domElement);
     };
-  }, [castMembers, sceneTitle]);
+  }, [castMembers, sceneTitle, cameraPreset]);
 
   return <div className="production-viewport" ref={host} aria-label={`Three dimensional production set for ${sceneTitle}`} />;
 }
