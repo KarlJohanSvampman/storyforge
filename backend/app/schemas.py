@@ -186,3 +186,74 @@ class SuggestionRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     decisions: list[SuggestionDecisionRead] = Field(default_factory=list)
+
+
+
+class NarrativeDraftSourceSelection(BaseModel):
+    revision_id: uuid.UUID
+    accepted_suggestion_ids: list[uuid.UUID] = Field(default_factory=list, max_length=20)
+
+
+class NarrativeDraftCompile(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    sources: list[NarrativeDraftSourceSelection] = Field(min_length=1, max_length=30)
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
+class NarrativeDraftVersionCreate(BaseModel):
+    base_version_id: uuid.UUID
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    content: str = Field(min_length=1, max_length=100000)
+
+    @field_validator("title")
+    @classmethod
+    def clean_title(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("content")
+    @classmethod
+    def clean_content(cls, value: str) -> str:
+        return value.strip()
+
+
+class NarrativeDraftSourceRead(BaseModel):
+    id: uuid.UUID
+    source_order: int
+    source_kind: str
+    contribution_id: uuid.UUID
+    contribution_revision_id: uuid.UUID
+    suggestion_id: uuid.UUID | None
+    source_title: str
+    source_text_snapshot: str
+
+
+class NarrativeDraftVersionRead(BaseModel):
+    id: uuid.UUID
+    version_number: int
+    title: str
+    content: str
+    status: str
+    origin: str
+    provider_name: str | None
+    model_name: str | None
+    prompt_version: str | None
+    author_user_id: uuid.UUID
+    author_display_name: str
+    parent_version_id: uuid.UUID | None
+    created_at: datetime
+    sources: list[NarrativeDraftSourceRead] = Field(default_factory=list)
+
+
+class NarrativeDraftDetail(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    current_version_number: int
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    versions: list[NarrativeDraftVersionRead] = Field(default_factory=list)
