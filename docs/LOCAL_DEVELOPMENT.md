@@ -90,6 +90,7 @@ The project approval panel appears below the combined narrative draft. A project
 
 - **Owner approval:** only the owner votes; one approve or reject vote meets the threshold.
 - **Majority:** active owners, editors, and contributors vote. More than half must agree. Viewers and pending invitations do not count.
+- The first vote opens a ballot and freezes its eligible voter list, roles, rule mode, and threshold for that exact version. Later project membership changes do not silently recalculate an open ballot.
 - A vote may be changed before a final decision. Every vote event is retained; only the latest vote by each eligible member counts.
 - The owner finalizes the decision after the approve or reject threshold is reached. The decision is attached to the exact draft version.
 - Rejection leaves the project in its current phase. The group can create another draft version and vote on it.
@@ -109,7 +110,7 @@ The local development identity is one fixed project owner. You can exercise owne
 
 1. Open a project with a draft and confirm the default is owner approval.
 2. As owner, switch the rule to majority before any votes. Confirm a non-owner cannot change the rule.
-3. Cast an approve vote, then change it to reject. Confirm both events remain in history and only the latest vote is counted.
+3. Cast an approve vote, then change it to reject. Confirm both events remain in history and only the latest vote is counted. Confirm the ballot preserves the rule mode, electorate and threshold captured when the first vote was cast.
 4. Attempt to finalize with no threshold reached; confirm HTTP 409 and no phase change.
 5. Reach the reject threshold and finalize. Confirm the version is marked rejected in approval history and the project phase is unchanged.
 6. Create a new immutable proposal version, vote to approve it, and finalize approval as owner.
