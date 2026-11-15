@@ -318,6 +318,8 @@ class ApprovalVersionStatusRead(BaseModel):
     version_id: uuid.UUID
     version_number: int
     is_current_version: bool
+    rule_mode: ApprovalMode
+    ballot_opened_at: datetime | None = None
     eligible_voter_count: int
     required_votes: int
     approve_count: int
