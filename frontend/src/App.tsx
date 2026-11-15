@@ -2837,7 +2837,7 @@ function App() {
                 />
               )}
 
-              {storyboard && selectedProject.current_phase === "production" && (
+              {storyboard && (selectedProject.current_phase === "storyboard" || selectedProject.current_phase === "production") && (
                 <ProductionStudio
                   projectId={selectedProject.id}
                   phase={selectedProject.current_phase}
@@ -2845,6 +2845,7 @@ function App() {
                   members={selectedProject.members}
                   currentUserId={currentUser?.id || null}
                   canManage={myMembership?.status === "active" && (myMembership.role === "owner" || myMembership.role === "editor")}
+                  onPhaseChanged={() => openProject(selectedProject.id)}
                 />
               )}
 
