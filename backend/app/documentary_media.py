@@ -138,6 +138,7 @@ def _latest_rights(db: Session, asset_id: uuid.UUID) -> DocumentaryMediaRights |
 
 
 def _production_overview(db: Session, project_id: uuid.UUID) -> DocumentaryProductionOverview:
+    now = datetime.now(timezone.utc)
     subjects = db.scalars(
         select(DocumentaryInterviewSubject)
         .where(DocumentaryInterviewSubject.project_id == project_id)
@@ -161,6 +162,12 @@ def _production_overview(db: Session, project_id: uuid.UUID) -> DocumentaryProdu
         if asset.interview_session_id:
             assets_by_session.setdefault(asset.interview_session_id, []).append(asset.id)
         rights = _latest_rights(db, asset.id)
+        rights_read = DocumentaryMediaRightsRead.model_validate(rights, from_attributes=True) if rights else None
+        if rights_read and rights_read.status == "active" and (
+            (rights_read.valid_from is not None and rights_read.valid_from > now)
+            or (rights_read.valid_until is not None and rights_read.valid_until < now)
+        ):
+            rights_read = rights_read.model_copy(update={"status": "needs_review"})
         media_reads.append(DocumentaryMediaAssetRead(
             id=asset.id,
             project_id=asset.project_id,
@@ -175,7 +182,7 @@ def _production_overview(db: Session, project_id: uuid.UUID) -> DocumentaryProdu
             duration_seconds=asset.duration_seconds,
             status=asset.status,
             download_url=f"/api/projects/{project_id}/documentary/media/{asset.id}/download",
-            latest_rights=DocumentaryMediaRightsRead.model_validate(rights, from_attributes=True) if rights else None,
+            latest_rights=rights_read,
             created_by_user_id=asset.created_by_user_id,
             created_at=asset.created_at,
             updated_at=asset.updated_at,
@@ -214,6 +221,9 @@ def _production_overview(db: Session, project_id: uuid.UUID) -> DocumentaryProdu
             .order_by(DocumentaryReleaseEvent.created_at, DocumentaryReleaseEvent.id)
         ).all()
         subject = subject_by_id.get(release.subject_id)
+        release_status = release.status
+        if release_status == "signed" and release.expires_at is not None and release.expires_at < now:
+            release_status = "expired"
         release_reads.append(DocumentaryReleaseRead(
             id=release.id,
             project_id=release.project_id,
@@ -225,7 +235,7 @@ def _production_overview(db: Session, project_id: uuid.UUID) -> DocumentaryProdu
             consent_scope=release.consent_scope,
             withdrawal_terms=release.withdrawal_terms,
             permitted_uses=release.permitted_uses or [],
-            status=release.status,
+            status=release_status,
             signed_at=release.signed_at,
             expires_at=release.expires_at,
             release_document_asset_id=release.release_document_asset_id,
