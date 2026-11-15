@@ -47,6 +47,8 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeDraftVersion:** immutable title/content snapshot, author, parent version, proposal status, origin, and optional provider/model/template metadata.
 - **DraftSourceReference:** ordered provenance link to an exact contribution revision or accepted suggestion, plus a snapshot of the source title and text.
 - **ProjectApprovalRule:** a project's owner-only or majority approval policy.
+- **NarrativeApprovalRound:** the frozen voting rule, eligible voter count, and threshold for one exact narrative version.
+- **NarrativeApprovalVoter:** the user and role snapshot for each member eligible in a specific approval round.
 - **NarrativeApprovalVote:** append-only vote events for an exact immutable narrative version.
 - **NarrativeApprovalDecision:** one final approved/rejected decision per narrative version, including a snapshot of the rule and tally.
 - **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
