@@ -20,6 +20,18 @@ Keep these concepts separate:
 
 A character can have one active casting assignment at a time in a given production. Historical assignments should be retained. An actor may be reused across productions and may portray multiple characters in one production where the production permits it. Any schedule or simultaneous-instance restrictions are policy, not identity constraints.
 
+## Actor profiles and casting foundation
+
+The M2 actor foundation separates three identities:
+
+- An Actor is a persistent performer profile owned by a user and reusable across productions.
+- A Character remains a fictional person owned by a project story bible.
+- A CastingAssignment links one Actor to one Character within one project. Recasting ends the previous active assignment instead of deleting history.
+
+A project has performance defaults for controller type and control mode. Each casting assignment can override those defaults. Controller types (user, ai_agent, script_engine, system) are independent of control modes (direct, command, assisted, autonomous, scripted). Human controllers must be active project members. Director remains a project permission/role and is not a controller type. Actor ownership is not changed by casting.
+
+Project settings govern whether one actor may portray multiple characters and whether a character may be recast. The current API permits a user to cast only actor profiles they own; cross-user talent permissions and revocable manager relationships are a later talent-domain milestone. Runtime possession, authority epochs, scene runs, and cast-member instances are deliberately not included in this persistence foundation.
+
 ## 3. Production and runtime entities
 
 ### Persistent entities
