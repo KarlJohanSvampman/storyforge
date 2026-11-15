@@ -433,21 +433,25 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
             item.character_id for item in payload.elements
             if item.character_id is not None
         ]
-        if len(set(character_ids)) != len(character_ids):
-            # A character may speak multiple times in one script; repeated IDs
-            # are expected, so only validate existence/ownership, not uniqueness.
-            character_ids = list(set(character_ids))
+        # A character may speak multiple times; validate each distinct speaker
+        # once and require that they are already assigned to this scene.
+        character_ids = list(set(character_ids))
         if character_ids:
-            rows = db.scalars(select(ProjectCharacter).where(
-                ProjectCharacter.id.in_(character_ids),
-                ProjectCharacter.project_id == project_id,
-                ProjectCharacter.status == "active",
-            )).all()
+            rows = db.scalars(
+                select(ProjectCharacter)
+                .join(SceneCharacterAssignment, SceneCharacterAssignment.character_id == ProjectCharacter.id)
+                .where(
+                    ProjectCharacter.id.in_(character_ids),
+                    ProjectCharacter.project_id == project_id,
+                    ProjectCharacter.status == "active",
+                    SceneCharacterAssignment.scene_id == scene.id,
+                )
+            ).all()
             element_characters = {row.id: row for row in rows}
             if len(element_characters) != len(character_ids):
                 raise HTTPException(
                     status_code=422,
-                    detail="Every dialogue or parenthetical character must be active and belong to this project.",
+                    detail="Every dialogue or parenthetical character must be active and assigned to this scene.",
                 )
 
     def render_elements() -> str:
