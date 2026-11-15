@@ -87,7 +87,16 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Enforce source/evidence requirements for supported, contested, and not-supported outcomes.
 - [ ] Local migration, API permission, source/evidence integrity, review invalidation, and persistence verification.
 
-### M1.5 — Documentary interviews, media and rights (planned)
+### M1.5 — Reusable story-bible management
+- [x] Edit character profiles: name, story description, visual description, and personality notes.
+- [x] Edit location profiles: name, environment type, time period, description, and visual notes.
+- [x] Archive and restore characters and locations without deleting their project-level records.
+- [x] Preserve existing scene references and script history when a character or location is archived.
+- [x] Keep archived existing references editable on their scenes while blocking new assignments until restored.
+- [x] Keep screenplay name snapshots immutable when story-bible character names change.
+- [ ] Local UI/API permission, existing-reference, archive/restore, name-snapshot, and persistence verification.
+
+### M1.6 — Documentary interviews, media and rights (planned)
 - [ ] Add interview subject and interview-session records, including interviewer, date, transcript/media references, and notes.
 - [ ] Track signed releases, consent scope, withdrawal terms, and permitted usage by release/production.
 - [ ] Add archival-media provenance, ownership/rights holder, licence, territory, duration, and permitted-use records.

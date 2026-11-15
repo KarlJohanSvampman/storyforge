@@ -68,7 +68,7 @@ Not every project must use every phase. Projects should be able to skip or revis
 - For TV series, organise work into seasons and episodes, with each episode owning its own scenes and screenplay.
 - Convert an approved story into ordered scenes.
 - Define scene summaries, participants, requirements, and estimated duration.
-- Create basic character and location records.
+- Create and maintain reusable character and location story-bible records, with profile editing and archive/restore controls.
 - Connect scenes to relevant story passages and script material.
 
 Documentary is a first-class category for either a movie or a series. The research workspace now records sources, factual claims, claim-level evidence excerpts, and append-only human fact-check decisions. Interview releases, archival-media rights, source-file storage, and claim-to-scene/script integration remain planned work.

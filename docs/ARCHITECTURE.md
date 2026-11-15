@@ -142,12 +142,12 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - A TV-series storyboard contains ordered seasons, each containing ordered episodes. Episodes carry their own title, logline, synopsis, and estimated runtime. Scenes and their screenplay revisions belong to one episode; scene order is scoped to that episode.
 - Movie projects retain the existing storyboard and project-level scene sequence. Their scene episode_id is null.
 - Project format cannot be switched after a storyboard has been initialized, because doing so would invalidate the scene hierarchy. Content category remains editable as project metadata.
-- Documentary is a first-class category for either format, not a genre or separate format. The category is present in project records now; a later documentary workflow should add research sources, interview records, claim-to-source links, archival-media provenance, rights/permissions, and fact-check states. AI-generated documentary statements remain unverified until a person reviews their sources.
+- Documentary is a first-class category for either format, not a genre or separate format. M1.4 adds project-level research sources, claim-to-source evidence links, and append-only human fact-check reviews. Interview records, releases, archival-media provenance, rights/permissions, and source-file storage remain later work. AI-assisted claims remain unreviewed until a person submits a fact-check decision.
 ### M1.4 documentary research and fact-checking contract
 
 - Documentary research is project-level and independent of storyboard initialization. It is available to both documentary movies and documentary series, including during contributions, development, storyboard, and production phases. Published projects are read-only.
 - A source access timestamp may be entered by the researcher; if omitted, the server records when the source entry was created. It is a recorded access/registration time, not proof that the source itself was retrieved by StoryForge.
-- Research sources store bibliographic identity, source type, creator/author, publisher/holding institution, publication date, URL, citation text, research notes, and server-recorded access time. A source is a reference record; M1.4 does not download, crawl, or preserve the source document itself.
+- Research sources store bibliographic identity, source type, creator/author, publisher/holding institution, publication date, URL, citation text, research notes, and an access timestamp supplied by the researcher or defaulted to source-entry creation time. A source is a reference record; M1.4 does not download, crawl, or preserve the source document itself.
 - Factual claims are discrete statements. Their origin is recorded as human-authored or AI-assisted. Both begin unreviewed; an AI-assisted claim cannot mark itself supported or verified.
 - Evidence links identify one source and an explicit relationship: supports, challenges, or context. They retain the exact excerpt supplied by the researcher and a page, section, table, or timecode locator. Evidence links are append-only in this initial slice.
 - Fact-check results are supported, contested, not_supported, or insufficient_evidence. Supported requires at least one active supporting source; contested requires both supporting and challenging evidence; not_supported requires at least one active challenging source. Insufficient evidence may be recorded when the available sources do not support a stronger conclusion.
@@ -155,6 +155,16 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Adding evidence or changing/archiving a cited source moves a previously reviewed claim to needs_review. The earlier review event and its evidence snapshot remain unchanged. A later human review is required to establish a current result.
 - Claims are not edited in place in this slice. To materially change a claim's wording, archive it and create a new claim so an earlier review cannot silently be carried over to a different proposition. Claims and sources are archived rather than deleted.
 - The initial register supports URLs and manually entered citations/excerpts only. Source file uploads, automated source retrieval, interview releases, participant consent, archival-media rights/licensing, and claim-to-scene/script integration are subsequent work.
+### M1.5 project story-bible management contract
+
+- ProjectCharacter and ProjectLocation are project-level story-bible entities, not storyboard-scoped assets. They remain available across later storyboard interpretations for the same project.
+- Owners, editors, and contributors may update a character's name, story description, visual description, and personality notes, or archive/restore the character. Location profiles similarly support name, environment type, time period, description, visual notes, and archive/restore.
+- Archiving never deletes the record or removes its existing scene references. Archived characters remain visible as existing scene participants, and archived locations remain visible as existing scene locations.
+- Archived characters and locations cannot be newly added to scenes. While editing an existing scene, unchanged archived references may be retained so unrelated scene edits do not fail; the user may explicitly remove them. A removed archived participant cannot be newly assigned again unless restored.
+- New screenplay dialogue must refer to active characters assigned to that scene. Existing immutable screenplay revisions and their character-name snapshots remain unchanged when a character is renamed or archived.
+- Renaming a character updates current scene-participant labels, but does not rewrite saved screenplay text or its name snapshots. Renaming a location updates the current location label in scenes that reference it.
+- Story-bible writes obey the existing storyboard-phase permission boundary. Viewers are read-only; all edits and archive/restore actions are blocked once the project leaves the storyboard phase.
+
 ## 7. Later production and publication data
 
 Keep the project narrative separate from production interpretation. A production version references an approved narrative version while defining its own storyboard, cast assignments, scene blocking, takes, camera tracks, audio, and edit decisions.

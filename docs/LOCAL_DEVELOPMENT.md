@@ -298,6 +298,38 @@ All active project members can read. Owners, editors, and contributors can write
 
 Interview releases/subject consent, archival-media rights and licensing, file uploads, automated source retrieval, and claim links into scenes/scripts are not implemented in this slice. These are tracked separately in M1.5. A source record or human fact-check decision is not a legal rights clearance and does not guarantee that a source is accurate; reviewers should document limitations and uncertainty.
 
+## M1.5 reusable story-bible management
+
+The character and location directories are project-level story-bible records. They are not owned by one individual storyboard interpretation, so later storyboard versions for the same project continue to use the same character and location identities.
+
+Owners, editors, and contributors can edit profile details or archive/restore records while the project remains in the storyboard phase. Viewers and projects outside that phase are read-only.
+
+Character profiles support name, story description, visual description, and personality notes. Location profiles support name, environment type, time period, description, and visual notes. Existing records are updated through the existing PATCH endpoints:
+
+- `PATCH /api/projects/{project_id}/storyboard/characters/{character_id}`
+- `PATCH /api/projects/{project_id}/storyboard/locations/{location_id}`
+
+Archiving preserves all existing scene participation, location references, and screenplay revisions. Archived items remain visible in a collapsible directory section and can be restored. New scene assignments may only use active characters and locations. Existing scenes may retain their archived references while other scene details are edited; users can explicitly remove an archived character or location reference. Once removed, an archived item cannot be assigned again until restored.
+
+Renaming a character updates the current directory and scene-participant labels. Saved screenplay text and structured screenplay character-name snapshots do not change. New dialogue must use an active character already assigned to the scene. Restore an archived character before creating new dialogue for that role.
+
+### M1.5 verification checklist
+
+1. Initialize a storyboard and create at least two characters and two locations with non-empty profile fields.
+2. Edit each character field and save. Confirm the directory reflects the new profile after a reload.
+3. Edit each location field and save. Confirm scenes that reference the location show the updated name.
+4. Create a scene assigned to both characters and one location. Save a structured screenplay with dialogue attributed to a character.
+5. Rename that character. Confirm current scene labels use the new name while existing screenplay content and the structured element's character-name snapshot remain unchanged.
+6. Archive a character assigned to an existing scene. Confirm the participant remains visible as archived and the existing screenplay history remains readable.
+7. Edit an unrelated field on the same scene while retaining the archived character. Confirm the update succeeds. Remove the archived character from the scene and save; confirm a later attempt to reassign it fails until the character is restored.
+8. Try creating a new scene with an archived character and confirm HTTP 422. Try adding new dialogue for an archived character and confirm it is unavailable in the UI and rejected by the API.
+9. Archive a location used by a scene. Confirm the scene keeps the archived location label. Edit another scene field while keeping the location unchanged; confirm the update succeeds. Try assigning that archived location to a different scene and confirm HTTP 422.
+10. Remove an archived location from its existing scene, then confirm it cannot be selected for a new scene until restored.
+11. Restore archived characters and locations. Confirm they return to the active directory and become selectable for new scene assignments and dialogue.
+12. Confirm viewers cannot edit profiles or archive/restore records, and confirm all writes are blocked after the project leaves the storyboard phase.
+13. Create a later storyboard interpretation for the same project if the approval flow permits it. Confirm the same project-level story-bible identities are returned and remain reusable.
+14. Restart Docker Compose and confirm profile updates, archived statuses, scene references, and screenplay history persist.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
