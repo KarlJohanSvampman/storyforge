@@ -654,13 +654,14 @@ function App() {
                   {canManageApprovalRule && (
                     <form className="approval-rule-form" onSubmit={saveApprovalRule}>
                       <label>Decision rule
-                        <select value={approvalMode} onChange={event => setApprovalMode(event.target.value as ApprovalMode)}>
+                        <select value={approvalMode} disabled={approvalRuleLocked || selectedProject.current_phase === "storyboard"} onChange={event => setApprovalMode(event.target.value as ApprovalMode)}>
                           <option value="owner_only">Owner approval</option>
                           <option value="majority">Majority of active creative members</option>
                         </select>
                       </label>
                       <button className="secondary-button" type="submit" disabled={loading || approvalRuleLocked || selectedProject.current_phase === "storyboard"}>Save rule</button>
                       {approvalRuleLocked && <small>Locked because voting has started on a draft version.</small>}
+                      {selectedProject.current_phase === "storyboard" && <small>Locked after the approved narrative moved the project into storyboarding.</small>}
                     </form>
                   )}
                 </div>
