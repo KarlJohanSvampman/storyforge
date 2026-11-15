@@ -115,16 +115,19 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Validate human controllers against active project membership and actor ownership before casting.
 - [x] Preserve casting history and prevent archiving actors with active assignments.
 - [x] Add browser casting workspace, actor talent library, production cast, controller inspector, and project performance policy.
-- [ ] Expand integration coverage for ownership, project isolation, recasting, reuse policy, and controller validation.
+- [x] Expand integration coverage for actor ownership boundary, project isolation, recasting, reuse policy, blank role labels, and controller validation.
 
 ### M2.1 — Scene runtime foundation
-- [ ] Create isolated SceneRuns and CastMemberInstances from approved casting assignments.
-- [ ] Add authority epochs, controller assignment history, and possession leases.
+- [x] Create isolated SceneRuns from storyboard scenes, snapshotting the exact storyboard narrative version and active casting assignments into CastMemberInstances.
+- [x] Add authority epochs, append-only controller assignment history, and time-bounded possession lease storage.
+- [ ] Add lease acquisition/renewal/revocation and authority-epoch enforcement endpoints.
 - [ ] Render a simple 3D set and rigged characters.
 
 ### M2.2 — Performance and recording
-- [ ] Provide virtual cameras and basic character performance recording.
-- [ ] Store takes as structured, replayable data.
+- [x] Add take lifecycle and timestamped, sequenced performance-event capture API with camera-state snapshots.
+- [x] Store finalized takes as structured, replayable data.
+- [ ] Add browser-based virtual camera controls and live recording UI.
+- [ ] Add runtime playback/reconstruction of captured transforms and performance events.
 
 ## M3 — Editing and finished-film workflow
 - [ ] Select takes, cut scenes, arrange sequences, and manage audio.
