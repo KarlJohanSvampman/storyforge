@@ -78,12 +78,21 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add browser workflows to create seasons/episodes and archive/restore them without deleting scene or script history.
 - [ ] Local migration, API permissions, movie compatibility, series hierarchy, scene assignment, ordering, and persistence verification.
 
-### M1.4 — Documentary research and verification (planned)
-- [ ] Add research-source records with bibliographic metadata, URLs, source files, and access timestamps.
-- [ ] Link factual claims in documentary outlines, scripts, and scene notes to one or more sources.
-- [ ] Track interview subjects, interview records, releases, and consent/usage restrictions.
-- [ ] Record archival media provenance, ownership, licensing, and permitted uses.
-- [ ] Add explicit fact-check states and reviewer notes; AI-generated claims remain unverified until reviewed by a person.
+### M1.4 — Documentary research and claim-level fact-checking
+- [x] Add a documentary source register with bibliographic metadata, URLs, citations, access timestamps, notes, and archive/restore controls.
+- [x] Add discrete documentary claims with human/AI-assisted origin labels.
+- [x] Link claims to exact supporting, challenging, or contextual evidence excerpts with page/section/timecode locators.
+- [x] Add append-only human review decisions with rationale, reviewer identity, and evidence snapshots.
+- [x] Invalidate a current fact-check when evidence is added or a cited source is changed/archived, preserving prior review history.
+- [x] Enforce source/evidence requirements for supported, contested, and not-supported outcomes.
+- [ ] Local migration, API permission, source/evidence integrity, review invalidation, and persistence verification.
+
+### M1.5 — Documentary interviews, media and rights (planned)
+- [ ] Add interview subject and interview-session records, including interviewer, date, transcript/media references, and notes.
+- [ ] Track signed releases, consent scope, withdrawal terms, and permitted usage by release/production.
+- [ ] Add archival-media provenance, ownership/rights holder, licence, territory, duration, and permitted-use records.
+- [ ] Support source-file uploads and immutable file metadata/checksums with controlled access.
+- [ ] Link verified claims into documentary outlines, scenes, scripts, narration, and lower-third/caption references.
 
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.
