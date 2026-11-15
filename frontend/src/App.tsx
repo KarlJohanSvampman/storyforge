@@ -1913,6 +1913,248 @@ function App() {
                 </section>
               )}
 
+              {selectedProject.category === "documentary" && documentaryProduction && (
+                <section className="documentary-operations-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">DOCUMENTARY WORKSPACE · M1.6</div><h2>Interviews, media & rights</h2></div>
+                    <span className="step-count">{documentaryProduction.subjects.length} subjects · {documentaryProduction.sessions.length} interviews · {documentaryProduction.media_assets.length} files</span>
+                  </div>
+                  <div className="documentary-integrity-note">
+                    <strong>Consent and rights are use-specific.</strong>
+                    <p>Keep interview identity choices, session records, signed releases and media rights together. Each uploaded file receives a SHA-256 checksum and is stored privately; project membership controls access. Production placements of evidence-backed claims require a current Supported review and applicable media rights and interview consent.</p>
+                  </div>
+
+                  <div className="documentary-research-grid">
+                    <section className="documentary-panel">
+                      <div className="section-kicker">INTERVIEW DIRECTORY</div>
+                      <h3>Interview subjects <span>{documentaryProduction.subjects.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={submitInterviewSubject}>
+                          <label>Name or pseudonym<input required maxLength={200} value={interviewSubjectLabel} onChange={event => setInterviewSubjectLabel(event.target.value)} placeholder="Use a pseudonym when appropriate" /></label>
+                          <div className="documentary-form-row">
+                            <label>Identity handling<select value={interviewSubjectMode} onChange={event => setInterviewSubjectMode(event.target.value as DocumentaryIdentityMode)}>
+                              <option value="named">Named</option><option value="pseudonym">Pseudonym</option><option value="anonymous">Anonymous</option>
+                            </select></label>
+                            <label>Role / relationship<input maxLength={240} value={interviewSubjectRole} onChange={event => setInterviewSubjectRole(event.target.value)} placeholder="Witness, expert, family member…" /></label>
+                          </div>
+                          <label>Background and editorial notes<textarea rows={3} maxLength={10000} value={interviewSubjectNotes} onChange={event => setInterviewSubjectNotes(event.target.value)} /></label>
+                          <button className="primary-button" type="submit" disabled={loading || !interviewSubjectLabel.trim()}><Plus size={14} /> Add subject</button>
+                        </form>
+                      )}
+                      <div className="documentary-record-list">
+                        {documentaryProduction.subjects.map(subject => (
+                          <article className="documentary-record" key={subject.id}>
+                            <div className="documentary-record-heading"><strong>{subject.name_or_pseudonym}</strong><span className="status-tag">{subject.identity_mode} · {subject.status}</span></div>
+                            {subject.role_or_relationship && <p>{subject.role_or_relationship}</p>}
+                            {subject.background_notes && <p className="muted-note">{subject.background_notes}</p>}
+                            {canEditDocumentaryResearch && <button type="button" className="quiet-button" onClick={() => updateInterviewSubject(subject, subject.status === "active" ? "archived" : "active")}>{subject.status === "active" ? "Archive subject" : "Restore subject"}</button>}
+                          </article>
+                        ))}
+                        {documentaryProduction.subjects.length === 0 && <p className="muted-note">Add a subject before registering an interview.</p>}
+                      </div>
+                    </section>
+
+                    <section className="documentary-panel">
+                      <div className="section-kicker">INTERVIEW SESSIONS</div>
+                      <h3>Sessions <span>{documentaryProduction.sessions.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={submitInterviewSession}>
+                          <label>Subject<select required value={interviewSessionSubjectId} onChange={event => setInterviewSessionSubjectId(event.target.value)}>
+                            <option value="">Choose an active subject</option>
+                            {documentaryProduction.subjects.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name_or_pseudonym}</option>)}
+                          </select></label>
+                          <label>Date and time<input required type="datetime-local" value={interviewSessionDate} onChange={event => setInterviewSessionDate(event.target.value)} /></label>
+                          <div className="documentary-form-row">
+                            <label>Format<select value={interviewSessionFormat} onChange={event => setInterviewSessionFormat(event.target.value)}>
+                              <option value="in_person">In person</option><option value="remote">Remote</option><option value="phone">Phone</option><option value="written">Written</option><option value="other">Other</option>
+                            </select></label>
+                            <label>Interviewer<input maxLength={200} value={interviewSessionInterviewer} onChange={event => setInterviewSessionInterviewer(event.target.value)} /></label>
+                          </div>
+                          <label>Location / platform<input maxLength={240} value={interviewSessionLocation} onChange={event => setInterviewSessionLocation(event.target.value)} /></label>
+                          <label>Transcript reference and session notes<textarea rows={3} maxLength={20000} value={interviewSessionNotes} onChange={event => setInterviewSessionNotes(event.target.value)} /></label>
+                          <button className="primary-button" type="submit" disabled={loading || !interviewSessionSubjectId || !interviewSessionDate}><Plus size={14} /> Add interview session</button>
+                        </form>
+                      )}
+                      <div className="documentary-record-list">
+                        {documentaryProduction.sessions.map(session => (
+                          <article className="documentary-record" key={session.id}>
+                            <div className="documentary-record-heading"><strong>{session.subject_label}</strong><span className="status-tag">{session.status}</span></div>
+                            <p>{new Date(session.session_date).toLocaleString()} · {session.session_format.replace("_", " ")}{session.interviewer_name ? ` · Interviewer: ${session.interviewer_name}` : ""}</p>
+                            {session.location_or_platform && <p className="muted-note">{session.location_or_platform}</p>}
+                            {session.transcript_notes && <p>{session.transcript_notes}</p>}
+                            <small>{session.media_asset_ids.length} linked file(s)</small>
+                            {canEditDocumentaryResearch && <button type="button" className="quiet-button" onClick={() => updateInterviewSession(session, session.status === "active" ? "archived" : "active")}>{session.status === "active" ? "Archive session" : "Restore session"}</button>}
+                          </article>
+                        ))}
+                        {documentaryProduction.sessions.length === 0 && <p className="muted-note">No interview sessions have been registered.</p>}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="documentary-panel documentary-wide-panel">
+                    <div className="section-kicker">RELEASES & CONSENT</div>
+                    <h3>Participant releases <span>{documentaryProduction.releases.length}</span></h3>
+                    <p className="muted-note">A draft is not proof of consent. A signed record captures the signing date, scope, permitted uses, expiry and withdrawal terms. Withdrawal is an audited event and immediately blocks later use through this workflow.</p>
+                    {canEditDocumentaryResearch && (
+                      <form className="documentary-form" onSubmit={submitDocumentaryRelease}>
+                        <div className="documentary-form-row">
+                          <label>Subject<select required value={releaseSubjectId} onChange={event => setReleaseSubjectId(event.target.value)}>
+                            <option value="">Choose subject</option>
+                            {documentaryProduction.subjects.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name_or_pseudonym}</option>)}
+                          </select></label>
+                          <label>Interview session (optional)<select value={releaseSessionId} onChange={event => setReleaseSessionId(event.target.value)}>
+                            <option value="">All qualifying sessions for this subject</option>
+                            {documentaryProduction.sessions.filter(item => item.status === "active" && (!releaseSubjectId || item.subject_id === releaseSubjectId)).map(item => <option key={item.id} value={item.id}>{new Date(item.session_date).toLocaleDateString()} · {item.subject_label}</option>)}
+                          </select></label>
+                          <label>Consent scope<select value={releaseScopeType} onChange={event => setReleaseScopeType(event.target.value as "project" | "production" | "release")}>
+                            <option value="project">Project</option><option value="production">Production</option><option value="release">Named release</option>
+                          </select></label>
+                        </div>
+                        {releaseScopeType === "release" && <label>Release / usage label<input required maxLength={240} value={releaseScopeLabel} onChange={event => setReleaseScopeLabel(event.target.value)} placeholder="Name the specific release or use" /></label>}
+                        <label>What has the participant consented to?<textarea required rows={3} maxLength={10000} value={releaseConsentScope} onChange={event => setReleaseConsentScope(event.target.value)} placeholder="Describe the interview, recording, editing and identification scope…" /></label>
+                        <label>Withdrawal terms<textarea rows={2} maxLength={10000} value={releaseWithdrawalTerms} onChange={event => setReleaseWithdrawalTerms(event.target.value)} placeholder="Describe how withdrawal requests are handled and any limitations…" /></label>
+                        <div className="documentary-use-grid">
+                          {documentaryUseOptions.map(option => <label className="documentary-use-option" key={option.value}><input type="checkbox" checked={releasePermittedUses.includes(option.value)} onChange={() => toggleReleaseUse(option.value)} /> {option.label}</label>)}
+                        </div>
+                        <div className="documentary-form-row">
+                          <label>Record state<select value={releaseStatus} onChange={event => setReleaseStatus(event.target.value as "draft" | "signed")}><option value="draft">Draft / not signed</option><option value="signed">Signed</option></select></label>
+                          {releaseStatus === "signed" && <label>Signed at<input required type="datetime-local" value={releaseSignedAt} onChange={event => setReleaseSignedAt(event.target.value)} /></label>}
+                          <label>Expires at (optional)<input type="datetime-local" value={releaseExpiresAt} onChange={event => setReleaseExpiresAt(event.target.value)} /></label>
+                          <label>Signed document (optional)<select value={releaseDocumentAssetId} onChange={event => setReleaseDocumentAssetId(event.target.value)}><option value="">No uploaded document</option>{documentaryProduction.media_assets.filter(item => item.asset_type === "release_document" && item.status === "active").map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+                        </div>
+                        <button className="primary-button" type="submit" disabled={loading || !releaseSubjectId || !releaseConsentScope.trim() || (releaseStatus === "signed" && !releaseSignedAt) || (releaseScopeType === "release" && !releaseScopeLabel.trim())}><Plus size={14} /> Save release record</button>
+                      </form>
+                    )}
+                    <div className="documentary-record-list documentary-record-list-wide">
+                      {documentaryProduction.releases.map(release => (
+                        <article className="documentary-record" key={release.id}>
+                          <div className="documentary-record-heading"><strong>{release.subject_label} · {release.scope_type}{release.scope_label ? ` · ${release.scope_label}` : ""}</strong><span className={release.status === "signed" ? "status-tag verified" : "status-tag"}>{release.status}</span></div>
+                          <p>{release.consent_scope}</p>
+                          <small>Permitted: {release.permitted_uses.map(use => use.replace("_", " ")).join(", ") || "No uses selected"}{release.signed_at ? ` · Signed ${new Date(release.signed_at).toLocaleDateString()}` : ""}{release.expires_at ? ` · Expires ${new Date(release.expires_at).toLocaleDateString()}` : ""}</small>
+                          {release.withdrawal_terms && <p className="muted-note">Withdrawal: {release.withdrawal_terms}</p>}
+                          {release.release_document_asset_id && <small>Signed document attached · accessible to owners and editors only</small>}
+                          {release.events.length > 0 && <details><summary>Consent audit history ({release.events.length})</summary>{release.events.map(item => <p key={item.id}><small>{item.previous_status || "new"} → {item.new_status} · {new Date(item.created_at).toLocaleString()} · {item.reason}</small></p>)}</details>}
+                          {canEditDocumentaryResearch && release.status !== "withdrawn" && <button type="button" className="quiet-button danger-button" onClick={() => withdrawDocumentaryRelease(release)}>Record withdrawal</button>}
+                        </article>
+                      ))}
+                      {documentaryProduction.releases.length === 0 && <p className="muted-note">No releases have been recorded yet.</p>}
+                    </div>
+                  </div>
+
+                  <div className="documentary-research-grid">
+                    <section className="documentary-panel">
+                      <div className="section-kicker">PRIVATE SOURCE FILES</div>
+                      <h3>Upload media <span>{documentaryProduction.media_assets.length}</span></h3>
+                      <p className="muted-note">Maximum 100 MiB per file. Accepted formats include PDF, text, CSV, JSON, DOCX/ODT, common audio/video and image files. Files are not served from a public URL.</p>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={uploadDocumentaryAsset}>
+                          <label>Asset title<input required maxLength={240} value={documentaryUploadTitle} onChange={event => setDocumentaryUploadTitle(event.target.value)} /></label>
+                          <div className="documentary-form-row">
+                            <label>Asset type<select value={documentaryUploadType} onChange={event => setDocumentaryUploadType(event.target.value)}>
+                              <option value="document">Document</option><option value="transcript">Transcript</option><option value="audio">Audio</option>
+                              <option value="video">Video</option><option value="image">Image</option><option value="release_document">Signed release document</option><option value="other">Other</option>
+                            </select></label>
+                            <label>Duration in seconds<input type="number" min="1" value={documentaryUploadDuration} onChange={event => setDocumentaryUploadDuration(event.target.value)} placeholder="Optional" /></label>
+                          </div>
+                          <label>Research source (optional)<select value={documentaryUploadSourceId} onChange={event => setDocumentaryUploadSourceId(event.target.value)}><option value="">Not linked to a source</option>{(documentaryResearch?.sources || []).filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
+                          <label>Interview session (optional)<select value={documentaryUploadSessionId} onChange={event => setDocumentaryUploadSessionId(event.target.value)}><option value="">Not linked to an interview</option>{documentaryProduction.sessions.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.subject_label} · {new Date(item.session_date).toLocaleDateString()}</option>)}</select></label>
+                          <label>File<input id="documentary-media-file" required type="file" onChange={event => setDocumentaryUploadFile(event.target.files?.[0] || null)} /></label>
+                          <button className="primary-button" type="submit" disabled={loading || !documentaryUploadTitle.trim() || !documentaryUploadFile}><Plus size={14} /> Upload private file</button>
+                        </form>
+                      )}
+                    </section>
+
+                    <section className="documentary-panel">
+                      <div className="section-kicker">PROVENANCE & LICENSING</div>
+                      <h3>Media assets <span>{documentaryProduction.media_assets.length}</span></h3>
+                      <div className="documentary-record-list">
+                        {documentaryProduction.media_assets.map(asset => {
+                          const rightsDraft = mediaRightsDraft(asset.id);
+                          return (
+                            <article className="documentary-record" key={asset.id}>
+                              <div className="documentary-record-heading"><strong>{asset.title}</strong><span className="status-tag">{asset.asset_type} · {asset.status}</span></div>
+                              <p>{asset.original_filename} · {(asset.size_bytes / 1024 / 1024).toFixed(2)} MiB{asset.duration_seconds ? ` · ${asset.duration_seconds}s` : ""}</p>
+                              <small>SHA-256: {asset.sha256}</small>
+                              <div><a className="text-link" href={asset.download_url} target="_blank" rel="noreferrer"><ArrowUpRight size={13} /> Download private file</a></div>
+                              {asset.latest_rights && <p className="muted-note">Rights v{asset.latest_rights.version_number}: {asset.latest_rights.rights_basis.replace("_", " ")} · {asset.latest_rights.rights_holder || "Rights holder not recorded"} · {asset.latest_rights.territory} · {asset.latest_rights.status}. Permitted: {asset.latest_rights.permitted_uses.join(", ") || "none"}.</p>}
+                              {canEditDocumentaryResearch && (
+                                <details className="rights-editor">
+                                  <summary>{asset.latest_rights ? "Create a new rights version" : "Add rights / provenance record"}</summary>
+                                  <div className="documentary-form">
+                                    <label>Rights holder<input maxLength={240} value={rightsDraft.rights_holder} onChange={event => updateMediaRightsDraft(asset.id, { rights_holder: event.target.value })} /></label>
+                                    <div className="documentary-form-row">
+                                      <label>Rights basis<select value={rightsDraft.rights_basis} onChange={event => updateMediaRightsDraft(asset.id, { rights_basis: event.target.value })}>
+                                        <option value="owned">Owned by project</option><option value="licensed">Licensed</option><option value="public_domain">Public domain</option><option value="permission">Explicit permission</option><option value="fair_use">Fair use / exception claim</option><option value="research_only">Research only</option><option value="unknown">Unknown / unresolved</option>
+                                      </select></label>
+                                      <label>Territory<input required maxLength={240} value={rightsDraft.territory} onChange={event => updateMediaRightsDraft(asset.id, { territory: event.target.value })} /></label>
+                                    </div>
+                                    {rightsDraft.rights_basis === "licensed" && <label>Licence name<input required maxLength={240} value={rightsDraft.license_name} onChange={event => updateMediaRightsDraft(asset.id, { license_name: event.target.value })} /></label>}
+                                    <label>Licence / permission URL<input maxLength={2048} value={rightsDraft.license_url} onChange={event => updateMediaRightsDraft(asset.id, { license_url: event.target.value })} /></label>
+                                    <label>Rights valid until (optional)<input type="datetime-local" value={rightsDraft.valid_until} onChange={event => updateMediaRightsDraft(asset.id, { valid_until: event.target.value })} /></label>
+                                    <div className="documentary-use-grid">
+                                      {documentaryUseOptions.map(option => <label className="documentary-use-option" key={option.value}><input type="checkbox" checked={rightsDraft.permitted_uses.includes(option.value)} onChange={() => toggleMediaRightsUse(asset.id, option.value)} /> {option.label}</label>)}
+                                    </div>
+                                    <label className="documentary-use-option"><input type="checkbox" checked={rightsDraft.attribution_required} onChange={event => updateMediaRightsDraft(asset.id, { attribution_required: event.target.checked })} /> Attribution required</label>
+                                    {rightsDraft.attribution_required && <label>Required attribution text<textarea rows={2} value={rightsDraft.attribution_text} onChange={event => updateMediaRightsDraft(asset.id, { attribution_text: event.target.value })} /></label>}
+                                    <label>Restrictions and provenance notes<textarea rows={2} value={rightsDraft.restrictions} onChange={event => updateMediaRightsDraft(asset.id, { restrictions: event.target.value })} /></label>
+                                    <button type="button" className="primary-button" disabled={loading || !rightsDraft.territory.trim() || (rightsDraft.rights_basis === "licensed" && !rightsDraft.license_name.trim())} onClick={() => saveMediaRights(asset)}>Save rights version</button>
+                                  </div>
+                                </details>
+                              )}
+                            </article>
+                          );
+                        })}
+                        {documentaryProduction.media_assets.length === 0 && <p className="muted-note">No source files have been uploaded.</p>}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="documentary-panel documentary-wide-panel">
+                    <div className="section-kicker">CLAIM-TO-PRODUCTION REFERENCES</div>
+                    <h3>Place verified claims <span>{documentaryProduction.claim_usages.length}</span></h3>
+                    <p className="muted-note">Only claims with a current Supported human review can be placed. Each placement is append-only and points to the relevant outline, scene, or exact screenplay revision. For uploaded evidence, the required use must be allowed by the latest rights record and, for interview files, by a current signed release.</p>
+                    <div className="documentary-record-list documentary-record-list-wide">
+                      {(documentaryResearch?.claims || []).filter(claim => claim.status === "active").map(claim => {
+                        const usage = claimUsageDraft(claim.id);
+                        const targetScene = storyboard?.scenes.find(scene => scene.id === usage.scene_id);
+                        const needsScene = ["scene", "script", "lower_third", "caption", "narration"].includes(usage.usage_type);
+                        return (
+                          <article className="documentary-record" key={claim.id}>
+                            <div className="documentary-record-heading"><strong>{claim.statement}</strong><span className={claim.current_review_status === "supported" ? "status-tag verified" : "status-tag"}>{claim.current_review_status.replace("_", " ")}</span></div>
+                            {claim.current_review_status === "supported" && canEditDocumentaryResearch && (
+                              <div className="documentary-form claim-usage-form">
+                                <div className="documentary-form-row">
+                                  <label>Place in<select value={usage.usage_type} onChange={event => updateClaimUsageDraft(claim.id, { usage_type: event.target.value, scene_id: "", script_version_id: "" })}>
+                                    <option value="outline">Documentary outline / research notes</option><option value="scene">Scene</option><option value="script">Exact screenplay revision</option>
+                                    <option value="narration">Narration</option><option value="lower_third">Lower third</option><option value="caption">Caption</option>
+                                  </select></label>
+                                  {needsScene && <label>Scene<select value={usage.scene_id} onChange={event => updateClaimUsageDraft(claim.id, { scene_id: event.target.value })}><option value="">Choose scene</option>{(storyboard?.scenes || []).map(scene => <option key={scene.id} value={scene.id}>{scene.scene_order}. {scene.title}</option>)}</select></label>}
+                                  {usage.usage_type === "script" && targetScene && <label>Screenplay revision<select value={usage.script_version_id} onChange={event => updateClaimUsageDraft(claim.id, { script_version_id: event.target.value })}><option value="">Choose exact revision</option>{targetScene.script_versions.map(version => <option key={version.id} value={version.id}>Revision {version.revision_number}</option>)}</select></label>}
+                                </div>
+                                <label>Placement note / wording<textarea rows={2} maxLength={10000} value={usage.reference_text} onChange={event => updateClaimUsageDraft(claim.id, { reference_text: event.target.value })} placeholder="Describe how this verified claim is used…" /></label>
+                                <button type="button" className="primary-button" disabled={loading || (needsScene && !usage.scene_id) || (usage.usage_type === "script" && !usage.script_version_id)} onClick={() => saveClaimUsage(claim)}><Plus size={14} /> Add production reference</button>
+                              </div>
+                            )}
+                            {claim.current_review_status !== "supported" && <p className="muted-note">This claim must have a current Supported human review before it can be linked to production material.</p>}
+                          </article>
+                        );
+                      })}
+                    </div>
+                    <h4>Existing placements</h4>
+                    <div className="documentary-record-list documentary-record-list-wide">
+                      {documentaryProduction.claim_usages.map(usage => (
+                        <article className="documentary-record" key={usage.id}>
+                          <div className="documentary-record-heading"><strong>{usage.usage_type.replace("_", " ")}{usage.scene_title ? ` · ${usage.scene_title}` : ""}{usage.script_revision_number ? ` · screenplay rev ${usage.script_revision_number}` : ""}</strong><span className="status-tag verified">{usage.claim_review_status}</span></div>
+                          <p>{usage.claim_statement}</p>{usage.reference_text && <small>{usage.reference_text}</small>}
+                          <small>Linked {new Date(usage.created_at).toLocaleString()} · immutable reference</small>
+                        </article>
+                      ))}
+                      {documentaryProduction.claim_usages.length === 0 && <p className="muted-note">No claims have been placed in outlines, scenes, scripts, narration, lower thirds or captions.</p>}
+                    </div>
+                  </div>
+                </section>
+              )}
+
               <section className="drafts-section">
                 <div className="section-heading contribution-heading">
                   <div><div className="section-kicker">NARRATIVE DEVELOPMENT</div><h2>Combined story draft</h2></div>
