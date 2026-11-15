@@ -1035,6 +1035,140 @@ function App() {
                   </section>
                 )}
 
+              {selectedProject.current_phase === "storyboard" && (
+                <section className="storyboard-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
+                    <span className="step-count">{storyboard ? `${storyboard.scenes.length} scenes` : "Ready to initialize"}</span>
+                  </div>
+                  {!storyboard ? (
+                    <div className="storyboard-empty">
+                      <p>The narrative is approved. Initialize a storyboard anchored to that exact immutable version before adding scenes, characters or locations.</p>
+                      <button className="primary-button" type="button" disabled={loading} onClick={initializeStoryboard}><Clapperboard size={15} /> Initialize storyboard</button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="storyboard-source-card">
+                        <div><div className="section-kicker">APPROVED NARRATIVE · IMMUTABLE SOURCE</div><strong>{storyboard.narrative_title} · Version {storyboard.narrative_version_number}</strong><p>The storyboard remains linked to this approved version, even if the project evolves later.</p></div>
+                        <span className="approval-status approved">Approved</span>
+                      </div>
+
+                      <details className="storyboard-narrative-source">
+                        <summary>Read / copy from the approved narrative ({storyboard.narrative_content.length.toLocaleString()} characters)</summary>
+                        <pre>{storyboard.narrative_content}</pre>
+                        <small>To connect a scene to its source, copy an exact passage from here and paste it into that scene's passage-link form.</small>
+                      </details>
+
+                      <div className="storyboard-assets-grid">
+                        <section className="storyboard-asset-panel">
+                          <div className="section-kicker">CHARACTER DIRECTORY</div>
+                          <h3>Characters <span>{storyboard.characters.length}</span></h3>
+                          {canContribute && (
+                            <form className="storyboard-mini-form" onSubmit={submitCharacter}>
+                              <label>Name<input required maxLength={160} value={characterName} onChange={event => setCharacterName(event.target.value)} placeholder="Character name" /></label>
+                              <label>Story description<textarea rows={2} maxLength={10000} value={characterDescription} onChange={event => setCharacterDescription(event.target.value)} placeholder="Who are they in the story?" /></label>
+                              <label>Visual description<textarea rows={2} maxLength={10000} value={characterVisual} onChange={event => setCharacterVisual(event.target.value)} placeholder="Appearance, clothing, distinguishing features…" /></label>
+                              <label>Personality notes<textarea rows={2} maxLength={10000} value={characterPersonality} onChange={event => setCharacterPersonality(event.target.value)} placeholder="Traits, motivations, mannerisms…" /></label>
+                              <button className="secondary-button" type="submit" disabled={loading || !characterName.trim()}><Plus size={13} /> Add character</button>
+                            </form>
+                          )}
+                          <div className="storyboard-asset-list">
+                            {storyboard.characters.map(character => (
+                              <article className={character.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={character.id}>
+                                <strong>{character.name}</strong><span>{character.status}</span>
+                                {character.description && <p>{character.description}</p>}
+                                {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                              </article>
+                            ))}
+                            {storyboard.characters.length === 0 && <p className="muted-note">No characters yet.</p>}
+                          </div>
+                        </section>
+
+                        <section className="storyboard-asset-panel">
+                          <div className="section-kicker">LOCATION DIRECTORY</div>
+                          <h3>Locations <span>{storyboard.locations.length}</span></h3>
+                          {canContribute && (
+                            <form className="storyboard-mini-form" onSubmit={submitLocation}>
+                              <label>Name<input required maxLength={160} value={locationName} onChange={event => setLocationName(event.target.value)} placeholder="Location name" /></label>
+                              <label>Environment
+                                <select value={locationType} onChange={event => setLocationType(event.target.value)}>
+                                  <option value="interior">Interior</option><option value="exterior">Exterior</option>
+                                  <option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option>
+                                  <option value="unspecified">Unspecified</option>
+                                </select>
+                              </label>
+                              <label>Time period<input maxLength={120} value={locationPeriod} onChange={event => setLocationPeriod(event.target.value)} placeholder="e.g. Present day, 1920s…" /></label>
+                              <label>Description<textarea rows={2} maxLength={10000} value={locationDescription} onChange={event => setLocationDescription(event.target.value)} placeholder="What is this place?" /></label>
+                              <label>Visual notes<textarea rows={2} maxLength={10000} value={locationVisual} onChange={event => setLocationVisual(event.target.value)} placeholder="Mood, architecture, light, atmosphere…" /></label>
+                              <button className="secondary-button" type="submit" disabled={loading || !locationName.trim()}><Plus size={13} /> Add location</button>
+                            </form>
+                          )}
+                          <div className="storyboard-asset-list">
+                            {storyboard.locations.map(location => (
+                              <article className={location.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={location.id}>
+                                <strong>{location.name}</strong><span>{location.environment_type} · {location.status}</span>
+                                {location.time_period && <small>{location.time_period}</small>}
+                                {location.description && <p>{location.description}</p>}
+                                {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                              </article>
+                            ))}
+                            {storyboard.locations.length === 0 && <p className="muted-note">No locations yet.</p>}
+                          </div>
+                        </section>
+                      </div>
+
+                      {canContribute && (
+                        <form className="storyboard-scene-form" onSubmit={submitScene}>
+                          <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
+                          <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
+                          <label>Summary<textarea rows={3} maxLength={10000} value={sceneSummary} onChange={event => setSceneSummary(event.target.value)} placeholder="What happens in this scene?" /></label>
+                          <label>Requirements<textarea rows={2} maxLength={10000} value={sceneRequirements} onChange={event => setSceneRequirements(event.target.value)} placeholder="Props, visual effects, stunts, special conditions, continuity…" /></label>
+                          <div className="storyboard-scene-form-row">
+                            <label>Estimated duration (seconds)<input type="number" min="1" max="86400" value={sceneDuration} onChange={event => setSceneDuration(event.target.value)} placeholder="e.g. 90" /></label>
+                            <label>Primary location<select value={sceneLocationId} onChange={event => setSceneLocationId(event.target.value)}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                          </div>
+                          <label>Characters in this scene <select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={sceneCharacterIds} onChange={event => setSceneCharacterIds(Array.from(event.target.selectedOptions, option => option.value))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="field-hint">Use Ctrl / Cmd to select more than one character.</small></label>
+                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim()}><Plus size={15} /> Add scene</button></div>
+                        </form>
+                      )}
+
+                      <div className="storyboard-scene-list">
+                        <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
+                        {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
+                        {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
+                          const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          return (
+                            <article className="storyboard-scene-card" key={scene.id}>
+                              <div className="storyboard-scene-heading">
+                                <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
+                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
+                                {canContribute && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                              </div>
+                              {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
+                              {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
+                              <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => <span key={character.id}>{character.name}</span>) : <small>None assigned</small>}</div>
+
+                              <div className="scene-passage-area">
+                                <div className="section-kicker">LINKED STORY PASSAGES · {scene.passages.length}</div>
+                                {scene.passages.map(passage => <details className="scene-passage" key={passage.id}><summary>Passage {passage.reference_order} · source characters {passage.start_offset}–{passage.end_offset}</summary><pre>{passage.passage_snapshot}</pre></details>)}
+                                {canContribute && <div className="scene-passage-form"><label>Paste an exact excerpt from the approved narrative<textarea rows={3} maxLength={10000} value={passageDrafts[scene.id] || ""} onChange={event => setPassageDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Copy the exact passage from the approved narrative above…" /></label><label>Occurrence when the same passage appears more than once<input type="number" min="1" max="100" value={passageOccurrences[scene.id] || "1"} onChange={event => setPassageOccurrences(current => ({ ...current, [scene.id]: event.target.value }))} /></label><button type="button" className="secondary-button" disabled={loading || !(passageDrafts[scene.id] || "").trim()} onClick={() => addScenePassage(scene)}>Link exact passage</button></div>}
+                              </div>
+
+                              <div className="scene-script-area">
+                                <div className="section-kicker">WORKING SCRIPT · {scene.script_versions.length} REVISIONS</div>
+                                {canContribute && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
+                                {scene.script_versions.length > 0 && <details className="scene-script-history"><summary>Script history</summary>{[...scene.script_versions].reverse().map(version => <article key={version.id}><strong>Revision {version.revision_number} · {version.author_display_name}</strong><pre>{version.content}</pre></article>)}</details>}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
+
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
                   <div><div className="section-kicker">THE STORY TAKES SHAPE</div><h2>Contributions <span className="contribution-count">{contributions.length}</span></h2></div>
