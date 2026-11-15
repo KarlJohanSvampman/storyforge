@@ -828,6 +828,7 @@ class CastMemberInstance(Base):
     __table_args__ = (
         UniqueConstraint("scene_run_id", "character_id", name="uq_cast_member_instances_run_character"),
         CheckConstraint("instance_status IN ('ready', 'removed')", name="ck_cast_member_instances_status"),
+        CheckConstraint("authority_epoch >= 1", name="ck_cast_member_instances_authority_epoch"),
         CheckConstraint("controller_type IN ('user', 'ai_agent', 'script_engine', 'system')", name="ck_cast_member_instances_controller"),
         CheckConstraint("control_mode IN ('direct', 'command', 'assisted', 'autonomous', 'scripted')", name="ck_cast_member_instances_mode"),
     )
