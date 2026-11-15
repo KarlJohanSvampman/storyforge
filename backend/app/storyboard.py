@@ -461,14 +461,14 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
                 rendered.append(item.content)
             elif item.element_type == "dialogue":
                 character = element_characters[item.character_id]
-                rendered.append(f"{character.name.upper()}\\n{item.content}")
+                rendered.append(f"{character.name.upper()}\n{item.content}")
             elif item.element_type == "parenthetical":
                 rendered.append(f"({item.content})")
             elif item.element_type == "transition":
                 rendered.append(item.content.upper())
             else:
                 rendered.append(f"[PRODUCTION NOTE: {item.content}]")
-        return "\\n\\n".join(rendered)
+        return "\n\n".join(rendered)
 
     script_content = payload.content if payload.content is not None else render_elements()
     if not script_content.strip():
