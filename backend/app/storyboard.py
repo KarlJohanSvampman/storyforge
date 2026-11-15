@@ -99,8 +99,15 @@ def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
         .order_by(ProjectLocation.name)
     ).all()
     scene_rows = db.scalars(
-        select(StoryboardScene).where(StoryboardScene.storyboard_id == storyboard.id)
-        .order_by(StoryboardScene.scene_order)
+        select(StoryboardScene)
+        .outerjoin(StoryboardEpisode, StoryboardEpisode.id == StoryboardScene.episode_id)
+        .outerjoin(StoryboardSeason, StoryboardSeason.id == StoryboardEpisode.season_id)
+        .where(StoryboardScene.storyboard_id == storyboard.id)
+        .order_by(
+            StoryboardSeason.season_number,
+            StoryboardEpisode.episode_number,
+            StoryboardScene.scene_order,
+        )
     ).all()
 
     scenes: list[StoryboardSceneRead] = []
