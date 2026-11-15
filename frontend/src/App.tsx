@@ -221,13 +221,13 @@ function App() {
   const [claimStatement, setClaimStatement] = useState("");
   const [claimContext, setClaimContext] = useState("");
   const [claimOrigin, setClaimOrigin] = useState<"human" | "ai_assisted">("human");
-  const [evidenceSourceId, setEvidenceSourceId] = useState("");
-  const [evidenceRelation, setEvidenceRelation] = useState<DocumentaryEvidenceRelation>("supports");
-  const [evidenceExcerpt, setEvidenceExcerpt] = useState("");
-  const [evidenceLocator, setEvidenceLocator] = useState("");
-  const [evidenceNotes, setEvidenceNotes] = useState("");
-  const [reviewResult, setReviewResult] = useState<DocumentaryReviewResult>("supported");
-  const [reviewRationale, setReviewRationale] = useState("");
+  const [evidenceSourceIds, setEvidenceSourceIds] = useState<Record<string, string>>({});
+  const [evidenceRelations, setEvidenceRelations] = useState<Record<string, DocumentaryEvidenceRelation>>({});
+  const [evidenceExcerpts, setEvidenceExcerpts] = useState<Record<string, string>>({});
+  const [evidenceLocators, setEvidenceLocators] = useState<Record<string, string>>({});
+  const [evidenceNotesByClaim, setEvidenceNotesByClaim] = useState<Record<string, string>>({});
+  const [reviewResults, setReviewResults] = useState<Record<string, DocumentaryReviewResult>>({});
+  const [reviewRationales, setReviewRationales] = useState<Record<string, string>>({});
   const [characterName, setCharacterName] = useState("");
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterVisual, setCharacterVisual] = useState("");
@@ -340,8 +340,8 @@ function App() {
       setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate("");
       setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
       setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
-      setEvidenceSourceId(""); setEvidenceRelation("supports"); setEvidenceExcerpt(""); setEvidenceLocator(""); setEvidenceNotes("");
-      setReviewResult("supported"); setReviewRationale("");
+      setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
+      setReviewResults({}); setReviewRationales({});
       setStoryboard(currentStoryboard);
       setSceneEdits({});
       setScriptElementDrafts({});
@@ -1053,23 +1053,26 @@ function App() {
   }
 
   async function addClaimEvidence(claim: DocumentaryClaim) {
-    if (!selectedProject || !evidenceSourceId) return;
+    if (!selectedProject || !evidenceSourceIds[claim.id]) return;
     setLoading(true);
     setError("");
     try {
       const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/evidence`, {
         method: "POST",
         body: JSON.stringify({
-          source_id: evidenceSourceId,
-          evidence_relation: evidenceRelation,
-          excerpt: evidenceExcerpt,
-          locator: evidenceLocator,
-          notes: evidenceNotes,
+          source_id: evidenceSourceIds[claim.id],
+          evidence_relation: evidenceRelations[claim.id] || "supports",
+          excerpt: evidenceExcerpts[claim.id] || "",
+          locator: evidenceLocators[claim.id] || "",
+          notes: evidenceNotesByClaim[claim.id] || "",
         }),
       });
       setDocumentaryResearch(updated);
-      setEvidenceSourceId(""); setEvidenceRelation("supports");
-      setEvidenceExcerpt(""); setEvidenceLocator(""); setEvidenceNotes("");
+      setEvidenceSourceIds(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceRelations(current => ({ ...current, [claim.id]: "supports" }));
+      setEvidenceExcerpts(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceLocators(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: "" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not link evidence to the claim.");
     } finally {
@@ -1078,20 +1081,22 @@ function App() {
   }
 
   async function submitClaimReview(claim: DocumentaryClaim) {
-    if (!selectedProject || !reviewRationale.trim()) {
+    const result = reviewResults[claim.id] || "supported";
+    const rationale = reviewRationales[claim.id] || "";
+    if (!selectedProject || !rationale.trim()) {
       setError("Add a rationale before submitting a fact-check decision.");
       return;
     }
-    if (!window.confirm(`Record a human fact-check decision of “${reviewResult.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
+    if (!window.confirm(`Record a human fact-check decision of “${result.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
     setLoading(true);
     setError("");
     try {
       const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/reviews`, {
         method: "POST",
-        body: JSON.stringify({ result: reviewResult, rationale: reviewRationale }),
+        body: JSON.stringify({ result, rationale }),
       });
       setDocumentaryResearch(updated);
-      setReviewRationale("");
+      setReviewRationales(current => ({ ...current, [claim.id]: "" }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not record the fact-check review.");
     } finally {
@@ -1382,17 +1387,17 @@ function App() {
                             {canEditDocumentaryResearch && claim.status === "active" && (
                               <div className="documentary-evidence-editor">
                                 <div className="section-kicker">LINK A SOURCE TO THIS CLAIM</div>
-                                <label>Source<select value={evidenceSourceId} onChange={event => setEvidenceSourceId(event.target.value)}>
+                                <label>Source<select value={evidenceSourceIds[claim.id] || ""} onChange={event => setEvidenceSourceIds(current => ({ ...current, [claim.id]: event.target.value }))}>
                                   <option value="">Choose an active source</option>
                                   {documentaryResearch.sources.filter(source => source.status === "active" && !claim.evidence.some(item => item.source_id === source.id)).map(source => <option key={source.id} value={source.id}>{source.title}</option>)}
                                 </select></label>
-                                <label>Evidence relationship<select value={evidenceRelation} onChange={event => setEvidenceRelation(event.target.value as DocumentaryEvidenceRelation)}>
+                                <label>Evidence relationship<select value={evidenceRelations[claim.id] || "supports"} onChange={event => setEvidenceRelations(current => ({ ...current, [claim.id]: event.target.value as DocumentaryEvidenceRelation }))}>
                                   <option value="supports">Supports the claim</option><option value="challenges">Challenges the claim</option><option value="context">Provides context</option>
                                 </select></label>
-                                <label>Exact excerpt<textarea rows={2} maxLength={12000} value={evidenceExcerpt} onChange={event => setEvidenceExcerpt(event.target.value)} placeholder="Copy the relevant passage or data description…" /></label>
-                                <label>Page / section / timecode<input maxLength={240} value={evidenceLocator} onChange={event => setEvidenceLocator(event.target.value)} placeholder="e.g. p. 42, table 3, 00:13:20" /></label>
-                                <label>Evidence notes<textarea rows={2} maxLength={5000} value={evidenceNotes} onChange={event => setEvidenceNotes(event.target.value)} placeholder="Explain relevance, method or limitations…" /></label>
-                                <button type="button" className="secondary-button" disabled={loading || !evidenceSourceId} onClick={() => addClaimEvidence(claim)}>Link evidence</button>
+                                <label>Exact excerpt<textarea rows={2} maxLength={12000} value={evidenceExcerpts[claim.id] || ""} onChange={event => setEvidenceExcerpts(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Copy the relevant passage or data description…" /></label>
+                                <label>Page / section / timecode<input maxLength={240} value={evidenceLocators[claim.id] || ""} onChange={event => setEvidenceLocators(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="e.g. p. 42, table 3, 00:13:20" /></label>
+                                <label>Evidence notes<textarea rows={2} maxLength={5000} value={evidenceNotesByClaim[claim.id] || ""} onChange={event => setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain relevance, method or limitations…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !evidenceSourceIds[claim.id]} onClick={() => addClaimEvidence(claim)}>Link evidence</button>
                               </div>
                             )}
 
@@ -1400,12 +1405,12 @@ function App() {
                               <div className="documentary-review-editor">
                                 <div className="section-kicker">HUMAN FACT-CHECK REVIEW</div>
                                 <p>Submitting a review records your decision, rationale and a snapshot of all active evidence linked to this claim.</p>
-                                <label>Review result<select value={reviewResult} onChange={event => setReviewResult(event.target.value as DocumentaryReviewResult)}>
+                                <label>Review result<select value={reviewResults[claim.id] || "supported"} onChange={event => setReviewResults(current => ({ ...current, [claim.id]: event.target.value as DocumentaryReviewResult }))}>
                                   <option value="supported">Supported by evidence</option><option value="contested">Contested evidence</option>
                                   <option value="not_supported">Not supported</option><option value="insufficient_evidence">Insufficient evidence</option>
                                 </select></label>
-                                <label>Review rationale<textarea rows={2} maxLength={10000} value={reviewRationale} onChange={event => setReviewRationale(event.target.value)} placeholder="Explain the evidence, source quality, uncertainty and reasoning…" /></label>
-                                <button type="button" className="secondary-button" disabled={loading || !reviewRationale.trim()} onClick={() => submitClaimReview(claim)}>Record fact-check decision</button>
+                                <label>Review rationale<textarea rows={2} maxLength={10000} value={reviewRationales[claim.id] || ""} onChange={event => setReviewRationales(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain the evidence, source quality, uncertainty and reasoning…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !(reviewRationales[claim.id] || "").trim()} onClick={() => submitClaimReview(claim)}>Record fact-check decision</button>
                               </div>
                             )}
 
