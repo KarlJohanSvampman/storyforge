@@ -1573,3 +1573,12 @@ class EditExportRead(BaseModel):
     manifest: dict
     created_by_user_id: uuid.UUID
     created_at: datetime
+
+
+class ProductionPhaseActivate(BaseModel):
+    reason: str = Field(default="Storyboard approved for production.", max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_production_reason(cls, value: str) -> str:
+        return value.strip() or "Storyboard approved for production."
