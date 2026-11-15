@@ -1059,7 +1059,7 @@ function App() {
                     <label>Visibility<select value={form.visibility} onChange={e => setForm({ ...form, visibility: e.target.value })}><option value="private">Private · members only</option><option value="unlisted">Unlisted · link access later</option><option value="public">Public · discoverable later</option></select></label>
                   </div>
                   <label>Project description<textarea rows={3} maxLength={10000} placeholder="Set the scene. What do you want to make together?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
-                  {form.category === "documentary" && <p className="field-hint">Documentary projects are fact-based works. Research, source attribution, interview records and fact-checking will be handled by the documentary workflow.</p>}
+                  {form.category === "documentary" && <p className="field-hint">The documentary category is available for both movies and series. Research sources, interview records, rights tracking and fact-checking are planned for a dedicated later workflow.</p>}
                   <div className="form-actions"><span>You'll be the project owner. You can invite collaborators next.</span><button className="primary-button" disabled={loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create project</button></div>
                 </form>
               )}
