@@ -105,7 +105,24 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, upload/download access, consent withdrawal, rights enforcement, claim placement, and persistence verification.
 
 ## M2 — Basic virtual production
+
+### M2.0 — Actor and casting foundation
+- [x] Separate persistent user-owned Actor profiles from project-owned story Characters.
+- [x] Add production-scoped CastingAssignments with active/replaced/ended history.
+- [x] Allow an actor to portray multiple characters unless project settings prohibit reuse.
+- [x] Configure project-level default controller type and control mode, with per-casting overrides.
+- [x] Separate controller identity (user, AI agent, script engine, system) from control mode (direct, command, assisted, autonomous, scripted).
+- [x] Validate human controllers against active project membership and actor ownership before casting.
+- [x] Preserve casting history and prevent archiving actors with active assignments.
+- [ ] Add browser casting workspace and controller inspector.
+- [ ] Add further integration tests for ownership, project isolation, recasting, reuse policy, and controller validation.
+
+### M2.1 — Scene runtime foundation
+- [ ] Create isolated SceneRuns and CastMemberInstances from approved casting assignments.
+- [ ] Add authority epochs, controller assignment history, and possession leases.
 - [ ] Render a simple 3D set and rigged characters.
+
+### M2.2 — Performance and recording
 - [ ] Provide virtual cameras and basic character performance recording.
 - [ ] Store takes as structured, replayable data.
 
