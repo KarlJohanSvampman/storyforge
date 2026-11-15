@@ -61,6 +61,7 @@ class MemberRead(BaseModel):
     display_name: str | None = None
     email: str | None = None
     invited_email: str | None = None
+    user_id: uuid.UUID | None = None
     role: str
     status: str
     created_at: datetime
