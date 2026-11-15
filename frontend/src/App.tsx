@@ -1423,7 +1423,7 @@ function App() {
                                   <span>{review.reviewer_display_name} · {new Date(review.created_at).toLocaleString()}</span>
                                   <p>{review.rationale}</p>
                                   <details><summary>Evidence snapshot · {review.reviewed_evidence_snapshot.length} sources</summary>
-                                    {review.reviewed_evidence_snapshot.map((item, index) => <pre key={index}>{[item.source_title, item.evidence_relation, item.locator, item.excerpt].filter(Boolean).join("\n")}</pre>)}
+                                    {review.reviewed_evidence_snapshot.map((item, index) => <pre key={index}>{[item.source_title, item.source_type, item.creator, item.publisher, item.publication_date, item.url, item.citation_text, item.evidence_relation, item.locator, item.excerpt, item.notes, item.accessed_at].filter(Boolean).join("\n")}</pre>)}
                                   </details>
                                 </article>
                               ))}
