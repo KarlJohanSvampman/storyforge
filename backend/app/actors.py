@@ -169,8 +169,8 @@ def update_casting(project_id: uuid.UUID, assignment_id: uuid.UUID, payload: Cas
         member = db.scalar(select(ProjectMembership.id).where(ProjectMembership.project_id == project_id, ProjectMembership.user_id == controller_user_id, ProjectMembership.status == "active"))
         if not member:
             raise HTTPException(status_code=422, detail="The selected human controller must be an active project member.")
-    elif "controller_type" in values or "controller_user_id" in values:
-        if controller_user_id is not None:
+    else:
+        if values.get("controller_user_id") is not None:
             raise HTTPException(status_code=422, detail="controller_user_id is only valid for user-controlled actors.")
         controller_user_id = None
     for key, value in values.items():
