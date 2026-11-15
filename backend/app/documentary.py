@@ -338,10 +338,13 @@ def review_documentary_claim(
             "publication_date": source.publication_date,
             "url": source.url,
             "citation_text": source.citation_text,
+            "research_notes": source.research_notes,
+            "accessed_at": source.accessed_at.isoformat() if source.accessed_at else None,
             "evidence_relation": evidence.evidence_relation,
             "excerpt": evidence.excerpt,
             "locator": evidence.locator,
             "notes": evidence.notes,
+            "evidence_created_at": evidence.created_at.isoformat() if evidence.created_at else None,
         })
 
     previous = claim.current_review_status
