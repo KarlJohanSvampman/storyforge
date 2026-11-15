@@ -172,6 +172,8 @@ def create_research_source(project_id: uuid.UUID, payload: DocumentarySourceCrea
         research_notes=payload.research_notes,
         created_by_user_id=user.id,
     )
+    if payload.accessed_at is not None:
+        source.accessed_at = payload.accessed_at
     db.add(source)
     db.commit()
     return _documentary_detail(db, project_id)
