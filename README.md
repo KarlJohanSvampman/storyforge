@@ -71,7 +71,7 @@ Not every project must use every phase. Projects should be able to skip or revis
 - Create basic character and location records.
 - Connect scenes to relevant story passages and script material.
 
-Documentary is a first-class category for either a movie or a series. Dedicated research, source attribution, interview, rights, and fact-checking tools are planned as a later milestone.
+Documentary is a first-class category for either a movie or a series. The research workspace now records sources, factual claims, claim-level evidence excerpts, and append-only human fact-check decisions. Interview releases, archival-media rights, source-file storage, and claim-to-scene/script integration remain planned work.
 
 ### M2 — Basic virtual production
 

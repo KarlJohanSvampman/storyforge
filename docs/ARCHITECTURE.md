@@ -58,6 +58,10 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **ScenePassageReference:** exact excerpt reference into the approved narrative snapshot, retaining source offsets and passage text.
 - **SceneScriptVersion:** append-only revision history for script material attached to a scene.
 - **ProjectCharacter / ProjectLocation:** project-level story bible records describing fictional characters and locations. These are not actor profiles, casting engagements, or 3D production assets.
+- **DocumentaryResearchSource:** a project-level bibliographic/source record with creator, publisher, date, URL, citation, access timestamp, notes, and active/archived status.
+- **DocumentaryClaim:** one discrete factual proposition, with human or AI-assisted origin and a current fact-check state.
+- **DocumentaryClaimEvidence:** a link from one claim to one source, recording whether the source supports, challenges, or contextualises the claim, plus an exact excerpt and page/section/timecode locator.
+- **DocumentaryClaimReview:** append-only human review event recording the result, rationale, reviewer, and snapshot of all active evidence considered at that time.
 - **SceneCharacterAssignment:** explicit list of which story characters participate in each scene.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
@@ -139,6 +143,18 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Movie projects retain the existing storyboard and project-level scene sequence. Their scene episode_id is null.
 - Project format cannot be switched after a storyboard has been initialized, because doing so would invalidate the scene hierarchy. Content category remains editable as project metadata.
 - Documentary is a first-class category for either format, not a genre or separate format. The category is present in project records now; a later documentary workflow should add research sources, interview records, claim-to-source links, archival-media provenance, rights/permissions, and fact-check states. AI-generated documentary statements remain unverified until a person reviews their sources.
+### M1.4 documentary research and fact-checking contract
+
+- Documentary research is project-level and independent of storyboard initialization. It is available to both documentary movies and documentary series, including during contributions, development, storyboard, and production phases. Published projects are read-only.
+- A source access timestamp may be entered by the researcher; if omitted, the server records when the source entry was created. It is a recorded access/registration time, not proof that the source itself was retrieved by StoryForge.
+- Research sources store bibliographic identity, source type, creator/author, publisher/holding institution, publication date, URL, citation text, research notes, and server-recorded access time. A source is a reference record; M1.4 does not download, crawl, or preserve the source document itself.
+- Factual claims are discrete statements. Their origin is recorded as human-authored or AI-assisted. Both begin unreviewed; an AI-assisted claim cannot mark itself supported or verified.
+- Evidence links identify one source and an explicit relationship: supports, challenges, or context. They retain the exact excerpt supplied by the researcher and a page, section, table, or timecode locator. Evidence links are append-only in this initial slice.
+- Fact-check results are supported, contested, not_supported, or insufficient_evidence. Supported requires at least one active supporting source; contested requires both supporting and challenging evidence; not_supported requires at least one active challenging source. Insufficient evidence may be recorded when the available sources do not support a stronger conclusion.
+- Each review is a human-authored append-only event with reviewer identity, rationale, and a snapshot of active source metadata and linked excerpts. The claim's current status points to the latest review.
+- Adding evidence or changing/archiving a cited source moves a previously reviewed claim to needs_review. The earlier review event and its evidence snapshot remain unchanged. A later human review is required to establish a current result.
+- Claims are not edited in place in this slice. To materially change a claim's wording, archive it and create a new claim so an earlier review cannot silently be carried over to a different proposition. Claims and sources are archived rather than deleted.
+- The initial register supports URLs and manually entered citations/excerpts only. Source file uploads, automated source retrieval, interview releases, participant consent, archival-media rights/licensing, and claim-to-scene/script integration are subsequent work.
 ## 7. Later production and publication data
 
 Keep the project narrative separate from production interpretation. A production version references an approved narrative version while defining its own storyboard, cast assignments, scene blocking, takes, camera tracks, audio, and edit decisions.

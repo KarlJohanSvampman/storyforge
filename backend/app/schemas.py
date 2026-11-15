@@ -766,3 +766,189 @@ class StoryboardDetail(BaseModel):
     seasons: list[StoryboardSeasonRead] = Field(default_factory=list)
     characters: list[CharacterRead] = Field(default_factory=list)
     locations: list[LocationRead] = Field(default_factory=list)
+
+
+DocumentarySourceType = Literal[
+    "article", "book", "academic_paper", "official_record",
+    "government_data", "interview", "archival_record", "website", "other",
+]
+DocumentaryEvidenceRelation = Literal["supports", "challenges", "context"]
+DocumentaryReviewResult = Literal["supported", "contested", "not_supported", "insufficient_evidence"]
+
+
+class DocumentarySourceCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    source_type: DocumentarySourceType = "article"
+    creator: str = Field(default="", max_length=500)
+    publisher: str = Field(default="", max_length=240)
+    publication_date: str = Field(default="", max_length=80)
+    url: str | None = Field(default=None, max_length=2048)
+    accessed_at: datetime | None = None
+    citation_text: str = Field(default="", max_length=10000)
+    research_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("title", "creator", "publisher", "publication_date", "citation_text", "research_notes")
+    @classmethod
+    def clean_source_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_source_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Source title cannot be blank.")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_source_url(cls, value: str | None) -> str | None:
+        cleaned = value.strip() if value else None
+        if cleaned and not cleaned.startswith(("https://", "http://")):
+            raise ValueError("Source URLs must begin with http:// or https://.")
+        return cleaned
+
+
+class DocumentarySourceUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    source_type: DocumentarySourceType | None = None
+    creator: str | None = Field(default=None, max_length=500)
+    publisher: str | None = Field(default=None, max_length=240)
+    publication_date: str | None = Field(default=None, max_length=80)
+    url: str | None = Field(default=None, max_length=2048)
+    citation_text: str | None = Field(default=None, max_length=10000)
+    research_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "creator", "publisher", "publication_date", "citation_text", "research_notes")
+    @classmethod
+    def clean_source_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_source_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Source title cannot be blank.")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def validate_source_update_url(cls, value: str | None) -> str | None:
+        cleaned = value.strip() if value else None
+        if cleaned and not cleaned.startswith(("https://", "http://")):
+            raise ValueError("Source URLs must begin with http:// or https://.")
+        return cleaned
+
+
+class DocumentarySourceRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    source_type: DocumentarySourceType
+    creator: str
+    publisher: str
+    publication_date: str
+    url: str | None
+    citation_text: str
+    research_notes: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    accessed_at: datetime
+
+
+class DocumentaryClaimCreate(BaseModel):
+    statement: str = Field(min_length=1, max_length=5000)
+    context: str = Field(default="", max_length=10000)
+    origin: Literal["human", "ai_assisted"] = "human"
+
+    @field_validator("statement", "context")
+    @classmethod
+    def clean_claim_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("statement")
+    @classmethod
+    def require_claim_statement(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Claim statement cannot be blank.")
+        return value
+
+
+class DocumentaryClaimUpdate(BaseModel):
+    status: Literal["active", "archived"]
+
+
+class DocumentaryClaimEvidenceCreate(BaseModel):
+    source_id: uuid.UUID
+    evidence_relation: DocumentaryEvidenceRelation
+    excerpt: str = Field(default="", max_length=12000)
+    locator: str = Field(default="", max_length=240)
+    notes: str = Field(default="", max_length=5000)
+
+    @field_validator("excerpt", "locator", "notes")
+    @classmethod
+    def clean_evidence_fields(cls, value: str) -> str:
+        return value.strip()
+
+
+class DocumentaryClaimReviewCreate(BaseModel):
+    result: DocumentaryReviewResult
+    rationale: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("rationale")
+    @classmethod
+    def require_review_rationale(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("A review rationale is required.")
+        return cleaned
+
+
+class DocumentaryClaimEvidenceRead(BaseModel):
+    id: uuid.UUID
+    source_id: uuid.UUID
+    source_title: str
+    source_type: DocumentarySourceType
+    source_url: str | None
+    source_status: str
+    evidence_relation: DocumentaryEvidenceRelation
+    excerpt: str
+    locator: str
+    notes: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class DocumentaryClaimReviewRead(BaseModel):
+    id: uuid.UUID
+    previous_status: str
+    result: DocumentaryReviewResult
+    rationale: str
+    reviewed_evidence_snapshot: list[dict]
+    reviewer_user_id: uuid.UUID
+    reviewer_display_name: str
+    created_at: datetime
+
+
+class DocumentaryClaimRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    statement: str
+    context: str
+    origin: Literal["human", "ai_assisted"]
+    status: str
+    current_review_status: str
+    created_by_user_id: uuid.UUID
+    created_by_display_name: str
+    created_at: datetime
+    updated_at: datetime
+    evidence: list[DocumentaryClaimEvidenceRead] = Field(default_factory=list)
+    reviews: list[DocumentaryClaimReviewRead] = Field(default_factory=list)
+
+
+class DocumentaryResearchOverview(BaseModel):
+    project_id: uuid.UUID
+    sources: list[DocumentarySourceRead] = Field(default_factory=list)
+    claims: list[DocumentaryClaimRead] = Field(default_factory=list)

@@ -142,6 +142,36 @@ type SceneEditDraft = {
   estimated_duration_seconds: string; location_id: string; episode_id: string; character_ids: string[];
 };
 
+type DocumentarySourceType = "article" | "book" | "academic_paper" | "official_record" | "government_data" | "interview" | "archival_record" | "website" | "other";
+type DocumentaryEvidenceRelation = "supports" | "challenges" | "context";
+type DocumentaryReviewResult = "supported" | "contested" | "not_supported" | "insufficient_evidence";
+type DocumentaryResearchSource = {
+  id: string; project_id: string; title: string; source_type: DocumentarySourceType;
+  creator: string; publisher: string; publication_date: string; url: string | null;
+  citation_text: string; research_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string; accessed_at: string;
+};
+type DocumentaryClaimEvidence = {
+  id: string; source_id: string; source_title: string; source_type: DocumentarySourceType;
+  source_url: string | null; source_status: string; evidence_relation: DocumentaryEvidenceRelation;
+  excerpt: string; locator: string; notes: string; created_by_user_id: string; created_at: string;
+};
+type DocumentaryClaimReview = {
+  id: string; previous_status: string; result: DocumentaryReviewResult; rationale: string;
+  reviewed_evidence_snapshot: Array<Record<string, string | null>>;
+  reviewer_user_id: string; reviewer_display_name: string; created_at: string;
+};
+type DocumentaryClaim = {
+  id: string; project_id: string; statement: string; context: string;
+  origin: "human" | "ai_assisted"; status: string; current_review_status: string;
+  created_by_user_id: string; created_by_display_name: string;
+  created_at: string; updated_at: string;
+  evidence: DocumentaryClaimEvidence[]; reviews: DocumentaryClaimReview[];
+};
+type DocumentaryResearch = {
+  project_id: string; sources: DocumentaryResearchSource[]; claims: DocumentaryClaim[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -179,6 +209,26 @@ function App() {
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [documentaryResearch, setDocumentaryResearch] = useState<DocumentaryResearch | null>(null);
+  const [researchSourceTitle, setResearchSourceTitle] = useState("");
+  const [researchSourceType, setResearchSourceType] = useState<DocumentarySourceType>("article");
+  const [researchSourceCreator, setResearchSourceCreator] = useState("");
+  const [researchSourcePublisher, setResearchSourcePublisher] = useState("");
+  const [researchSourceDate, setResearchSourceDate] = useState("");
+  const [researchSourceAccessedAt, setResearchSourceAccessedAt] = useState("");
+  const [researchSourceUrl, setResearchSourceUrl] = useState("");
+  const [researchSourceCitation, setResearchSourceCitation] = useState("");
+  const [researchSourceNotes, setResearchSourceNotes] = useState("");
+  const [claimStatement, setClaimStatement] = useState("");
+  const [claimContext, setClaimContext] = useState("");
+  const [claimOrigin, setClaimOrigin] = useState<"human" | "ai_assisted">("human");
+  const [evidenceSourceIds, setEvidenceSourceIds] = useState<Record<string, string>>({});
+  const [evidenceRelations, setEvidenceRelations] = useState<Record<string, DocumentaryEvidenceRelation>>({});
+  const [evidenceExcerpts, setEvidenceExcerpts] = useState<Record<string, string>>({});
+  const [evidenceLocators, setEvidenceLocators] = useState<Record<string, string>>({});
+  const [evidenceNotesByClaim, setEvidenceNotesByClaim] = useState<Record<string, string>>({});
+  const [reviewResults, setReviewResults] = useState<Record<string, DocumentaryReviewResult>>({});
+  const [reviewRationales, setReviewRationales] = useState<Record<string, string>>({});
   const [characterName, setCharacterName] = useState("");
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterVisual, setCharacterVisual] = useState("");
@@ -282,7 +332,17 @@ function App() {
         api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
         api<Storyboard | null>(`/api/projects/${projectId}/storyboard`),
       ]);
+      const currentResearch = detail.category === "documentary"
+        ? await api<DocumentaryResearch>(`/api/projects/${projectId}/documentary`)
+        : null;
       setSelectedProject(detail);
+      setDocumentaryResearch(currentResearch);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+      setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
+      setReviewResults({}); setReviewRationales({});
       setStoryboard(currentStoryboard);
       setSceneEdits({});
       setScriptElementDrafts({});
@@ -944,11 +1004,148 @@ function App() {
     }
   }
 
+  async function createResearchSource(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !researchSourceTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: researchSourceTitle,
+          source_type: researchSourceType,
+          creator: researchSourceCreator,
+          publisher: researchSourcePublisher,
+          publication_date: researchSourceDate,
+          accessed_at: researchSourceAccessedAt ? new Date(researchSourceAccessedAt).toISOString() : null,
+          url: researchSourceUrl.trim() || null,
+          citation_text: researchSourceCitation,
+          research_notes: researchSourceNotes,
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function createDocumentaryClaim(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !claimStatement.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims`, {
+        method: "POST",
+        body: JSON.stringify({ statement: claimStatement, context: claimContext, origin: claimOrigin }),
+      });
+      setDocumentaryResearch(updated);
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the factual claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addClaimEvidence(claim: DocumentaryClaim) {
+    if (!selectedProject || !evidenceSourceIds[claim.id]) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/evidence`, {
+        method: "POST",
+        body: JSON.stringify({
+          source_id: evidenceSourceIds[claim.id],
+          evidence_relation: evidenceRelations[claim.id] || "supports",
+          excerpt: evidenceExcerpts[claim.id] || "",
+          locator: evidenceLocators[claim.id] || "",
+          notes: evidenceNotesByClaim[claim.id] || "",
+        }),
+      });
+      setDocumentaryResearch(updated);
+      setEvidenceSourceIds(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceRelations(current => ({ ...current, [claim.id]: "supports" }));
+      setEvidenceExcerpts(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceLocators(current => ({ ...current, [claim.id]: "" }));
+      setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link evidence to the claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitClaimReview(claim: DocumentaryClaim) {
+    const result = reviewResults[claim.id] || "supported";
+    const rationale = reviewRationales[claim.id] || "";
+    if (!selectedProject || !rationale.trim()) {
+      setError("Add a rationale before submitting a fact-check decision.");
+      return;
+    }
+    if (!window.confirm(`Record a human fact-check decision of “${result.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/reviews`, {
+        method: "POST",
+        body: JSON.stringify({ result, rationale }),
+      });
+      setDocumentaryResearch(updated);
+      setReviewRationales(current => ({ ...current, [claim.id]: "" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record the fact-check review.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateResearchSourceStatus(source: DocumentaryResearchSource, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} “${source.title}”? Existing claim citations will remain, but any current fact-check that relied on this source will need review.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/sources/${source.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update research source.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateDocumentaryClaimStatus(claim: DocumentaryClaim, status: "active" | "archived") {
+    if (!selectedProject) return;
+    if (!window.confirm(`${status === "archived" ? "Archive" : "Restore"} this claim? Its evidence and fact-check history will be preserved.`)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<DocumentaryResearch>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryResearch(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update documentary claim.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function showProjects() {
     setView("projects");
     setSelectedProject(null);
     setSelectedContribution(null);
     setStoryboard(null);
+    setDocumentaryResearch(null);
     setShowCreate(false);
     setError("");
   }
@@ -956,6 +1153,7 @@ function App() {
   const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
   const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
   const canEditStoryboard = canContribute && selectedProject?.current_phase === "storyboard";
+  const canEditDocumentaryResearch = canContribute && selectedProject?.current_phase !== "published";
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
@@ -1096,6 +1294,151 @@ function App() {
                 </div>
               </div>
 
+
+              {selectedProject.category === "documentary" && documentaryResearch && (
+                <section className="documentary-research-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">DOCUMENTARY WORKSPACE · M1.4</div><h2>Research & fact-checking</h2></div>
+                    <span className="step-count">{documentaryResearch.sources.length} sources · {documentaryResearch.claims.length} claims</span>
+                  </div>
+                  <div className="documentary-integrity-note">
+                    <strong>Evidence is not the same as verification.</strong>
+                    <p>Record where information came from, attach exact excerpts to individual claims, and have a person review the evidence. AI-assisted claims always begin unreviewed. Every review stores its rationale and a snapshot of the evidence considered.</p>
+                  </div>
+
+                  {!canEditDocumentaryResearch && <p className="muted-note">You have read-only access to this research register, or the project has been published.</p>}
+
+                  <div className="documentary-research-grid">
+                    <section className="documentary-panel">
+                      <div className="section-kicker">SOURCE REGISTER</div>
+                      <h3>Research sources <span>{documentaryResearch.sources.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createResearchSource}>
+                          <label>Source title<input required maxLength={240} value={researchSourceTitle} onChange={event => setResearchSourceTitle(event.target.value)} placeholder="Article, book, report, archive item…" /></label>
+                          <div className="documentary-form-row">
+                            <label>Source type<select value={researchSourceType} onChange={event => setResearchSourceType(event.target.value as DocumentarySourceType)}>
+                              <option value="article">Article</option><option value="book">Book</option><option value="academic_paper">Academic paper</option>
+                              <option value="official_record">Official record</option><option value="government_data">Government data</option>
+                              <option value="interview">Interview</option><option value="archival_record">Archival record</option>
+                              <option value="website">Website</option><option value="other">Other</option>
+                            </select></label>
+                            <label>Publication date<input maxLength={80} value={researchSourceDate} onChange={event => setResearchSourceDate(event.target.value)} placeholder="YYYY, YYYY-MM-DD or c. 1900" /></label>
+                          </div>
+                          <label>Accessed at<input type="datetime-local" value={researchSourceAccessedAt} onChange={event => setResearchSourceAccessedAt(event.target.value)} /><small>Leave blank to record the time this source entry is created.</small></label>
+                          <div className="documentary-form-row">
+                            <label>Creator / author<input maxLength={500} value={researchSourceCreator} onChange={event => setResearchSourceCreator(event.target.value)} placeholder="Author, organisation, interviewer…" /></label>
+                            <label>Publisher / institution<input maxLength={240} value={researchSourcePublisher} onChange={event => setResearchSourcePublisher(event.target.value)} placeholder="Publisher or holding institution" /></label>
+                          </div>
+                          <label>URL<input type="url" maxLength={2048} value={researchSourceUrl} onChange={event => setResearchSourceUrl(event.target.value)} placeholder="https://…" /></label>
+                          <label>Full citation<textarea rows={2} maxLength={10000} value={researchSourceCitation} onChange={event => setResearchSourceCitation(event.target.value)} placeholder="Bibliographic citation or archive reference…" /></label>
+                          <label>Research notes<textarea rows={2} maxLength={10000} value={researchSourceNotes} onChange={event => setResearchSourceNotes(event.target.value)} placeholder="Context, limitations, provenance, access conditions…" /></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !researchSourceTitle.trim()}><Plus size={13} /> Add source</button>
+                        </form>
+                      )}
+                      <div className="documentary-source-list">
+                        {documentaryResearch.sources.map(source => (
+                          <article className={source.status === "archived" ? "documentary-source-card archived" : "documentary-source-card"} key={source.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{source.source_type.replaceAll("_", " ").toUpperCase()} · {source.status.toUpperCase()}</span><strong>{source.title}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateResearchSourceStatus(source, source.status === "active" ? "archived" : "active")}>{source.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            {(source.creator || source.publisher || source.publication_date) && <small>{[source.creator, source.publisher, source.publication_date].filter(Boolean).join(" · ")}</small>}
+                            {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}
+                            {source.citation_text && <p>{source.citation_text}</p>}
+                            {source.research_notes && <small>Notes: {source.research_notes}</small>}
+                            <small>Added {new Date(source.created_at).toLocaleDateString()} · accessed {new Date(source.accessed_at).toLocaleDateString()}</small>
+                          </article>
+                        ))}
+                        {documentaryResearch.sources.length === 0 && <p className="muted-note">No sources registered yet. Add the first source before trying to verify a claim.</p>}
+                      </div>
+                    </section>
+
+                    <section className="documentary-panel">
+                      <div className="section-kicker">FACTUAL CLAIMS</div>
+                      <h3>Claim ledger <span>{documentaryResearch.claims.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createDocumentaryClaim}>
+                          <label>Factual claim<textarea required rows={3} maxLength={5000} value={claimStatement} onChange={event => setClaimStatement(event.target.value)} placeholder="Write one clear, testable factual statement…" /></label>
+                          <label>Context / scope<textarea rows={2} maxLength={10000} value={claimContext} onChange={event => setClaimContext(event.target.value)} placeholder="Where, when and in what context does this claim apply?" /></label>
+                          <label>Origin<select value={claimOrigin} onChange={event => setClaimOrigin(event.target.value as "human" | "ai_assisted")}><option value="human">Human-authored</option><option value="ai_assisted">AI-assisted · requires human review</option></select></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !claimStatement.trim()}><Plus size={13} /> Add claim</button>
+                        </form>
+                      )}
+                      <div className="documentary-claim-list">
+                        {documentaryResearch.claims.map(claim => (
+                          <article className={claim.status === "archived" ? "documentary-claim-card archived" : "documentary-claim-card"} key={claim.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{claim.current_review_status.replaceAll("_", " ").toUpperCase()} · {claim.status.toUpperCase()}</span><strong>{claim.statement}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateDocumentaryClaimStatus(claim, claim.status === "active" ? "archived" : "active")}>{claim.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            <div className="documentary-claim-meta"><span>{claim.origin === "ai_assisted" ? "AI-assisted · not verified" : "Human-authored"}</span><span>Added by {claim.created_by_display_name}</span></div>
+                            {claim.context && <p className="documentary-claim-context">{claim.context}</p>}
+
+                            <div className="documentary-evidence-list">
+                              <div className="section-kicker">LINKED EVIDENCE · {claim.evidence.length}</div>
+                              {claim.evidence.map(evidence => (
+                                <div className="documentary-evidence-card" key={evidence.id}>
+                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")} · SOURCE {evidence.source_status.toUpperCase()}</span>
+                                  {evidence.locator && <small>{evidence.locator}</small>}
+                                  {evidence.excerpt && <blockquote>{evidence.excerpt}</blockquote>}
+                                  {evidence.notes && <p>{evidence.notes}</p>}
+                                </div>
+                              ))}
+                              {claim.evidence.length === 0 && <p className="muted-note">No sources linked. A factual review needs traceable evidence.</p>}
+                            </div>
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-evidence-editor">
+                                <div className="section-kicker">LINK A SOURCE TO THIS CLAIM</div>
+                                <label>Source<select value={evidenceSourceIds[claim.id] || ""} onChange={event => setEvidenceSourceIds(current => ({ ...current, [claim.id]: event.target.value }))}>
+                                  <option value="">Choose an active source</option>
+                                  {documentaryResearch.sources.filter(source => source.status === "active" && !claim.evidence.some(item => item.source_id === source.id)).map(source => <option key={source.id} value={source.id}>{source.title}</option>)}
+                                </select></label>
+                                <label>Evidence relationship<select value={evidenceRelations[claim.id] || "supports"} onChange={event => setEvidenceRelations(current => ({ ...current, [claim.id]: event.target.value as DocumentaryEvidenceRelation }))}>
+                                  <option value="supports">Supports the claim</option><option value="challenges">Challenges the claim</option><option value="context">Provides context</option>
+                                </select></label>
+                                <label>Exact excerpt<textarea rows={2} maxLength={12000} value={evidenceExcerpts[claim.id] || ""} onChange={event => setEvidenceExcerpts(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Copy the relevant passage or data description…" /></label>
+                                <label>Page / section / timecode<input maxLength={240} value={evidenceLocators[claim.id] || ""} onChange={event => setEvidenceLocators(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="e.g. p. 42, table 3, 00:13:20" /></label>
+                                <label>Evidence notes<textarea rows={2} maxLength={5000} value={evidenceNotesByClaim[claim.id] || ""} onChange={event => setEvidenceNotesByClaim(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain relevance, method or limitations…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !evidenceSourceIds[claim.id]} onClick={() => addClaimEvidence(claim)}>Link evidence</button>
+                              </div>
+                            )}
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-review-editor">
+                                <div className="section-kicker">HUMAN FACT-CHECK REVIEW</div>
+                                <p>Submitting a review records your decision, rationale and a snapshot of all active evidence linked to this claim.</p>
+                                <label>Review result<select value={reviewResults[claim.id] || "supported"} onChange={event => setReviewResults(current => ({ ...current, [claim.id]: event.target.value as DocumentaryReviewResult }))}>
+                                  <option value="supported">Supported by evidence</option><option value="contested">Contested evidence</option>
+                                  <option value="not_supported">Not supported</option><option value="insufficient_evidence">Insufficient evidence</option>
+                                </select></label>
+                                <label>Review rationale<textarea rows={2} maxLength={10000} value={reviewRationales[claim.id] || ""} onChange={event => setReviewRationales(current => ({ ...current, [claim.id]: event.target.value }))} placeholder="Explain the evidence, source quality, uncertainty and reasoning…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !(reviewRationales[claim.id] || "").trim()} onClick={() => submitClaimReview(claim)}>Record fact-check decision</button>
+                              </div>
+                            )}
+
+                            <details className="documentary-review-history">
+                              <summary>Review history · {claim.reviews.length}</summary>
+                              {claim.reviews.length === 0 && <p className="muted-note">No human fact-check review has been recorded.</p>}
+                              {[...claim.reviews].reverse().map(review => (
+                                <article key={review.id}>
+                                  <strong>{review.result.replaceAll("_", " ").toUpperCase()}</strong>
+                                  <span>{review.reviewer_display_name} · {new Date(review.created_at).toLocaleString()}</span>
+                                  <p>{review.rationale}</p>
+                                  <details><summary>Evidence snapshot · {review.reviewed_evidence_snapshot.length} sources</summary>
+                                    {review.reviewed_evidence_snapshot.map((item, index) => <pre key={index}>{[item.source_title, item.source_type, item.creator, item.publisher, item.publication_date, item.url, item.citation_text, item.evidence_relation, item.locator, item.excerpt, item.notes, item.accessed_at].filter(Boolean).join("\n")}</pre>)}
+                                  </details>
+                                </article>
+                              ))}
+                            </details>
+                          </article>
+                        ))}
+                        {documentaryResearch.claims.length === 0 && <p className="muted-note">No factual claims registered yet. Split documentary narration into individual claims that can each be checked against evidence.</p>}
+                      </div>
+                    </section>
+                  </div>
+                </section>
+              )}
 
               <section className="drafts-section">
                 <div className="section-heading contribution-heading">
