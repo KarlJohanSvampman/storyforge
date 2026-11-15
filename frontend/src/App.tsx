@@ -1287,6 +1287,150 @@ function App() {
               </div>
 
 
+              {selectedProject.category === "documentary" && documentaryResearch && (
+                <section className="documentary-research-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">DOCUMENTARY WORKSPACE · M1.4</div><h2>Research & fact-checking</h2></div>
+                    <span className="step-count">{documentaryResearch.sources.length} sources · {documentaryResearch.claims.length} claims</span>
+                  </div>
+                  <div className="documentary-integrity-note">
+                    <strong>Evidence is not the same as verification.</strong>
+                    <p>Record where information came from, attach exact excerpts to individual claims, and have a person review the evidence. AI-assisted claims always begin unreviewed. Every review stores its rationale and a snapshot of the evidence considered.</p>
+                  </div>
+
+                  {!canEditDocumentaryResearch && <p className="muted-note">You have read-only access to this research register, or the project has been published.</p>}
+
+                  <div className="documentary-research-grid">
+                    <section className="documentary-panel">
+                      <div className="section-kicker">SOURCE REGISTER</div>
+                      <h3>Research sources <span>{documentaryResearch.sources.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createResearchSource}>
+                          <label>Source title<input required maxLength={240} value={researchSourceTitle} onChange={event => setResearchSourceTitle(event.target.value)} placeholder="Article, book, report, archive item…" /></label>
+                          <div className="documentary-form-row">
+                            <label>Source type<select value={researchSourceType} onChange={event => setResearchSourceType(event.target.value as DocumentarySourceType)}>
+                              <option value="article">Article</option><option value="book">Book</option><option value="academic_paper">Academic paper</option>
+                              <option value="official_record">Official record</option><option value="government_data">Government data</option>
+                              <option value="interview">Interview</option><option value="archival_record">Archival record</option>
+                              <option value="website">Website</option><option value="other">Other</option>
+                            </select></label>
+                            <label>Publication date<input maxLength={80} value={researchSourceDate} onChange={event => setResearchSourceDate(event.target.value)} placeholder="YYYY, YYYY-MM-DD or c. 1900" /></label>
+                          </div>
+                          <div className="documentary-form-row">
+                            <label>Creator / author<input maxLength={500} value={researchSourceCreator} onChange={event => setResearchSourceCreator(event.target.value)} placeholder="Author, organisation, interviewer…" /></label>
+                            <label>Publisher / institution<input maxLength={240} value={researchSourcePublisher} onChange={event => setResearchSourcePublisher(event.target.value)} placeholder="Publisher or holding institution" /></label>
+                          </div>
+                          <label>URL<input type="url" maxLength={2048} value={researchSourceUrl} onChange={event => setResearchSourceUrl(event.target.value)} placeholder="https://…" /></label>
+                          <label>Full citation<textarea rows={2} maxLength={10000} value={researchSourceCitation} onChange={event => setResearchSourceCitation(event.target.value)} placeholder="Bibliographic citation or archive reference…" /></label>
+                          <label>Research notes<textarea rows={2} maxLength={10000} value={researchSourceNotes} onChange={event => setResearchSourceNotes(event.target.value)} placeholder="Context, limitations, provenance, access conditions…" /></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !researchSourceTitle.trim()}><Plus size={13} /> Add source</button>
+                        </form>
+                      )}
+                      <div className="documentary-source-list">
+                        {documentaryResearch.sources.map(source => (
+                          <article className={source.status === "archived" ? "documentary-source-card archived" : "documentary-source-card"} key={source.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{source.source_type.replaceAll("_", " ").toUpperCase()} · {source.status.toUpperCase()}</span><strong>{source.title}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateResearchSourceStatus(source, source.status === "active" ? "archived" : "active")}>{source.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            {(source.creator || source.publisher || source.publication_date) && <small>{[source.creator, source.publisher, source.publication_date].filter(Boolean).join(" · ")}</small>}
+                            {source.url && <a href={source.url} target="_blank" rel="noreferrer">Open source ↗</a>}
+                            {source.citation_text && <p>{source.citation_text}</p>}
+                            {source.research_notes && <small>Notes: {source.research_notes}</small>}
+                            <small>Added {new Date(source.created_at).toLocaleDateString()} · accessed {new Date(source.accessed_at).toLocaleDateString()}</small>
+                          </article>
+                        ))}
+                        {documentaryResearch.sources.length === 0 && <p className="muted-note">No sources registered yet. Add the first source before trying to verify a claim.</p>}
+                      </div>
+                    </section>
+
+                    <section className="documentary-panel">
+                      <div className="section-kicker">FACTUAL CLAIMS</div>
+                      <h3>Claim ledger <span>{documentaryResearch.claims.length}</span></h3>
+                      {canEditDocumentaryResearch && (
+                        <form className="documentary-form" onSubmit={createDocumentaryClaim}>
+                          <label>Factual claim<textarea required rows={3} maxLength={5000} value={claimStatement} onChange={event => setClaimStatement(event.target.value)} placeholder="Write one clear, testable factual statement…" /></label>
+                          <label>Context / scope<textarea rows={2} maxLength={10000} value={claimContext} onChange={event => setClaimContext(event.target.value)} placeholder="Where, when and in what context does this claim apply?" /></label>
+                          <label>Origin<select value={claimOrigin} onChange={event => setClaimOrigin(event.target.value as "human" | "ai_assisted")}><option value="human">Human-authored</option><option value="ai_assisted">AI-assisted · requires human review</option></select></label>
+                          <button className="secondary-button" type="submit" disabled={loading || !claimStatement.trim()}><Plus size={13} /> Add claim</button>
+                        </form>
+                      )}
+                      <div className="documentary-claim-list">
+                        {documentaryResearch.claims.map(claim => (
+                          <article className={claim.status === "archived" ? "documentary-claim-card archived" : "documentary-claim-card"} key={claim.id}>
+                            <div className="documentary-card-heading">
+                              <div><span>{claim.current_review_status.replaceAll("_", " ").toUpperCase()} · {claim.status.toUpperCase()}</span><strong>{claim.statement}</strong></div>
+                              {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateDocumentaryClaimStatus(claim, claim.status === "active" ? "archived" : "active")}>{claim.status === "active" ? "Archive" : "Restore"}</button>}
+                            </div>
+                            <div className="documentary-claim-meta"><span>{claim.origin === "ai_assisted" ? "AI-assisted · not verified" : "Human-authored"}</span><span>Added by {claim.created_by_display_name}</span></div>
+                            {claim.context && <p className="documentary-claim-context">{claim.context}</p>}
+
+                            <div className="documentary-evidence-list">
+                              <div className="section-kicker">LINKED EVIDENCE · {claim.evidence.length}</div>
+                              {claim.evidence.map(evidence => (
+                                <div className="documentary-evidence-card" key={evidence.id}>
+                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")}</span>
+                                  {evidence.locator && <small>{evidence.locator}</small>}
+                                  {evidence.excerpt && <blockquote>{evidence.excerpt}</blockquote>}
+                                  {evidence.notes && <p>{evidence.notes}</p>}
+                                </div>
+                              ))}
+                              {claim.evidence.length === 0 && <p className="muted-note">No sources linked. A factual review needs traceable evidence.</p>}
+                            </div>
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-evidence-editor">
+                                <div className="section-kicker">LINK A SOURCE TO THIS CLAIM</div>
+                                <label>Source<select value={evidenceSourceId} onChange={event => setEvidenceSourceId(event.target.value)}>
+                                  <option value="">Choose an active source</option>
+                                  {documentaryResearch.sources.filter(source => source.status === "active" && !claim.evidence.some(item => item.source_id === source.id)).map(source => <option key={source.id} value={source.id}>{source.title}</option>)}
+                                </select></label>
+                                <label>Evidence relationship<select value={evidenceRelation} onChange={event => setEvidenceRelation(event.target.value as DocumentaryEvidenceRelation)}>
+                                  <option value="supports">Supports the claim</option><option value="challenges">Challenges the claim</option><option value="context">Provides context</option>
+                                </select></label>
+                                <label>Exact excerpt<textarea rows={2} maxLength={12000} value={evidenceExcerpt} onChange={event => setEvidenceExcerpt(event.target.value)} placeholder="Copy the relevant passage or data description…" /></label>
+                                <label>Page / section / timecode<input maxLength={240} value={evidenceLocator} onChange={event => setEvidenceLocator(event.target.value)} placeholder="e.g. p. 42, table 3, 00:13:20" /></label>
+                                <label>Evidence notes<textarea rows={2} maxLength={5000} value={evidenceNotes} onChange={event => setEvidenceNotes(event.target.value)} placeholder="Explain relevance, method or limitations…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !evidenceSourceId} onClick={() => addClaimEvidence(claim)}>Link evidence</button>
+                              </div>
+                            )}
+
+                            {canEditDocumentaryResearch && claim.status === "active" && (
+                              <div className="documentary-review-editor">
+                                <div className="section-kicker">HUMAN FACT-CHECK REVIEW</div>
+                                <p>Submitting a review records your decision, rationale and a snapshot of all active evidence linked to this claim.</p>
+                                <label>Review result<select value={reviewResult} onChange={event => setReviewResult(event.target.value as DocumentaryReviewResult)}>
+                                  <option value="supported">Supported by evidence</option><option value="contested">Contested evidence</option>
+                                  <option value="not_supported">Not supported</option><option value="insufficient_evidence">Insufficient evidence</option>
+                                </select></label>
+                                <label>Review rationale<textarea rows={2} maxLength={10000} value={reviewRationale} onChange={event => setReviewRationale(event.target.value)} placeholder="Explain the evidence, source quality, uncertainty and reasoning…" /></label>
+                                <button type="button" className="secondary-button" disabled={loading || !reviewRationale.trim()} onClick={() => submitClaimReview(claim)}>Record fact-check decision</button>
+                              </div>
+                            )}
+
+                            <details className="documentary-review-history">
+                              <summary>Review history · {claim.reviews.length}</summary>
+                              {claim.reviews.length === 0 && <p className="muted-note">No human fact-check review has been recorded.</p>}
+                              {[...claim.reviews].reverse().map(review => (
+                                <article key={review.id}>
+                                  <strong>{review.result.replaceAll("_", " ").toUpperCase()}</strong>
+                                  <span>{review.reviewer_display_name} · {new Date(review.created_at).toLocaleString()}</span>
+                                  <p>{review.rationale}</p>
+                                  <details><summary>Evidence snapshot · {review.reviewed_evidence_snapshot.length} sources</summary>
+                                    {review.reviewed_evidence_snapshot.map((item, index) => <pre key={index}>{[item.source_title, item.evidence_relation, item.locator, item.excerpt].filter(Boolean).join("\n")}</pre>)}
+                                  </details>
+                                </article>
+                              ))}
+                            </details>
+                          </article>
+                        ))}
+                        {documentaryResearch.claims.length === 0 && <p className="muted-note">No factual claims registered yet. Split documentary narration into individual claims that can each be checked against evidence.</p>}
+                      </div>
+                    </section>
+                  </div>
+                </section>
+              )}
+
               <section className="drafts-section">
                 <div className="section-heading contribution-heading">
                   <div><div className="section-kicker">NARRATIVE DEVELOPMENT</div><h2>Combined story draft</h2></div>
