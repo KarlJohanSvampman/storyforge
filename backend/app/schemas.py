@@ -1243,3 +1243,15 @@ class DocumentaryProductionOverview(BaseModel):
     releases: list[DocumentaryReleaseRead] = Field(default_factory=list)
     media_assets: list[DocumentaryMediaAssetRead] = Field(default_factory=list)
     claim_usages: list[DocumentaryClaimUsageRead] = Field(default_factory=list)
+
+
+class DocumentaryReleaseWithdraw(BaseModel):
+    reason: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_withdrawal_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("A withdrawal reason is required.")
+        return cleaned
