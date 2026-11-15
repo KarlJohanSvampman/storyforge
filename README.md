@@ -38,10 +38,10 @@ Not every project must use every phase. Projects should be able to skip or revis
 | Area | Initial choice |
 |---|---|
 | Frontend | React + TypeScript |
-| 3D | Three.js |
+| 3D | Three.js, introduced with the virtual-production milestone |
 | Backend | Python + FastAPI |
-| Database | PostgreSQL |
-| Realtime collaboration | WebSockets |
+| Database | PostgreSQL, introduced with persistent project data |
+| Realtime collaboration | WebSockets, when needed |
 | Background jobs / ephemeral coordination | Redis, when needed |
 | Media and asset storage | S3-compatible object storage, when needed |
 | AI | Provider-independent service adapter |
@@ -71,9 +71,14 @@ These are starting choices, not irreversible commitments. Keep dependencies just
 
 ### M2 — Basic virtual production
 
-- Render a simple 3D set and rigged characters.
+- Establish actor, character, casting, runtime-instance, and controller relationships.
+- Support player, director, AI, and scripted control.
+- Provide semantic performance commands and basic navigation/gesture execution.
+- Build the Director's Studio with a Three.js viewport, cast panel, inspector, blocking tools, and performance controls.
 - Provide virtual cameras and basic character performance recording.
 - Store takes as structured, replayable data.
+
+See [docs/PRODUCTION_PERFORMANCE_ARCHITECTURE.md](docs/PRODUCTION_PERFORMANCE_ARCHITECTURE.md) for the production-domain decisions and staged implementation order.
 
 ### M3 — Editing and finished-film workflow
 
@@ -101,17 +106,64 @@ backend/        FastAPI application
 docs/           Product and technical decisions
 ```
 
-The repository will grow with the implementation. Avoid creating empty abstractions or speculative modules merely to fill out a planned directory tree.
-
-## Development status
-
-**Status: project bootstrap.** No production features have been implemented yet.
-
-See [docs/ROADMAP.md](docs/ROADMAP.md) for the first delivery plan and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for initial architectural boundaries.
-
 ## Development
 
-The local development instructions will be added alongside the first runnable frontend and backend slice.
+### Run with Docker Compose
+
+Requirements: Docker Desktop or Docker Engine with the Docker Compose plugin.
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Open:
+
+- Frontend: http://localhost:5173
+- API health: http://localhost:8000/api/v1/health
+
+The frontend container serves the built React application through Nginx and proxies `/api/` requests to FastAPI. The development Vite server uses the same `/api/` path and proxies it to the local backend.
+
+Stop the stack with:
+
+```bash
+docker compose down
+```
+
+### Run services separately
+
+Backend:
+
+```bash
+python -m venv .venv
+# Windows PowerShell: .venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+pip install -r backend/requirements-dev.txt
+uvicorn app.main:app --reload --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+Frontend, in a second terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. Vite proxies API calls to http://127.0.0.1:8000.
+
+### Backend tests
+
+From the repository root, with the development requirements installed:
+
+```bash
+python -m pytest backend/tests
+```
+
+### Current implementation boundary
+
+The initial code provides the frontend shell, FastAPI application, health endpoint, Docker Compose wiring, and a health-endpoint test. It does not yet implement project creation, membership, contributions, comments, narrative drafts, approval, or production features. PostgreSQL is intentionally not added until the persistent project milestone.
 
 ## Naming
 
