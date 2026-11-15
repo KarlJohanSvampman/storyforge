@@ -76,7 +76,6 @@ def _decision_read(db: Session, decision: NarrativeApprovalDecision | None) -> A
 
 def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> ApprovalOverview:
     rule_read = _rule_read(db, project.id)
-    eligible_ids = _eligible_voter_ids(db, project, rule_read.mode)
     mode = rule_read.mode
     draft = db.scalar(select(NarrativeDraft).where(NarrativeDraft.project_id == project.id))
     versions = []
