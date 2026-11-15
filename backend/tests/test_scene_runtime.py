@@ -37,6 +37,7 @@ def _scene_with_casting(title: str):
             author_user_id=project.owner_user_id, parent_version_id=None, origin="manual",
         )
         db.add(narrative)
+        db.flush()
         storyboard = Storyboard(
             project_id=project_id, narrative_version_id=narrative.id,
             title="Storyboard", created_by_user_id=project.owner_user_id,

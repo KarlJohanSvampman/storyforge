@@ -91,7 +91,7 @@ def get_project(project_id: uuid.UUID, db: DbSession, user: CurrentUser):
     ).all()
     base = _project_read(db, project)
     members = [MemberRead(
-        id=m.id, display_name=m.user.display_name if m.user else None,
+        id=m.id, user_id=m.user_id, display_name=m.user.display_name if m.user else None,
         email=m.user.email if m.user else None, invited_email=m.invited_email,
         role=m.role, status=m.status, created_at=m.created_at,
     ) for m in memberships]

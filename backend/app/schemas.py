@@ -61,6 +61,7 @@ class MemberRead(BaseModel):
     display_name: str | None = None
     email: str | None = None
     invited_email: str | None = None
+    user_id: uuid.UUID | None = None
     role: str
     status: str
     created_at: datetime
@@ -1391,6 +1392,7 @@ class CastMemberInstanceRead(BaseModel):
     control_mode: ControlMode
     control_settings: dict
     instance_status: str
+    authority_epoch: int = 1
 
 
 class SceneRunCreate(BaseModel):
@@ -1421,6 +1423,8 @@ class PerformanceEventCreate(BaseModel):
     sequence_number: int = Field(ge=0)
     timestamp_ms: int = Field(ge=0)
     event_type: PerformanceEventType
+    cast_member_instance_id: uuid.UUID | None = None
+    authority_epoch: int | None = Field(default=None, ge=1)
     payload: dict = Field(default_factory=dict)
 
 
@@ -1428,6 +1432,7 @@ class PerformanceTakeCreate(BaseModel):
     title: str = Field(default="Take", min_length=1, max_length=160)
     cast_member_instance_id: uuid.UUID | None = None
     camera_snapshot: dict = Field(default_factory=dict)
+    state_snapshot: dict = Field(default_factory=dict)
 
     @field_validator("title")
     @classmethod
@@ -1446,6 +1451,8 @@ class PerformanceEventRead(BaseModel):
     sequence_number: int
     timestamp_ms: int
     event_type: PerformanceEventType
+    cast_member_instance_id: uuid.UUID | None = None
+    authority_epoch: int | None = None
     payload: dict
 
 
@@ -1457,8 +1464,124 @@ class PerformanceTakeRead(BaseModel):
     title: str
     status: str
     camera_snapshot: dict
+    state_snapshot: dict = Field(default_factory=dict)
     duration_ms: int | None
     created_by_user_id: uuid.UUID
     created_at: datetime
     finalized_at: datetime | None
     events: list[PerformanceEventRead] = Field(default_factory=list)
+
+
+class SceneRunStatusUpdate(BaseModel):
+    status: Literal["running", "paused", "completed", "aborted"]
+
+
+class CastMemberControllerUpdate(BaseModel):
+    controller_type: ControllerType
+    controller_user_id: uuid.UUID | None = None
+    control_mode: ControlMode
+    reason: str = Field(default="controller_changed", max_length=500)
+
+
+class PossessionLeaseCreate(BaseModel):
+    duration_seconds: int = Field(default=30, ge=5, le=120)
+
+
+class PossessionLeaseAction(BaseModel):
+    lease_token: uuid.UUID
+
+
+class PossessionLeaseRead(BaseModel):
+    id: uuid.UUID
+    scene_run_id: uuid.UUID
+    cast_member_instance_id: uuid.UUID
+    authority_epoch: int
+    controller_type: str
+    controller_user_id: uuid.UUID | None
+    lease_token: uuid.UUID
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+
+
+class PerformanceTakeSelect(BaseModel):
+    selected: bool = True
+
+
+class EditSequenceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+
+    @field_validator("name")
+    @classmethod
+    def clean_edit_sequence_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class EditSequenceItemCreate(BaseModel):
+    take_id: uuid.UUID
+    in_ms: int = Field(default=0, ge=0)
+    out_ms: int = Field(gt=0)
+    transition: Literal["cut", "fade", "dissolve"] = "cut"
+    title_overlay: str = Field(default="", max_length=500)
+    effects: dict = Field(default_factory=dict)
+    audio_cue: str = Field(default="", max_length=5000)
+
+
+class EditSequenceItemUpdate(BaseModel):
+    in_ms: int | None = Field(default=None, ge=0)
+    out_ms: int | None = Field(default=None, gt=0)
+    transition: Literal["cut", "fade", "dissolve"] | None = None
+    title_overlay: str | None = Field(default=None, max_length=500)
+    effects: dict | None = None
+    audio_cue: str | None = Field(default=None, max_length=5000)
+
+
+class EditSequenceReorder(BaseModel):
+    item_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class EditSequenceItemRead(BaseModel):
+    id: uuid.UUID
+    sequence_id: uuid.UUID
+    take_id: uuid.UUID
+    scene_id: uuid.UUID
+    item_order: int
+    in_ms: int
+    out_ms: int
+    transition: str
+    title_overlay: str
+    effects: dict
+    audio_cue: str
+    created_at: datetime
+
+
+class EditSequenceRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    status: str
+    revision_number: int
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    items: list[EditSequenceItemRead] = Field(default_factory=list)
+
+
+class EditExportRead(BaseModel):
+    id: uuid.UUID
+    sequence_id: uuid.UUID
+    export_number: int
+    sequence_revision: int
+    manifest: dict
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class ProductionPhaseActivate(BaseModel):
+    reason: str = Field(default="Storyboard and casting approved for production.", max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_production_phase_reason(cls, value: str) -> str:
+        return value.strip() or "Storyboard and casting approved for production."

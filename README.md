@@ -137,3 +137,12 @@ Open http://localhost:5173 for the frontend and http://localhost:8000/docs for t
 Product: **StoryForge**  
 Community / project identity: **The StoryForge Collective**  
 Tagline: **Many minds. Many stories. Endless interpretations.**
+
+
+## Virtual production status
+
+- **M2.1:** Scene runs, cast-member instances, per-instance authority epochs, controller history, possession leases with temporary director takeover/restoration, production phase handoff, and a Three.js set viewport are implemented.
+- **M2.2:** Timestamped, sequenced performance events, camera snapshots, browser recording controls, take finalization and editorial selection are implemented. Runtime event playback/reconstruction remains outstanding.
+- **M3:** Non-destructive edit sequences support clip trims, ordering, transitions, title/effect metadata, audio cues, and immutable JSON EDL export. Actual audio-track management and rendered video export remain outstanding.
+
+See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.

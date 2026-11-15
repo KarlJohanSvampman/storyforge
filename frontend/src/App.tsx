@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import CastingWorkspace from "./CastingWorkspace";
+import ProductionStudio from "./ProductionStudio";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
   Film, Lightbulb, Plus, Sparkles, Users, FolderOpen, LoaderCircle,
@@ -17,7 +18,7 @@ type Project = {
   created_at: string; updated_at: string; member_count: number;
 };
 type Member = {
-  id: string; display_name: string | null; email: string | null;
+  id: string; user_id: string | null; display_name: string | null; email: string | null;
   invited_email: string | null; role: string; status: string; created_at: string;
 };
 type ProjectDetail = Project & { members: Member[] };
@@ -2833,6 +2834,18 @@ function App() {
                   characters={storyboard.characters}
                   currentUserId={currentUser?.id || null}
                   canManage={myMembership?.status === "active" && (myMembership.role === "owner" || myMembership.role === "editor")}
+                />
+              )}
+
+              {storyboard && (selectedProject.current_phase === "storyboard" || selectedProject.current_phase === "production") && (
+                <ProductionStudio
+                  projectId={selectedProject.id}
+                  phase={selectedProject.current_phase}
+                  scenes={storyboard.scenes}
+                  members={selectedProject.members}
+                  currentUserId={currentUser?.id || null}
+                  canManage={myMembership?.status === "active" && (myMembership.role === "owner" || myMembership.role === "editor")}
+                  onPhaseChanged={() => openProject(selectedProject.id)}
                 />
               )}
 
