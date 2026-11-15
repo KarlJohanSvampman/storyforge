@@ -844,6 +844,7 @@ class CastMemberInstance(Base):
     control_mode: Mapped[str] = mapped_column(String(20), nullable=False)
     control_settings: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     instance_status: Mapped[str] = mapped_column(String(20), default="ready", nullable=False)
+    authority_epoch: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -877,6 +878,10 @@ class PossessionLease(Base):
     authority_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
     controller_type: Mapped[str] = mapped_column(String(30), nullable=False)
     controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    lease_token: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True, default=uuid.uuid4, nullable=False)
+    previous_controller_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    previous_controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    previous_control_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -887,7 +892,7 @@ class PerformanceTake(Base):
     """A recorded scene performance; finalized takes are immutable."""
     __tablename__ = "performance_takes"
     __table_args__ = (
-        CheckConstraint("status IN ('recording', 'finalized', 'discarded')", name="ck_performance_takes_status"),
+        CheckConstraint("status IN ('recording', 'finalized', 'selected', 'discarded')", name="ck_performance_takes_status"),
         CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_performance_takes_duration"),
         UniqueConstraint("scene_run_id", "take_number", name="uq_performance_takes_run_number"),
         Index("ix_performance_takes_scene_run_created", "scene_run_id", "created_at"),
@@ -899,6 +904,7 @@ class PerformanceTake(Base):
     title: Mapped[str] = mapped_column(String(160), default="Take", nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="recording", nullable=False)
     camera_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    state_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -919,5 +925,61 @@ class PerformanceEvent(Base):
     sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
     timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     event_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    cast_member_instance_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("cast_member_instances.id", ondelete="SET NULL"), nullable=True)
+    authority_epoch: Mapped[int | None] = mapped_column(Integer, nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class EditSequence(Base):
+    """A non-destructive editorial assembly for a project."""
+    __tablename__ = "edit_sequences"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft', 'locked')", name="ck_edit_sequences_status"),
+        UniqueConstraint("project_id", "name", name="uq_edit_sequences_project_name"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    revision_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class EditSequenceItem(Base):
+    """A non-destructive clip reference into a finalized performance take."""
+    __tablename__ = "edit_sequence_items"
+    __table_args__ = (
+        UniqueConstraint("sequence_id", "item_order", name="uq_edit_sequence_items_order"),
+        CheckConstraint("item_order >= 1", name="ck_edit_sequence_items_order"),
+        CheckConstraint("in_ms >= 0 AND out_ms > in_ms", name="ck_edit_sequence_items_trim"),
+        CheckConstraint("transition IN ('cut', 'fade', 'dissolve')", name="ck_edit_sequence_items_transition"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    take_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("performance_takes.id", ondelete="RESTRICT"), nullable=False)
+    scene_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="RESTRICT"), nullable=False)
+    item_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    in_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    out_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    transition: Mapped[str] = mapped_column(String(20), default="cut", nullable=False)
+    title_overlay: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    effects: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    audio_cue: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EditExport(Base):
+    """Immutable edit decision list snapshot generated from one sequence revision."""
+    __tablename__ = "edit_exports"
+    __table_args__ = (UniqueConstraint("sequence_id", "export_number", name="uq_edit_exports_number"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    export_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    manifest: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
