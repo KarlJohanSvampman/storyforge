@@ -161,7 +161,9 @@ def compile_draft(
 
     # Locking the project also serializes the first compilation, when no draft
     # row exists yet and there is therefore no draft row available to lock.
-    db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project.current_phase not in ("contributions", "development"):
+        raise HTTPException(status_code=409, detail="Narrative drafting is locked after the project enters storyboarding.")
     draft = db.scalar(
         select(NarrativeDraft).where(NarrativeDraft.project_id == project_id).with_for_update()
     )
@@ -223,6 +225,9 @@ def create_manual_version(
     user: CurrentUser,
 ):
     _require_access(db, project_id, user.id, write=True)
+    project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project.current_phase not in ("contributions", "development"):
+        raise HTTPException(status_code=409, detail="Narrative drafting is locked after the project enters storyboarding.")
     draft = db.scalar(
         select(NarrativeDraft)
         .where(NarrativeDraft.id == draft_id, NarrativeDraft.project_id == project_id)
