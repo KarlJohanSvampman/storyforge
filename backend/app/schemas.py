@@ -1376,3 +1376,199 @@ class CastingAssignmentRead(BaseModel):
     assigned_by_user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+# M2.1 scene runtime contracts
+class SceneRunCreate(BaseModel):
+    scene_id: uuid.UUID
+
+
+class SceneRunStatusUpdate(BaseModel):
+    status: Literal["running", "paused", "completed", "abandoned"]
+
+
+class CastMemberControllerUpdate(BaseModel):
+    controller_type: ControllerType
+    controller_user_id: uuid.UUID | None = None
+    control_mode: ControlMode
+    reason: str = Field(default="controller_changed", max_length=240)
+
+
+class PossessionLeaseCreate(BaseModel):
+    duration_seconds: int = Field(default=30, ge=5, le=120)
+
+
+class PossessionLeaseRead(BaseModel):
+    id: uuid.UUID
+    cast_member_instance_id: uuid.UUID
+    controller_user_id: uuid.UUID
+    lease_token: uuid.UUID
+    authority_epoch: int
+    expires_at: datetime
+    created_at: datetime
+
+
+class PossessionLeaseRelease(BaseModel):
+    lease_token: uuid.UUID
+
+
+class CastMemberInstanceRead(BaseModel):
+    id: uuid.UUID
+    scene_run_id: uuid.UUID
+    casting_assignment_id: uuid.UUID
+    actor_id: uuid.UUID
+    character_id: uuid.UUID
+    actor_snapshot: dict
+    character_snapshot: dict
+    controller_type: ControllerType
+    controller_user_id: uuid.UUID | None
+    control_mode: ControlMode
+    authority_epoch: int
+    state_snapshot: dict
+    status: str
+    created_at: datetime
+
+
+class ControllerAssignmentEventRead(BaseModel):
+    id: uuid.UUID
+    cast_member_instance_id: uuid.UUID
+    authority_epoch: int
+    previous_controller_type: str
+    previous_controller_user_id: uuid.UUID | None
+    new_controller_type: str
+    new_controller_user_id: uuid.UUID | None
+    control_mode: str
+    reason: str
+    changed_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class SceneRunRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    storyboard_id: uuid.UUID
+    scene_id: uuid.UUID
+    run_number: int
+    status: str
+    scene_snapshot: dict
+    created_by_user_id: uuid.UUID
+    started_at: datetime | None
+    ended_at: datetime | None
+    created_at: datetime
+    cast_members: list[CastMemberInstanceRead] = Field(default_factory=list)
+
+
+# M2.2 event-sourced performance recording contracts
+class PerformanceEventCreate(BaseModel):
+    timestamp_ms: int = Field(ge=0)
+    event_type: str = Field(min_length=1, max_length=60)
+    cast_member_instance_id: uuid.UUID | None = None
+    authority_epoch: int | None = Field(default=None, ge=1)
+    payload: dict = Field(default_factory=dict)
+
+
+class PerformanceEventBatchCreate(BaseModel):
+    events: list[PerformanceEventCreate] = Field(min_length=1, max_length=500)
+
+
+class PerformanceTakeCreate(BaseModel):
+    state_snapshot: dict = Field(default_factory=dict)
+
+
+class PerformanceTakeStatusUpdate(BaseModel):
+    status: Literal["selected", "rejected"]
+
+
+class PerformanceTakeEventRead(BaseModel):
+    id: uuid.UUID
+    event_order: int
+    timestamp_ms: int
+    event_type: str
+    cast_member_instance_id: uuid.UUID | None
+    authority_epoch: int | None
+    payload: dict
+    created_at: datetime
+
+
+class PerformanceTakeRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    scene_run_id: uuid.UUID
+    take_number: int
+    status: str
+    duration_ms: int
+    event_count: int
+    state_snapshot: dict
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    events: list[PerformanceTakeEventRead] = Field(default_factory=list)
+
+
+# M3 non-destructive editorial assembly contracts
+class EditSequenceCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+
+    @field_validator("name")
+    @classmethod
+    def clean_sequence_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class EditSequenceItemCreate(BaseModel):
+    take_id: uuid.UUID
+    in_ms: int = Field(default=0, ge=0)
+    out_ms: int = Field(gt=0)
+    transition: Literal["cut", "fade", "dissolve"] = "cut"
+    title_overlay: str = Field(default="", max_length=500)
+    effects: dict = Field(default_factory=dict)
+    audio_cue: str = Field(default="", max_length=5000)
+
+
+class EditSequenceItemUpdate(BaseModel):
+    in_ms: int | None = Field(default=None, ge=0)
+    out_ms: int | None = Field(default=None, gt=0)
+    transition: Literal["cut", "fade", "dissolve"] | None = None
+    title_overlay: str | None = Field(default=None, max_length=500)
+    effects: dict | None = None
+    audio_cue: str | None = Field(default=None, max_length=5000)
+
+
+class EditSequenceReorder(BaseModel):
+    item_ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class EditSequenceItemRead(BaseModel):
+    id: uuid.UUID
+    sequence_id: uuid.UUID
+    take_id: uuid.UUID
+    scene_id: uuid.UUID
+    item_order: int
+    in_ms: int
+    out_ms: int
+    transition: str
+    title_overlay: str
+    effects: dict
+    audio_cue: str
+    created_at: datetime
+
+
+class EditSequenceRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    status: str
+    revision_number: int
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    items: list[EditSequenceItemRead] = Field(default_factory=list)
+
+
+class EditExportRead(BaseModel):
+    id: uuid.UUID
+    sequence_id: uuid.UUID
+    export_number: int
+    sequence_revision: int
+    manifest: dict
+    created_by_user_id: uuid.UUID
+    created_at: datetime
