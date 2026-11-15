@@ -82,6 +82,42 @@ type ApprovalOverview = {
   versions: ApprovalVersion[]; phase_history: PhaseTransition[];
 };
 
+type ProjectCharacter = {
+  id: string; project_id: string; name: string; description: string;
+  visual_description: string; personality_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type ProjectLocation = {
+  id: string; project_id: string; name: string; description: string;
+  environment_type: string; time_period: string; visual_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type ScenePassage = {
+  id: string; reference_order: number; start_offset: number; end_offset: number;
+  passage_snapshot: string; created_by_user_id: string; created_at: string;
+};
+type SceneScriptVersion = {
+  id: string; revision_number: number; content: string; parent_version_id: string | null;
+  author_user_id: string; author_display_name: string; created_at: string;
+};
+type SceneCharacter = { id: string; name: string; role_label: string; notes: string };
+type StoryboardScene = {
+  id: string; scene_order: number; title: string; summary: string; requirements: string;
+  estimated_duration_seconds: number | null; location_id: string | null; location_name: string | null;
+  characters: SceneCharacter[]; passages: ScenePassage[]; script_versions: SceneScriptVersion[];
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type Storyboard = {
+  id: string; project_id: string; title: string; narrative_version_id: string;
+  narrative_version_number: number; narrative_title: string; narrative_content: string;
+  created_by_user_id: string; created_at: string;
+  scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
+};
+type SceneEditDraft = {
+  title: string; summary: string; requirements: string;
+  estimated_duration_seconds: string; location_id: string; character_ids: string[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -118,6 +154,26 @@ function App() {
   const [selectedDraftSuggestionIds, setSelectedDraftSuggestionIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
+  const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [characterName, setCharacterName] = useState("");
+  const [characterDescription, setCharacterDescription] = useState("");
+  const [characterVisual, setCharacterVisual] = useState("");
+  const [characterPersonality, setCharacterPersonality] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationDescription, setLocationDescription] = useState("");
+  const [locationType, setLocationType] = useState("interior");
+  const [locationPeriod, setLocationPeriod] = useState("");
+  const [locationVisual, setLocationVisual] = useState("");
+  const [sceneTitle, setSceneTitle] = useState("");
+  const [sceneSummary, setSceneSummary] = useState("");
+  const [sceneRequirements, setSceneRequirements] = useState("");
+  const [sceneDuration, setSceneDuration] = useState("");
+  const [sceneLocationId, setSceneLocationId] = useState("");
+  const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
+  const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
+  const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
+  const [passageDrafts, setPassageDrafts] = useState<Record<string, string>>({});
+  const [passageOccurrences, setPassageOccurrences] = useState<Record<string, string>>({});
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
   const [approvalNote, setApprovalNote] = useState("");
   const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
@@ -183,13 +239,21 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [detail, items, currentDraft, approvalOverview] = await Promise.all([
+      const [detail, items, currentDraft, approvalOverview, currentStoryboard] = await Promise.all([
         api<ProjectDetail>(`/api/projects/${projectId}`),
         api<Contribution[]>(`/api/projects/${projectId}/contributions`),
         api<NarrativeDraft | null>(`/api/projects/${projectId}/draft`),
         api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
+        api<Storyboard | null>(`/api/projects/${projectId}/storyboard`),
       ]);
       setSelectedProject(detail);
+      setStoryboard(currentStoryboard);
+      setSceneEdits({});
+      setScriptDrafts({});
+      setPassageDrafts({});
+      setPassageOccurrences({});
+      setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
+      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -473,6 +537,195 @@ function App() {
     }
   }
 
+  async function initializeStoryboard() {
+    if (!selectedProject) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard`, { method: "POST" });
+      setStoryboard(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not initialize the storyboard.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitCharacter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !characterName.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: characterName, description: characterDescription,
+          visual_description: characterVisual, personality_notes: characterPersonality,
+        }),
+      });
+      setStoryboard(current => current ? { ...current, characters: [...current.characters, created].sort((a, b) => a.name.localeCompare(b.name)) } : current);
+      setCharacterName(""); setCharacterDescription(""); setCharacterVisual(""); setCharacterPersonality("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create character.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitLocation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !locationName.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: locationName, description: locationDescription, environment_type: locationType,
+          time_period: locationPeriod, visual_notes: locationVisual,
+        }),
+      });
+      setStoryboard(current => current ? { ...current, locations: [...current.locations, created].sort((a, b) => a.name.localeCompare(b.name)) } : current);
+      setLocationName(""); setLocationDescription(""); setLocationPeriod(""); setLocationVisual("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create location.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitScene(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !sceneTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: sceneTitle, summary: sceneSummary, requirements: sceneRequirements,
+          estimated_duration_seconds: sceneDuration.trim() ? Number(sceneDuration) : null,
+          location_id: sceneLocationId || null, character_ids: sceneCharacterIds,
+        }),
+      });
+      setStoryboard(updated);
+      setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
+      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create scene.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function sceneEditDraft(scene: StoryboardScene): SceneEditDraft {
+    return sceneEdits[scene.id] || {
+      title: scene.title,
+      summary: scene.summary,
+      requirements: scene.requirements,
+      estimated_duration_seconds: scene.estimated_duration_seconds?.toString() || "",
+      location_id: scene.location_id || "",
+      character_ids: scene.characters.map(character => character.id),
+    };
+  }
+
+  async function saveSceneDetails(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const edit = sceneEditDraft(scene);
+    if (!edit.title.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: edit.title, summary: edit.summary, requirements: edit.requirements,
+          estimated_duration_seconds: edit.estimated_duration_seconds.trim() ? Number(edit.estimated_duration_seconds) : null,
+          location_id: edit.location_id || null, character_ids: edit.character_ids,
+        }),
+      });
+      setStoryboard(updated);
+      setSceneEdits(current => {
+        const next = { ...current };
+        delete next[scene.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update scene details.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveSceneScript(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const latest = scene.script_versions[scene.script_versions.length - 1] || null;
+    const content = scriptDrafts[scene.id] ?? latest?.content ?? "";
+    if (!content.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/script`, {
+        method: "POST",
+        body: JSON.stringify({ base_version_id: latest?.id || null, content }),
+      });
+      setStoryboard(updated);
+      setScriptDrafts(current => {
+        const next = { ...current };
+        delete next[scene.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save script revision.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addScenePassage(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const passageText = passageDrafts[scene.id] || "";
+    if (!passageText.trim()) return;
+    const occurrence = Number(passageOccurrences[scene.id] || "1");
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/passages`, {
+        method: "POST",
+        body: JSON.stringify({ passage_text: passageText, occurrence }),
+      });
+      setStoryboard(updated);
+      setPassageDrafts(current => ({ ...current, [scene.id]: "" }));
+      setPassageOccurrences(current => ({ ...current, [scene.id]: "1" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link the passage.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function moveScene(scene: StoryboardScene, direction: -1 | 1) {
+    if (!selectedProject || !storyboard) return;
+    const ordered = [...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order);
+    const index = ordered.findIndex(item => item.id === scene.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/reorder`, {
+        method: "PUT", body: JSON.stringify({ scene_ids: ordered.map(item => item.id) }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reorder scenes.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function startRevision() {
     if (!selectedContribution) return;
     setContributionTitle(selectedContribution.title);
@@ -497,12 +750,14 @@ function App() {
     setView("projects");
     setSelectedProject(null);
     setSelectedContribution(null);
+    setStoryboard(null);
     setShowCreate(false);
     setError("");
   }
 
   const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
   const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
+  const canEditStoryboard = canContribute && selectedProject?.current_phase === "storyboard";
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
@@ -835,6 +1090,161 @@ function App() {
                     ))}
                   </section>
                 )}
+
+              {(selectedProject.current_phase === "storyboard" || storyboard !== null) && (
+                <section className="storyboard-section">
+                  <div className="section-heading contribution-heading">
+                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
+                    <span className="step-count">{storyboard ? `${storyboard.scenes.length} scenes` : "Ready to initialize"}</span>
+                  </div>
+                  {!storyboard ? (
+                    <div className="storyboard-empty">
+                      <p>The narrative is approved. Initialize a storyboard anchored to that exact immutable version before adding scenes, characters or locations.</p>
+                      {canEditStoryboard
+                        ? <button className="primary-button" type="button" disabled={loading} onClick={initializeStoryboard}><Clapperboard size={15} /> Initialize storyboard</button>
+                        : <p className="muted-note">A project owner, editor or contributor can initialize the storyboard. You have read-only access.</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="storyboard-source-card">
+                        <div><div className="section-kicker">APPROVED NARRATIVE · IMMUTABLE SOURCE</div><strong>{storyboard.narrative_title} · Version {storyboard.narrative_version_number}</strong><p>The storyboard remains linked to this approved version, even if the project evolves later.</p></div>
+                        {selectedProject.current_phase !== "storyboard" && <p className="muted-note">This project has moved beyond storyboarding. The storyboard remains available as a read-only record.</p>}
+                        <span className="approval-status approved">Approved</span>
+                      </div>
+
+                      <details className="storyboard-narrative-source">
+                        <summary>Read / copy from the approved narrative ({storyboard.narrative_content.length.toLocaleString()} characters)</summary>
+                        <pre>{storyboard.narrative_content}</pre>
+                        <small>To connect a scene to its source, copy an exact passage from here and paste it into that scene's passage-link form.</small>
+                      </details>
+
+                      <div className="storyboard-assets-grid">
+                        <section className="storyboard-asset-panel">
+                          <div className="section-kicker">CHARACTER DIRECTORY</div>
+                          <h3>Characters <span>{storyboard.characters.length}</span></h3>
+                          {canEditStoryboard && (
+                            <form className="storyboard-mini-form" onSubmit={submitCharacter}>
+                              <label>Name<input required maxLength={160} value={characterName} onChange={event => setCharacterName(event.target.value)} placeholder="Character name" /></label>
+                              <label>Story description<textarea rows={2} maxLength={10000} value={characterDescription} onChange={event => setCharacterDescription(event.target.value)} placeholder="Who are they in the story?" /></label>
+                              <label>Visual description<textarea rows={2} maxLength={10000} value={characterVisual} onChange={event => setCharacterVisual(event.target.value)} placeholder="Appearance, clothing, distinguishing features…" /></label>
+                              <label>Personality notes<textarea rows={2} maxLength={10000} value={characterPersonality} onChange={event => setCharacterPersonality(event.target.value)} placeholder="Traits, motivations, mannerisms…" /></label>
+                              <button className="secondary-button" type="submit" disabled={loading || !characterName.trim()}><Plus size={13} /> Add character</button>
+                            </form>
+                          )}
+                          <div className="storyboard-asset-list">
+                            {storyboard.characters.map(character => (
+                              <article className={character.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={character.id}>
+                                <strong>{character.name}</strong><span>{character.status}</span>
+                                {character.description && <p>{character.description}</p>}
+                                {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                              </article>
+                            ))}
+                            {storyboard.characters.length === 0 && <p className="muted-note">No characters yet.</p>}
+                          </div>
+                        </section>
+
+                        <section className="storyboard-asset-panel">
+                          <div className="section-kicker">LOCATION DIRECTORY</div>
+                          <h3>Locations <span>{storyboard.locations.length}</span></h3>
+                          {canEditStoryboard && (
+                            <form className="storyboard-mini-form" onSubmit={submitLocation}>
+                              <label>Name<input required maxLength={160} value={locationName} onChange={event => setLocationName(event.target.value)} placeholder="Location name" /></label>
+                              <label>Environment
+                                <select value={locationType} onChange={event => setLocationType(event.target.value)}>
+                                  <option value="interior">Interior</option><option value="exterior">Exterior</option>
+                                  <option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option>
+                                  <option value="unspecified">Unspecified</option>
+                                </select>
+                              </label>
+                              <label>Time period<input maxLength={120} value={locationPeriod} onChange={event => setLocationPeriod(event.target.value)} placeholder="e.g. Present day, 1920s…" /></label>
+                              <label>Description<textarea rows={2} maxLength={10000} value={locationDescription} onChange={event => setLocationDescription(event.target.value)} placeholder="What is this place?" /></label>
+                              <label>Visual notes<textarea rows={2} maxLength={10000} value={locationVisual} onChange={event => setLocationVisual(event.target.value)} placeholder="Mood, architecture, light, atmosphere…" /></label>
+                              <button className="secondary-button" type="submit" disabled={loading || !locationName.trim()}><Plus size={13} /> Add location</button>
+                            </form>
+                          )}
+                          <div className="storyboard-asset-list">
+                            {storyboard.locations.map(location => (
+                              <article className={location.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={location.id}>
+                                <strong>{location.name}</strong><span>{location.environment_type} · {location.status}</span>
+                                {location.time_period && <small>{location.time_period}</small>}
+                                {location.description && <p>{location.description}</p>}
+                                {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                              </article>
+                            ))}
+                            {storyboard.locations.length === 0 && <p className="muted-note">No locations yet.</p>}
+                          </div>
+                        </section>
+                      </div>
+
+                      {canEditStoryboard && (
+                        <form className="storyboard-scene-form" onSubmit={submitScene}>
+                          <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
+                          <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
+                          <label>Summary<textarea rows={3} maxLength={10000} value={sceneSummary} onChange={event => setSceneSummary(event.target.value)} placeholder="What happens in this scene?" /></label>
+                          <label>Requirements<textarea rows={2} maxLength={10000} value={sceneRequirements} onChange={event => setSceneRequirements(event.target.value)} placeholder="Props, visual effects, stunts, special conditions, continuity…" /></label>
+                          <div className="storyboard-scene-form-row">
+                            <label>Estimated duration (seconds)<input type="number" min="1" max="86400" value={sceneDuration} onChange={event => setSceneDuration(event.target.value)} placeholder="e.g. 90" /></label>
+                            <label>Primary location<select value={sceneLocationId} onChange={event => setSceneLocationId(event.target.value)}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                          </div>
+                          <label>Characters in this scene <select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={sceneCharacterIds} onChange={event => setSceneCharacterIds(Array.from(event.target.selectedOptions, option => option.value))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="field-hint">Use Ctrl / Cmd to select more than one character.</small></label>
+                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim()}><Plus size={15} /> Add scene</button></div>
+                        </form>
+                      )}
+
+                      <div className="storyboard-scene-list">
+                        <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
+                        {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
+                        {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
+                          const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          const edit = sceneEditDraft(scene);
+                          return (
+                            <article className="storyboard-scene-card" key={scene.id}>
+                              <div className="storyboard-scene-heading">
+                                <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
+                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
+                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                              </div>
+                              {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
+                              {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
+                              <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => <span key={character.id}>{character.name}</span>) : <small>None assigned</small>}</div>
+
+                              {canEditStoryboard && (
+                                <details className="scene-edit-panel">
+                                  <summary>Edit scene details</summary>
+                                  <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
+                                    <label>Scene title<input required maxLength={160} value={edit.title} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, title: event.target.value } }))} /></label>
+                                    <label>Summary<textarea rows={3} maxLength={10000} value={edit.summary} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, summary: event.target.value } }))} /></label>
+                                    <label>Production requirements<textarea rows={2} maxLength={10000} value={edit.requirements} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, requirements: event.target.value } }))} /></label>
+                                    <div className="storyboard-scene-form-row">
+                                      <label>Estimated duration (seconds)<input type="number" min="1" max="86400" value={edit.estimated_duration_seconds} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, estimated_duration_seconds: event.target.value } }))} /></label>
+                                      <label>Primary location<select value={edit.location_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, location_id: event.target.value } }))}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                    </div>
+                                    <label>Characters in this scene<select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={edit.character_ids} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, character_ids: Array.from(event.target.selectedOptions, option => option.value) } }))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                                    <button className="secondary-button" type="submit" disabled={loading || !edit.title.trim()}>Save scene details</button>
+                                  </form>
+                                </details>
+                              )}
+
+                              <div className="scene-passage-area">
+                                <div className="section-kicker">LINKED STORY PASSAGES · {scene.passages.length}</div>
+                                {scene.passages.map(passage => <details className="scene-passage" key={passage.id}><summary>Passage {passage.reference_order} · source characters {passage.start_offset}–{passage.end_offset}</summary><pre>{passage.passage_snapshot}</pre></details>)}
+                                {canEditStoryboard && <div className="scene-passage-form"><label>Paste an exact excerpt from the approved narrative<textarea rows={3} maxLength={10000} value={passageDrafts[scene.id] || ""} onChange={event => setPassageDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Copy the exact passage from the approved narrative above…" /></label><label>Occurrence when the same passage appears more than once<input type="number" min="1" max="100" value={passageOccurrences[scene.id] || "1"} onChange={event => setPassageOccurrences(current => ({ ...current, [scene.id]: event.target.value }))} /></label><button type="button" className="secondary-button" disabled={loading || !(passageDrafts[scene.id] || "").trim()} onClick={() => addScenePassage(scene)}>Link exact passage</button></div>}
+                              </div>
+
+                              <div className="scene-script-area">
+                                <div className="section-kicker">WORKING SCRIPT · {scene.script_versions.length} REVISIONS</div>
+                                {canEditStoryboard && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
+                                {scene.script_versions.length > 0 && <details className="scene-script-history"><summary>Script history</summary>{[...scene.script_versions].reverse().map(version => <article key={version.id}><strong>Revision {version.revision_number} · {version.author_display_name}</strong><pre>{version.content}</pre></article>)}</details>}
+                              </div>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                </section>
+              )}
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">

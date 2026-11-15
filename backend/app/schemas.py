@@ -358,3 +358,239 @@ class ApprovalDecisionCreate(BaseModel):
     @classmethod
     def clean_note(cls, value: str) -> str:
         return value.strip()
+
+
+# M1.1 storyboard and creative asset contracts
+class CharacterCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=10000)
+    visual_description: str = Field(default="", max_length=10000)
+    personality_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("name", "description", "visual_description", "personality_notes")
+    @classmethod
+    def clean_character_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name")
+    @classmethod
+    def require_character_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Character name cannot be blank.")
+        return value.strip()
+
+
+class CharacterUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=10000)
+    visual_description: str | None = Field(default=None, max_length=10000)
+    personality_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("name", "description", "visual_description", "personality_notes")
+    @classmethod
+    def clean_character_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("name")
+    @classmethod
+    def require_character_name_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Character name cannot be blank.")
+        return value.strip() if value is not None else None
+
+
+class CharacterRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    description: str
+    visual_description: str
+    personality_notes: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class LocationCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=10000)
+    environment_type: str = Field(default="unspecified", max_length=40)
+    time_period: str = Field(default="", max_length=120)
+    visual_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("name", "description", "environment_type", "time_period", "visual_notes")
+    @classmethod
+    def clean_location_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name")
+    @classmethod
+    def require_location_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Location name cannot be blank.")
+        return value.strip()
+
+
+class LocationUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=10000)
+    environment_type: str | None = Field(default=None, max_length=40)
+    time_period: str | None = Field(default=None, max_length=120)
+    visual_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("name", "description", "environment_type", "time_period", "visual_notes")
+    @classmethod
+    def clean_location_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("name")
+    @classmethod
+    def require_location_name_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Location name cannot be blank.")
+        return value.strip() if value is not None else None
+
+
+class LocationRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name: str
+    description: str
+    environment_type: str
+    time_period: str
+    visual_notes: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class StoryboardSceneCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    summary: str = Field(default="", max_length=10000)
+    requirements: str = Field(default="", max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+    location_id: uuid.UUID | None = None
+    character_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
+
+    @field_validator("title", "summary", "requirements")
+    @classmethod
+    def clean_scene_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_scene_title(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Scene title cannot be blank.")
+        return value.strip()
+
+
+class StoryboardSceneUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    summary: str | None = Field(default=None, max_length=10000)
+    requirements: str | None = Field(default=None, max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+    location_id: uuid.UUID | None = None
+    character_ids: list[uuid.UUID] | None = Field(default=None, max_length=50)
+
+    @field_validator("title", "summary", "requirements")
+    @classmethod
+    def clean_scene_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_scene_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Scene title cannot be blank.")
+        return value.strip() if value is not None else None
+
+
+class SceneReorder(BaseModel):
+    scene_ids: list[uuid.UUID] = Field(max_length=200)
+
+
+class ScenePassageCreate(BaseModel):
+    passage_text: str = Field(min_length=1, max_length=10000)
+    occurrence: int = Field(default=1, ge=1, le=100)
+
+    @field_validator("passage_text")
+    @classmethod
+    def validate_passage_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Passage text cannot be blank.")
+        # Preserve all whitespace: the route searches for an exact source excerpt.
+        return value
+
+
+class ScenePassageRead(BaseModel):
+    id: uuid.UUID
+    reference_order: int
+    start_offset: int
+    end_offset: int
+    passage_snapshot: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class SceneScriptVersionCreate(BaseModel):
+    base_version_id: uuid.UUID | None = None
+    content: str = Field(min_length=1, max_length=50000)
+
+    @field_validator("content")
+    @classmethod
+    def clean_script_content(cls, value: str) -> str:
+        return value.strip()
+
+
+class SceneScriptVersionRead(BaseModel):
+    id: uuid.UUID
+    revision_number: int
+    content: str
+    parent_version_id: uuid.UUID | None
+    author_user_id: uuid.UUID
+    author_display_name: str
+    created_at: datetime
+
+
+class SceneCharacterRead(BaseModel):
+    id: uuid.UUID
+    name: str
+    role_label: str
+    notes: str
+
+
+class StoryboardSceneRead(BaseModel):
+    id: uuid.UUID
+    scene_order: int
+    title: str
+    summary: str
+    requirements: str
+    estimated_duration_seconds: int | None
+    location_id: uuid.UUID | None
+    location_name: str | None
+    characters: list[SceneCharacterRead] = Field(default_factory=list)
+    passages: list[ScenePassageRead] = Field(default_factory=list)
+    script_versions: list[SceneScriptVersionRead] = Field(default_factory=list)
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class StoryboardDetail(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    narrative_version_id: uuid.UUID
+    narrative_version_number: int
+    narrative_title: str
+    narrative_content: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    scenes: list[StoryboardSceneRead] = Field(default_factory=list)
+    characters: list[CharacterRead] = Field(default_factory=list)
+    locations: list[LocationRead] = Field(default_factory=list)

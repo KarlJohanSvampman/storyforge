@@ -304,3 +304,125 @@ class ProjectPhaseTransition(Base):
     narrative_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="SET NULL"), nullable=True)
     reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class ProjectCharacter(Base):
+    """A reusable story character identity within one project, not an actor/casting record."""
+    __tablename__ = "project_characters"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'archived')", name="ck_project_characters_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    visual_description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    personality_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ProjectLocation(Base):
+    """A reusable story location record within one project, separate from a 3D set asset."""
+    __tablename__ = "project_locations"
+    __table_args__ = (
+        CheckConstraint("status IN ('active', 'archived')", name="ck_project_locations_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    environment_type: Mapped[str] = mapped_column(String(40), default="unspecified", nullable=False)
+    time_period: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    visual_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class Storyboard(Base):
+    """A storyboard interpretation anchored to one approved narrative version."""
+    __tablename__ = "storyboards"
+    __table_args__ = (
+        UniqueConstraint("project_id", "narrative_version_id", name="uq_storyboards_project_narrative"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class StoryboardScene(Base):
+    """An ordered scene plan; the script is revised separately in append-only versions."""
+    __tablename__ = "storyboard_scenes"
+    __table_args__ = (
+        UniqueConstraint("storyboard_id", "scene_order", name="uq_storyboard_scenes_order"),
+        CheckConstraint("scene_order >= 1", name="ck_storyboard_scenes_positive_order"),
+        CheckConstraint("estimated_duration_seconds IS NULL OR estimated_duration_seconds > 0", name="ck_storyboard_scenes_duration"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="CASCADE"), nullable=False, index=True)
+    scene_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    requirements: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    estimated_duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    location_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("project_locations.id", ondelete="RESTRICT"), nullable=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SceneCharacterAssignment(Base):
+    """Many-to-many scene participation; this does not cast or hire an actor."""
+    __tablename__ = "scene_character_assignments"
+    __table_args__ = (
+        UniqueConstraint("scene_id", "character_id", name="uq_scene_character_assignments_pair"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="CASCADE"), nullable=False, index=True)
+    character_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("project_characters.id", ondelete="RESTRICT"), nullable=False, index=True)
+    role_label: Mapped[str] = mapped_column(String(80), default="Participant", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    assigned_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ScenePassageReference(Base):
+    """Exact character-offset link into the immutable narrative version approved for this storyboard."""
+    __tablename__ = "scene_passage_references"
+    __table_args__ = (
+        UniqueConstraint("scene_id", "reference_order", name="uq_scene_passage_references_order"),
+        CheckConstraint("reference_order >= 1", name="ck_scene_passage_references_positive_order"),
+        CheckConstraint("start_offset >= 0 AND end_offset > start_offset", name="ck_scene_passage_references_offsets"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="CASCADE"), nullable=False, index=True)
+    reference_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_offset: Mapped[int] = mapped_column(Integer, nullable=False)
+    passage_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class SceneScriptVersion(Base):
+    """Append-only working script revision for one storyboard scene."""
+    __tablename__ = "scene_script_versions"
+    __table_args__ = (
+        UniqueConstraint("scene_id", "revision_number", name="uq_scene_script_versions_number"),
+        CheckConstraint("revision_number >= 1", name="ck_scene_script_versions_positive_number"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    parent_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("scene_script_versions.id", ondelete="RESTRICT"), nullable=True)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
