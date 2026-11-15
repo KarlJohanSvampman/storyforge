@@ -442,14 +442,24 @@ function App() {
       const currentResearch = detail.category === "documentary"
         ? await api<DocumentaryResearch>(`/api/projects/${projectId}/documentary`)
         : null;
+      const currentProduction = detail.category === "documentary"
+        ? await api<DocumentaryProduction>(`/api/projects/${projectId}/documentary/production`)
+        : null;
       setSelectedProject(detail);
       setDocumentaryResearch(currentResearch);
+      setDocumentaryProduction(currentProduction);
       setResearchSourceTitle(""); setResearchSourceType("article");
       setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
       setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
       setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
       setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
       setReviewResults({}); setReviewRationales({});
+      setInterviewSubjectLabel(""); setInterviewSubjectMode("named"); setInterviewSubjectRole(""); setInterviewSubjectNotes("");
+      setInterviewSessionSubjectId(""); setInterviewSessionDate(""); setInterviewSessionInterviewer(""); setInterviewSessionFormat("in_person"); setInterviewSessionLocation(""); setInterviewSessionNotes("");
+      setReleaseSubjectId(""); setReleaseSessionId(""); setReleaseScopeType("project"); setReleaseScopeLabel(""); setReleaseConsentScope(""); setReleaseWithdrawalTerms("");
+      setReleaseStatus("draft"); setReleaseSignedAt(""); setReleaseExpiresAt(""); setReleaseDocumentAssetId(""); setReleasePermittedUses(["research", "storyboard"]);
+      setDocumentaryUploadTitle(""); setDocumentaryUploadType("document"); setDocumentaryUploadSourceId(""); setDocumentaryUploadSessionId(""); setDocumentaryUploadDuration(""); setDocumentaryUploadFile(null);
+      setMediaRightsDrafts({}); setClaimUsageDrafts({});
       setStoryboard(currentStoryboard);
       setCharacterEdits({}); setShowArchivedCharacters(false);
       setLocationEdits({}); setShowArchivedLocations(false);
@@ -1384,12 +1394,231 @@ function App() {
     }
   }
 
+
+  async function refreshDocumentaryProduction() {
+    if (!selectedProject) return;
+    const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/production`);
+    setDocumentaryProduction(updated);
+  }
+
+  async function submitInterviewSubject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !interviewSubjectLabel.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/interview-subjects`, {
+        method: "POST",
+        body: JSON.stringify({
+          name_or_pseudonym: interviewSubjectLabel, identity_mode: interviewSubjectMode,
+          role_or_relationship: interviewSubjectRole, background_notes: interviewSubjectNotes,
+        }),
+      });
+      setDocumentaryProduction(updated);
+      setInterviewSubjectLabel(""); setInterviewSubjectRole(""); setInterviewSubjectNotes(""); setInterviewSubjectMode("named");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save interview subject.");
+    } finally { setLoading(false); }
+  }
+
+  async function updateInterviewSubject(subject: DocumentaryInterviewSubject, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} ${subject.name_or_pseudonym}? Existing interview records and media references will remain.`)) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/interview-subjects/${subject.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryProduction(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update interview subject.");
+    } finally { setLoading(false); }
+  }
+
+  async function submitInterviewSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !interviewSessionSubjectId || !interviewSessionDate) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/interview-sessions`, {
+        method: "POST",
+        body: JSON.stringify({
+          subject_id: interviewSessionSubjectId,
+          session_date: new Date(interviewSessionDate).toISOString(),
+          interviewer_name: interviewSessionInterviewer, session_format: interviewSessionFormat,
+          location_or_platform: interviewSessionLocation, transcript_notes: interviewSessionNotes,
+        }),
+      });
+      setDocumentaryProduction(updated);
+      setInterviewSessionDate(""); setInterviewSessionInterviewer(""); setInterviewSessionLocation(""); setInterviewSessionNotes("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save interview session.");
+    } finally { setLoading(false); }
+  }
+
+  async function updateInterviewSession(session: DocumentaryInterviewSession, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} this interview session? Linked media and releases will be retained.`)) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/interview-sessions/${session.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setDocumentaryProduction(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update interview session.");
+    } finally { setLoading(false); }
+  }
+
+  function toggleReleaseUse(use: DocumentaryConsentUse) {
+    setReleasePermittedUses(current => current.includes(use) ? current.filter(item => item !== use) : [...current, use]);
+  }
+
+  async function submitDocumentaryRelease(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !releaseSubjectId || !releaseConsentScope.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/releases`, {
+        method: "POST",
+        body: JSON.stringify({
+          subject_id: releaseSubjectId, interview_session_id: releaseSessionId || null,
+          scope_type: releaseScopeType, scope_label: releaseScopeLabel,
+          consent_scope: releaseConsentScope, withdrawal_terms: releaseWithdrawalTerms,
+          permitted_uses: releasePermittedUses, status: releaseStatus,
+          signed_at: releaseStatus === "signed" && releaseSignedAt ? new Date(releaseSignedAt).toISOString() : null,
+          expires_at: releaseExpiresAt ? new Date(releaseExpiresAt).toISOString() : null,
+          release_document_asset_id: releaseDocumentAssetId || null,
+        }),
+      });
+      setDocumentaryProduction(updated);
+      setReleaseScopeLabel(""); setReleaseConsentScope(""); setReleaseWithdrawalTerms("");
+      setReleaseStatus("draft"); setReleaseSignedAt(""); setReleaseExpiresAt(""); setReleaseDocumentAssetId("");
+      setReleasePermittedUses(["research", "storyboard"]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save consent release.");
+    } finally { setLoading(false); }
+  }
+
+  async function withdrawDocumentaryRelease(release: DocumentaryRelease) {
+    if (!selectedProject) return;
+    const reason = window.prompt("Record why this consent is being withdrawn. The event will remain in the audit history.");
+    if (!reason?.trim()) return;
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/releases/${release.id}/withdraw`, {
+        method: "POST", body: JSON.stringify({ reason }),
+      });
+      setDocumentaryProduction(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not withdraw the release.");
+    } finally { setLoading(false); }
+  }
+
+  async function uploadDocumentaryAsset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !documentaryUploadTitle.trim() || !documentaryUploadFile) return;
+    setLoading(true); setError("");
+    try {
+      const body = new FormData();
+      body.append("file", documentaryUploadFile, documentaryUploadFile.name);
+      body.append("title", documentaryUploadTitle);
+      body.append("asset_type", documentaryUploadType);
+      if (documentaryUploadSourceId) body.append("source_id", documentaryUploadSourceId);
+      if (documentaryUploadSessionId) body.append("interview_session_id", documentaryUploadSessionId);
+      if (documentaryUploadDuration.trim()) body.append("duration_seconds", documentaryUploadDuration);
+      const updated = await apiUpload<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/media`, body);
+      setDocumentaryProduction(updated);
+      const latest = updated.media_assets[updated.media_assets.length - 1];
+      if (latest?.asset_type === "release_document") setReleaseDocumentAssetId(latest.id);
+      setDocumentaryUploadTitle(""); setDocumentaryUploadType("document"); setDocumentaryUploadSourceId("");
+      setDocumentaryUploadSessionId(""); setDocumentaryUploadDuration(""); setDocumentaryUploadFile(null);
+      const input = document.getElementById("documentary-media-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not upload documentary media.");
+    } finally { setLoading(false); }
+  }
+
+  function mediaRightsDraft(assetId: string): DocumentaryMediaRightsDraft {
+    return mediaRightsDrafts[assetId] || {
+      rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
+      territory: "Worldwide", valid_until: "", permitted_uses: ["research"],
+      attribution_required: false, attribution_text: "", restrictions: "",
+    };
+  }
+
+  function updateMediaRightsDraft(assetId: string, changes: Partial<DocumentaryMediaRightsDraft>) {
+    setMediaRightsDrafts(current => ({ ...current, [assetId]: { ...mediaRightsDraft(assetId), ...changes } }));
+  }
+
+  function toggleMediaRightsUse(assetId: string, use: DocumentaryConsentUse) {
+    const draft = mediaRightsDraft(assetId);
+    updateMediaRightsDraft(assetId, {
+      permitted_uses: draft.permitted_uses.includes(use)
+        ? draft.permitted_uses.filter(item => item !== use)
+        : [...draft.permitted_uses, use],
+    });
+  }
+
+  async function saveMediaRights(asset: DocumentaryMediaAsset) {
+    if (!selectedProject) return;
+    const draft = mediaRightsDraft(asset.id);
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/media/${asset.id}/rights`, {
+        method: "POST",
+        body: JSON.stringify({
+          rights_holder: draft.rights_holder, rights_basis: draft.rights_basis,
+          license_name: draft.license_name, license_url: draft.license_url,
+          territory: draft.territory,
+          valid_until: draft.valid_until ? new Date(draft.valid_until).toISOString() : null,
+          permitted_uses: draft.permitted_uses,
+          attribution_required: draft.attribution_required, attribution_text: draft.attribution_text,
+          restrictions: draft.restrictions,
+        }),
+      });
+      setDocumentaryProduction(updated);
+      setMediaRightsDrafts(current => { const next = { ...current }; delete next[asset.id]; return next; });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save media rights.");
+    } finally { setLoading(false); }
+  }
+
+  function claimUsageDraft(claimId: string): DocumentaryClaimUsageDraft {
+    return claimUsageDrafts[claimId] || { usage_type: "outline", scene_id: "", script_version_id: "", reference_text: "" };
+  }
+
+  function updateClaimUsageDraft(claimId: string, changes: Partial<DocumentaryClaimUsageDraft>) {
+    setClaimUsageDrafts(current => ({
+      ...current,
+      [claimId]: { ...claimUsageDraft(claimId), ...changes, ...(changes.scene_id !== undefined ? { script_version_id: "" } : {}) },
+    }));
+  }
+
+  async function saveClaimUsage(claim: DocumentaryClaim) {
+    if (!selectedProject) return;
+    const draft = claimUsageDraft(claim.id);
+    setLoading(true); setError("");
+    try {
+      const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/claims/${claim.id}/usages`, {
+        method: "POST",
+        body: JSON.stringify({
+          usage_type: draft.usage_type, scene_id: draft.scene_id || null,
+          script_version_id: draft.script_version_id || null, reference_text: draft.reference_text,
+        }),
+      });
+      setDocumentaryProduction(updated);
+      setClaimUsageDrafts(current => ({ ...current, [claim.id]: { usage_type: "outline", scene_id: "", script_version_id: "", reference_text: "" } }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link verified claim to production material.");
+    } finally { setLoading(false); }
+  }
+
   function showProjects() {
     setView("projects");
     setSelectedProject(null);
     setSelectedContribution(null);
     setStoryboard(null);
     setDocumentaryResearch(null);
+    setDocumentaryProduction(null);
     setShowCreate(false);
     setError("");
   }
