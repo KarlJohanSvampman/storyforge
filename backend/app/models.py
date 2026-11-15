@@ -799,3 +799,85 @@ class CastingAssignment(Base):
     assigned_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class SceneRun(Base):
+    """An isolated production session for one storyboard scene and its approved source."""
+    __tablename__ = "scene_runs"
+    __table_args__ = (
+        CheckConstraint("status IN ('prepared', 'running', 'paused', 'completed', 'aborted')", name="ck_scene_runs_status"),
+        CheckConstraint("authority_epoch >= 1", name="ck_scene_runs_authority_epoch"),
+        Index("ix_scene_runs_project_created", "project_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="RESTRICT"), nullable=False)
+    scene_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="prepared", nullable=False)
+    authority_epoch: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CastMemberInstance(Base):
+    """Immutable cast/character snapshot instantiated inside one SceneRun."""
+    __tablename__ = "cast_member_instances"
+    __table_args__ = (
+        UniqueConstraint("scene_run_id", "character_id", name="uq_cast_member_instances_run_character"),
+        CheckConstraint("instance_status IN ('ready', 'removed')", name="ck_cast_member_instances_status"),
+        CheckConstraint("controller_type IN ('user', 'ai_agent', 'script_engine', 'system')", name="ck_cast_member_instances_controller"),
+        CheckConstraint("control_mode IN ('direct', 'command', 'assisted', 'autonomous', 'scripted')", name="ck_cast_member_instances_mode"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scene_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    casting_assignment_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("casting_assignments.id", ondelete="RESTRICT"), nullable=False)
+    actor_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("actors.id", ondelete="RESTRICT"), nullable=False)
+    character_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("project_characters.id", ondelete="RESTRICT"), nullable=False)
+    actor_name_snapshot: Mapped[str] = mapped_column(String(160), nullable=False)
+    character_name_snapshot: Mapped[str] = mapped_column(String(160), nullable=False)
+    role_label_snapshot: Mapped[str] = mapped_column(String(100), nullable=False)
+    controller_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    control_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    control_settings: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    instance_status: Mapped[str] = mapped_column(String(20), default="ready", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ControllerAssignmentEvent(Base):
+    """Append-only audit trail for controller changes within a scene run."""
+    __tablename__ = "controller_assignment_events"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scene_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    cast_member_instance_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cast_member_instances.id", ondelete="CASCADE"), nullable=False, index=True)
+    authority_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
+    previous_controller_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    previous_controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    new_controller_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    new_controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    changed_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PossessionLease(Base):
+    """Time-bounded exclusive authority lease for one controller and cast instance."""
+    __tablename__ = "possession_leases"
+    __table_args__ = (
+        CheckConstraint("authority_epoch >= 1", name="ck_possession_leases_epoch"),
+        CheckConstraint("expires_at > created_at", name="ck_possession_leases_expiry"),
+        Index("ix_possession_leases_instance_active", "cast_member_instance_id", "revoked_at", "expires_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scene_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    cast_member_instance_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("cast_member_instances.id", ondelete="CASCADE"), nullable=False, index=True)
+    authority_epoch: Mapped[int] = mapped_column(Integer, nullable=False)
+    controller_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    controller_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
