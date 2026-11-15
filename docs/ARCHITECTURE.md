@@ -120,6 +120,16 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Owners, editors, and contributors may edit while the project is in `storyboard`; viewers are read-only. API permissions are authoritative. The API blocks storyboard writes once the project advances beyond that phase.
 - Character and location records can be archived without deleting them or breaking existing scene references. Scene and script history is retained; scenes are reordered rather than destructively rewritten.
 
+### M1.2 structured screenplay contract
+
+- A scene can have append-only script revisions. M1.1 plain-text revisions remain valid and readable; new revisions may contain either legacy plain text or a structured ordered list of screenplay elements.
+- Supported element types are `action`, `dialogue`, `parenthetical`, `transition`, and `production_note`. Each element stores its explicit order and content.
+- A dialogue element must identify the speaking story character. A parenthetical may optionally identify a character. Any referenced character must be active, belong to the same project, and already be assigned to the scene.
+- Structured revisions store both the individual elements and a deterministic plain-text rendering for preview and downstream compatibility. The character's name is snapshotted into the element at save time so renaming the story character cannot change historical script meaning.
+- A script revision is immutable. The client supplies the latest `base_version_id`; a stale save receives HTTP 409. Every newly saved structured screenplay creates a new revision and never mutates an earlier revision.
+- A legacy plain-text script can be opened in the structured editor as one initial action block. Saving it creates a new structured revision; the original plain-text revision remains unchanged.
+- Screenplay character references identify fictional roles only. They do not select or hire a performer, create a casting contract, or imply a human/AI control mode.
+
 ## 7. Later production and publication data
 
 Keep the project narrative separate from production interpretation. A production version references an approved narrative version while defining its own storyboard, cast assignments, scene blocking, takes, camera tracks, audio, and edit decisions.
