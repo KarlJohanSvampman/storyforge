@@ -1376,3 +1376,39 @@ class CastingAssignmentRead(BaseModel):
     assigned_by_user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+
+
+class CastMemberInstanceRead(BaseModel):
+    id: uuid.UUID
+    casting_assignment_id: uuid.UUID
+    actor_id: uuid.UUID
+    character_id: uuid.UUID
+    actor_name_snapshot: str
+    character_name_snapshot: str
+    role_label_snapshot: str
+    controller_type: ControllerType
+    controller_user_id: uuid.UUID | None
+    control_mode: ControlMode
+    control_settings: dict
+    instance_status: str
+
+
+class SceneRunCreate(BaseModel):
+    scene_id: uuid.UUID
+
+
+class SceneRunRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    storyboard_id: uuid.UUID
+    scene_id: uuid.UUID
+    scene_title: str
+    narrative_version_id: uuid.UUID
+    status: str
+    authority_epoch: int
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    started_at: datetime | None
+    ended_at: datetime | None
+    cast_members: list[CastMemberInstanceRead] = Field(default_factory=list)
+    uncast_character_ids: list[uuid.UUID] = Field(default_factory=list)
