@@ -30,6 +30,8 @@ def _finalized_take(project_id: str, scene_id: str, run_id: str, title: str, tim
 def test_non_destructive_edit_sequence_and_immutable_edl_export():
     client, project_id, scene_id, _, _ = _scene_with_casting("Editorial assembly integration")
     run = client.post(f"/api/projects/{project_id}/scene-runs", json={"scene_id": scene_id}).json()
+    activated = client.post(f"/api/projects/{project_id}/production/activate", json={"reason": "Ready for edit."})
+    assert activated.status_code == 200, activated.text
     first_take = _finalized_take(project_id, scene_id, run["id"], "Wide take", 1200)
     selected = client.post(f"/api/projects/{project_id}/takes/{first_take}/select")
     assert selected.status_code == 200
