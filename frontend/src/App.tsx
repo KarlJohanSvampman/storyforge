@@ -215,6 +215,7 @@ function App() {
   const [researchSourceCreator, setResearchSourceCreator] = useState("");
   const [researchSourcePublisher, setResearchSourcePublisher] = useState("");
   const [researchSourceDate, setResearchSourceDate] = useState("");
+  const [researchSourceAccessedAt, setResearchSourceAccessedAt] = useState("");
   const [researchSourceUrl, setResearchSourceUrl] = useState("");
   const [researchSourceCitation, setResearchSourceCitation] = useState("");
   const [researchSourceNotes, setResearchSourceNotes] = useState("");
@@ -337,7 +338,7 @@ function App() {
       setSelectedProject(detail);
       setDocumentaryResearch(currentResearch);
       setResearchSourceTitle(""); setResearchSourceType("article");
-      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate("");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
       setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
       setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
       setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
@@ -1017,6 +1018,7 @@ function App() {
           creator: researchSourceCreator,
           publisher: researchSourcePublisher,
           publication_date: researchSourceDate,
+          accessed_at: researchSourceAccessedAt ? new Date(researchSourceAccessedAt).toISOString() : null,
           url: researchSourceUrl.trim() || null,
           citation_text: researchSourceCitation,
           research_notes: researchSourceNotes,
@@ -1024,7 +1026,7 @@ function App() {
       });
       setDocumentaryResearch(updated);
       setResearchSourceTitle(""); setResearchSourceType("article");
-      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate("");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate(""); setResearchSourceAccessedAt("");
       setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the research source.");
@@ -1322,6 +1324,7 @@ function App() {
                             </select></label>
                             <label>Publication date<input maxLength={80} value={researchSourceDate} onChange={event => setResearchSourceDate(event.target.value)} placeholder="YYYY, YYYY-MM-DD or c. 1900" /></label>
                           </div>
+                          <label>Accessed at<input type="datetime-local" value={researchSourceAccessedAt} onChange={event => setResearchSourceAccessedAt(event.target.value)} /><small>Leave blank to record the time this source entry is created.</small></label>
                           <div className="documentary-form-row">
                             <label>Creator / author<input maxLength={500} value={researchSourceCreator} onChange={event => setResearchSourceCreator(event.target.value)} placeholder="Author, organisation, interviewer…" /></label>
                             <label>Publisher / institution<input maxLength={240} value={researchSourcePublisher} onChange={event => setResearchSourcePublisher(event.target.value)} placeholder="Publisher or holding institution" /></label>
