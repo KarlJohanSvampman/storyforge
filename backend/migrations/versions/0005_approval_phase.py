@@ -23,6 +23,32 @@ def upgrade() -> None:
     op.create_index("ix_project_approval_rules_project_id", "project_approval_rules", ["project_id"])
 
     op.create_table(
+        "narrative_approval_rounds",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+        sa.Column("version_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("rule_mode", sa.String(length=20), nullable=False),
+        sa.Column("eligible_voter_count", sa.Integer(), nullable=False),
+        sa.Column("required_votes", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("version_id", name="uq_narrative_approval_rounds_version"),
+        sa.CheckConstraint("rule_mode IN ('owner_only', 'majority')", name="ck_narrative_approval_rounds_rule_mode"),
+        sa.CheckConstraint("eligible_voter_count >= 1", name="ck_narrative_approval_rounds_eligible_count"),
+        sa.CheckConstraint("required_votes >= 1", name="ck_narrative_approval_rounds_required_votes"),
+    )
+
+    op.create_table(
+        "narrative_approval_voters",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+        sa.Column("round_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("narrative_approval_rounds.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("voter_user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
+        sa.Column("role_snapshot", sa.String(length=20), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.UniqueConstraint("round_id", "voter_user_id", name="uq_narrative_approval_voters_round_user"),
+    )
+    op.create_index("ix_narrative_approval_voters_round_id", "narrative_approval_voters", ["round_id"])
+    op.create_index("ix_narrative_approval_voters_voter_user_id", "narrative_approval_voters", ["voter_user_id"])
+
+    op.create_table(
         "narrative_approval_votes",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
         sa.Column("version_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False),
@@ -76,5 +102,9 @@ def downgrade() -> None:
     op.drop_index("ix_narrative_approval_votes_voter_user_id", table_name="narrative_approval_votes")
     op.drop_index("ix_narrative_approval_votes_version_id", table_name="narrative_approval_votes")
     op.drop_table("narrative_approval_votes")
+    op.drop_index("ix_narrative_approval_voters_voter_user_id", table_name="narrative_approval_voters")
+    op.drop_index("ix_narrative_approval_voters_round_id", table_name="narrative_approval_voters")
+    op.drop_table("narrative_approval_voters")
+    op.drop_table("narrative_approval_rounds")
     op.drop_index("ix_project_approval_rules_project_id", table_name="project_approval_rules")
     op.drop_table("project_approval_rules")
