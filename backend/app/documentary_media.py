@@ -319,6 +319,16 @@ def _validate_source_media_clearance(
             raise HTTPException(status_code=409, detail=f'Media rights for "{asset.title}" are not yet effective.')
         if rights.valid_until and rights.valid_until < now:
             raise HTTPException(status_code=409, detail=f'Media rights for "{asset.title}" have expired.')
+        if rights.rights_basis == "unknown" and permission != "research":
+            raise HTTPException(
+                status_code=409,
+                detail=f'Media rights for "{asset.title}" are unresolved; unknown rights cannot clear production use.',
+            )
+        if rights.rights_basis == "research_only" and permission != "research":
+            raise HTTPException(
+                status_code=409,
+                detail=f'Media rights for "{asset.title}" are limited to research use.',
+            )
         if permission not in (rights.permitted_uses or []) and "all" not in (rights.permitted_uses or []):
             raise HTTPException(
                 status_code=409,
@@ -327,6 +337,8 @@ def _validate_source_media_clearance(
 
         if asset.interview_session_id:
             session = _session_or_404(db, project_id, asset.interview_session_id)
+            if session.status != "active":
+                raise HTTPException(status_code=409, detail=f'Interview session "{session.id}" is archived and cannot be used in new production material.')
             signed_releases = db.scalars(
                 select(DocumentaryRelease).where(
                     DocumentaryRelease.project_id == project_id,
