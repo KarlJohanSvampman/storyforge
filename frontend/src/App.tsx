@@ -757,6 +757,7 @@ function App() {
 
   const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
   const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
+  const canEditStoryboard = canContribute && selectedProject?.current_phase === "storyboard";
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
@@ -1090,7 +1091,7 @@ function App() {
                   </section>
                 )}
 
-              {selectedProject.current_phase === "storyboard" && (
+              {(selectedProject.current_phase === "storyboard" || storyboard !== null) && (
                 <section className="storyboard-section">
                   <div className="section-heading contribution-heading">
                     <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
@@ -1099,7 +1100,7 @@ function App() {
                   {!storyboard ? (
                     <div className="storyboard-empty">
                       <p>The narrative is approved. Initialize a storyboard anchored to that exact immutable version before adding scenes, characters or locations.</p>
-                      {canContribute
+                      {canEditStoryboard
                         ? <button className="primary-button" type="button" disabled={loading} onClick={initializeStoryboard}><Clapperboard size={15} /> Initialize storyboard</button>
                         : <p className="muted-note">A project owner, editor or contributor can initialize the storyboard. You have read-only access.</p>}
                     </div>
@@ -1107,6 +1108,7 @@ function App() {
                     <>
                       <div className="storyboard-source-card">
                         <div><div className="section-kicker">APPROVED NARRATIVE · IMMUTABLE SOURCE</div><strong>{storyboard.narrative_title} · Version {storyboard.narrative_version_number}</strong><p>The storyboard remains linked to this approved version, even if the project evolves later.</p></div>
+                        {selectedProject.current_phase !== "storyboard" && <p className="muted-note">This project has moved beyond storyboarding. The storyboard remains available as a read-only record.</p>}
                         <span className="approval-status approved">Approved</span>
                       </div>
 
@@ -1120,7 +1122,7 @@ function App() {
                         <section className="storyboard-asset-panel">
                           <div className="section-kicker">CHARACTER DIRECTORY</div>
                           <h3>Characters <span>{storyboard.characters.length}</span></h3>
-                          {canContribute && (
+                          {canEditStoryboard && (
                             <form className="storyboard-mini-form" onSubmit={submitCharacter}>
                               <label>Name<input required maxLength={160} value={characterName} onChange={event => setCharacterName(event.target.value)} placeholder="Character name" /></label>
                               <label>Story description<textarea rows={2} maxLength={10000} value={characterDescription} onChange={event => setCharacterDescription(event.target.value)} placeholder="Who are they in the story?" /></label>
@@ -1145,7 +1147,7 @@ function App() {
                         <section className="storyboard-asset-panel">
                           <div className="section-kicker">LOCATION DIRECTORY</div>
                           <h3>Locations <span>{storyboard.locations.length}</span></h3>
-                          {canContribute && (
+                          {canEditStoryboard && (
                             <form className="storyboard-mini-form" onSubmit={submitLocation}>
                               <label>Name<input required maxLength={160} value={locationName} onChange={event => setLocationName(event.target.value)} placeholder="Location name" /></label>
                               <label>Environment
@@ -1175,7 +1177,7 @@ function App() {
                         </section>
                       </div>
 
-                      {canContribute && (
+                      {canEditStoryboard && (
                         <form className="storyboard-scene-form" onSubmit={submitScene}>
                           <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
                           <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
@@ -1201,13 +1203,13 @@ function App() {
                               <div className="storyboard-scene-heading">
                                 <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
                                 <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
-                                {canContribute && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
                               </div>
                               {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
                               {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
                               <div className="scene-participants"><strong>Characters</strong>{scene.characters.length ? scene.characters.map(character => <span key={character.id}>{character.name}</span>) : <small>None assigned</small>}</div>
 
-                              {canContribute && (
+                              {canEditStoryboard && (
                                 <details className="scene-edit-panel">
                                   <summary>Edit scene details</summary>
                                   <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
@@ -1227,12 +1229,12 @@ function App() {
                               <div className="scene-passage-area">
                                 <div className="section-kicker">LINKED STORY PASSAGES · {scene.passages.length}</div>
                                 {scene.passages.map(passage => <details className="scene-passage" key={passage.id}><summary>Passage {passage.reference_order} · source characters {passage.start_offset}–{passage.end_offset}</summary><pre>{passage.passage_snapshot}</pre></details>)}
-                                {canContribute && <div className="scene-passage-form"><label>Paste an exact excerpt from the approved narrative<textarea rows={3} maxLength={10000} value={passageDrafts[scene.id] || ""} onChange={event => setPassageDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Copy the exact passage from the approved narrative above…" /></label><label>Occurrence when the same passage appears more than once<input type="number" min="1" max="100" value={passageOccurrences[scene.id] || "1"} onChange={event => setPassageOccurrences(current => ({ ...current, [scene.id]: event.target.value }))} /></label><button type="button" className="secondary-button" disabled={loading || !(passageDrafts[scene.id] || "").trim()} onClick={() => addScenePassage(scene)}>Link exact passage</button></div>}
+                                {canEditStoryboard && <div className="scene-passage-form"><label>Paste an exact excerpt from the approved narrative<textarea rows={3} maxLength={10000} value={passageDrafts[scene.id] || ""} onChange={event => setPassageDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Copy the exact passage from the approved narrative above…" /></label><label>Occurrence when the same passage appears more than once<input type="number" min="1" max="100" value={passageOccurrences[scene.id] || "1"} onChange={event => setPassageOccurrences(current => ({ ...current, [scene.id]: event.target.value }))} /></label><button type="button" className="secondary-button" disabled={loading || !(passageDrafts[scene.id] || "").trim()} onClick={() => addScenePassage(scene)}>Link exact passage</button></div>}
                               </div>
 
                               <div className="scene-script-area">
                                 <div className="section-kicker">WORKING SCRIPT · {scene.script_versions.length} REVISIONS</div>
-                                {canContribute && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
+                                {canEditStoryboard && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
                                 {scene.script_versions.length > 0 && <details className="scene-script-history"><summary>Script history</summary>{[...scene.script_versions].reverse().map(version => <article key={version.id}><strong>Revision {version.revision_number} · {version.author_display_name}</strong><pre>{version.content}</pre></article>)}</details>}
                               </div>
                             </article>
