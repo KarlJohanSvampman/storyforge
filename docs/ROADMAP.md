@@ -7,17 +7,18 @@ Work in small, demonstrable increments. Each milestone should produce something 
 ## M0 — Collaborative storytelling
 
 ### M0.1 — Runnable skeleton
-- [ ] React + TypeScript frontend starts locally.
-- [ ] FastAPI backend starts locally.
-- [ ] Frontend can call a health endpoint.
-- [ ] Docker Compose runs the stack.
-- [ ] README contains exact setup instructions.
+- [x] React + TypeScript frontend starts locally.
+- [x] FastAPI backend starts locally.
+- [x] Frontend can call a health endpoint.
+- [x] Docker Compose runs the stack.
+- [x] README contains exact setup instructions.
 
 ### M0.2 — Projects
-- [ ] Create and list projects.
-- [ ] View project details.
-- [ ] Define basic project membership and roles.
-- [ ] Persist data in PostgreSQL.
+- [x] Create and list projects (implementation complete; end-to-end verification pending).
+- [x] View project details.
+- [x] Define basic project membership and roles.
+- [x] Persist data in PostgreSQL.
+- [x] Record pending collaborator invitations (email delivery and acceptance deferred).
 
 ### M0.3 — Contributions
 - [ ] Participants submit independent story contributions.
