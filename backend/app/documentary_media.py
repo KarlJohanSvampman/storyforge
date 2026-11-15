@@ -47,10 +47,6 @@ from .schemas import (
 
 router = APIRouter(prefix="/api/projects/{project_id}/documentary", tags=["documentary production research"])
 
-PERMITTED_USES = {
-    "research", "storyboard", "script", "narration", "lower_third",
-    "caption", "promotion", "publication", "trailer", "social",
-}
 ASSET_TYPES = {"transcript", "audio", "video", "image", "document", "release_document", "other"}
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 ALLOWED_EXTENSIONS = {
