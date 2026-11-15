@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import CastingWorkspace from "./CastingWorkspace";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
   Film, Lightbulb, Plus, Sparkles, Users, FolderOpen, LoaderCircle,
@@ -2823,6 +2824,16 @@ function App() {
                     </>
                   )}
                 </section>
+              )}
+
+              {storyboard && selectedProject.current_phase !== "development" && (
+                <CastingWorkspace
+                  projectId={selectedProject.id}
+                  phase={selectedProject.current_phase}
+                  characters={storyboard.characters}
+                  currentUserId={currentUser?.id || null}
+                  canManage={myMembership?.status === "active" && (myMembership.role === "owner" || myMembership.role === "editor")}
+                />
               )}
 
               <section className="contributions-section">
