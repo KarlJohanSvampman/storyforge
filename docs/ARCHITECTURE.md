@@ -39,7 +39,7 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 ## 4. Current entities
 
 - **User:** account identity.
-- **Project:** title, description, owner, current phase, visibility, timestamps.
+- **Project:** title, description, owner, current phase, visibility, timestamps, production format (movie or tv_series), and independent content category (fiction or documentary). Genre/subject is descriptive metadata and does not determine either dimension.
 - **ProjectMembership:** user, project, role, status.
 - **StoryContribution:** project, author, title, status, timestamps.
 - **ContributionRevision:** contribution, revision number, body, author, timestamp. Revisions are append-only.
@@ -53,7 +53,8 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeApprovalDecision:** one final approved/rejected decision per narrative version, including a snapshot of the rule and tally.
 - **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
 - **Storyboard:** one project storyboard permanently anchored to the exact narrative version approved to enter the storyboard phase.
-- **StoryboardScene:** ordered scene breakdown with summary, requirements, estimated duration, optional primary location, and working script history.
+- **StoryboardSeason / StoryboardEpisode:** ordered season and episode hierarchy belonging to a TV-series storyboard interpretation. Episode numbers are unique within a season; season numbers are unique within a storyboard. Archiving preserves their history and references.
+- **StoryboardScene:** ordered scene breakdown with summary, requirements, estimated duration, optional primary location, optional episode assignment for a TV series, and working script history. Movie scenes remain directly under the storyboard.
 - **ScenePassageReference:** exact excerpt reference into the approved narrative snapshot, retaining source offsets and passage text.
 - **SceneScriptVersion:** append-only revision history for script material attached to a scene.
 - **ProjectCharacter / ProjectLocation:** project-level story bible records describing fictional characters and locations. These are not actor profiles, casting engagements, or 3D production assets.
@@ -130,6 +131,14 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - A legacy plain-text script can be opened in the structured editor as one initial action block. Saving it creates a new structured revision; the original plain-text revision remains unchanged.
 - Screenplay character references identify fictional roles only. They do not select or hire a performer, create a casting contract, or imply a human/AI control mode.
 
+### M1.3 project format and category contract
+
+- Project format and content category are separate, orthogonal fields. Supported formats are movie and tv_series; supported categories are fiction and documentary. Existing projects migrate to movie + fiction.
+- Genre remains descriptive metadata. For fiction it can hold genre labels; for documentaries it can hold subject areas such as history, nature, science, or current affairs. It must not be used to infer project format or category.
+- A TV-series storyboard contains ordered seasons, each containing ordered episodes. Episodes carry their own title, logline, synopsis, and estimated runtime. Scenes and their screenplay revisions belong to one episode; scene order is scoped to that episode.
+- Movie projects retain the existing storyboard and project-level scene sequence. Their scene episode_id is null.
+- Project format cannot be switched after a storyboard has been initialized, because doing so would invalidate the scene hierarchy. Content category remains editable as project metadata.
+- Documentary is a first-class category for either format, not a genre or separate format. The category is present in project records now; a later documentary workflow should add research sources, interview records, claim-to-source links, archival-media provenance, rights/permissions, and fact-check states. AI-generated documentary statements remain unverified until a person reviews their sources.
 ## 7. Later production and publication data
 
 Keep the project narrative separate from production interpretation. A production version references an approved narrative version while defining its own storyboard, cast assignments, scene blocking, takes, camera tracks, audio, and edit decisions.
