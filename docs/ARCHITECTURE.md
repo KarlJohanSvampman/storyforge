@@ -146,6 +146,7 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 ### M1.4 documentary research and fact-checking contract
 
 - Documentary research is project-level and independent of storyboard initialization. It is available to both documentary movies and documentary series, including during contributions, development, storyboard, and production phases. Published projects are read-only.
+- A source access timestamp may be entered by the researcher; if omitted, the server records when the source entry was created. It is a recorded access/registration time, not proof that the source itself was retrieved by StoryForge.
 - Research sources store bibliographic identity, source type, creator/author, publisher/holding institution, publication date, URL, citation text, research notes, and server-recorded access time. A source is a reference record; M1.4 does not download, crawl, or preserve the source document itself.
 - Factual claims are discrete statements. Their origin is recorded as human-authored or AI-assisted. Both begin unreviewed; an AI-assisted claim cannot mark itself supported or verified.
 - Evidence links identify one source and an explicit relationship: supports, challenges, or context. They retain the exact excerpt supplied by the researcher and a page, section, table, or timecode locator. Evidence links are append-only in this initial slice.
