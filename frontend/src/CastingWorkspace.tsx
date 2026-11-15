@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Bot, Clapperboard, Plus, Save, UserRound, Users, X } from "lucide-react";
+import { Bot, Clapperboard, Plus, Save, UserRound, Users } from "lucide-react";
 
 type ProjectCharacter = { id: string; name: string; description: string; status: string };
 type Member = { id: string; display_name: string | null; email: string | null; role: string; status: string };
@@ -99,7 +99,6 @@ export default function CastingWorkspace({ projectId, phase, characters, members
   const uncastCharacters = activeCharacters.filter(item => !castCharacterIds.has(item.id));
   const activeActors = actors.filter(item => item.status === "active");
   const canCast = canManage && (phase === "storyboard" || phase === "production");
-  const activeMembers = members.filter(item => item.status === "active");
 
   async function run(action: () => Promise<void>, success: string) {
     setBusy(true); setError(""); setNotice("");
@@ -178,7 +177,7 @@ export default function CastingWorkspace({ projectId, phase, characters, members
   }
 
   const controllerSummary = (item: Casting) => item.controller_type === "user"
-    ? (activeMembers.find(member => member.email && member.email === "")?.display_name || "Human performer")
+    ? (item.controller_user_id === currentUserId ? "Assigned to you" : "Human performer")
     : controllerLabels[item.controller_type];
 
   return (
@@ -263,6 +262,13 @@ export default function CastingWorkspace({ projectId, phase, characters, members
                 <div className="casting-assignment-footer"><span><Bot size={12} /> {controllerSummary(item)} · {modeLabels[item.control_mode]}</span>
                   {canManage && <button className="quiet-button" disabled={busy || (draft.controller_type === item.controller_type && draft.control_mode === item.control_mode)} onClick={() => saveControl(item)}><Save size={12} /> Save control</button>}
                 </div>
+                {canCast && <div className="casting-replace-row">
+                  <select aria-label={`Replace actor for ${item.character_name}`} value={selectedActors[item.character_id] || ""} onChange={event => setSelectedActors(current => ({ ...current, [item.character_id]: event.target.value }))}>
+                    <option value="">Replace performer…</option>
+                    {activeActors.filter(actor => settings.allow_actor_reuse || actor.id === item.actor_id || !activeCasting.some(other => other.actor_id === actor.id && other.id !== item.id)).map(actor => <option key={actor.id} value={actor.id}>{actor.display_name}</option>)}
+                  </select>
+                  <button type="button" className="quiet-button" disabled={busy || !selectedActors[item.character_id] || selectedActors[item.character_id] === item.actor_id} onClick={() => assign({ id: item.character_id, name: item.character_name, description: "", status: "active" })}>Replace cast</button>
+                </div>}
               </article>;
             })}
           </div>
