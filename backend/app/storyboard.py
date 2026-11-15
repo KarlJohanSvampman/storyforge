@@ -7,13 +7,13 @@ from sqlalchemy.orm import Session
 from .models import (
     NarrativeApprovalDecision, NarrativeDraftVersion, Project, ProjectCharacter,
     ProjectLocation, ProjectPhaseTransition, SceneCharacterAssignment,
-    ScenePassageReference, SceneScriptVersion, Storyboard, StoryboardScene, User,
+    ScenePassageReference, SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardScene, User,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
     CharacterCreate, CharacterRead, CharacterUpdate, LocationCreate, LocationRead,
     LocationUpdate, SceneCharacterRead, ScenePassageCreate, ScenePassageRead,
-    SceneReorder, SceneScriptVersionCreate, SceneScriptVersionRead,
+    SceneReorder, SceneScriptElementRead, SceneScriptVersionCreate, SceneScriptVersionRead,
     StoryboardDetail, StoryboardSceneCreate, StoryboardSceneRead, StoryboardSceneUpdate,
 )
 
@@ -125,12 +125,29 @@ def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
         script_reads = []
         for script in scripts:
             author = db.get(User, script.author_user_id)
+            element_rows = db.scalars(
+                select(SceneScriptElement)
+                .where(SceneScriptElement.script_version_id == script.id)
+                .order_by(SceneScriptElement.element_order)
+            ).all()
+            element_reads = [
+                SceneScriptElementRead(
+                    id=element.id,
+                    element_order=element.element_order,
+                    element_type=element.element_type,
+                    content=element.content,
+                    character_id=element.character_id,
+                    character_name=element.character_name_snapshot,
+                    created_at=element.created_at,
+                )
+                for element in element_rows
+            ]
             script_reads.append(SceneScriptVersionRead(
                 id=script.id, revision_number=script.revision_number,
                 content=script.content, parent_version_id=script.parent_version_id,
                 author_user_id=script.author_user_id,
                 author_display_name=author.display_name if author else "Unknown participant",
-                created_at=script.created_at,
+                created_at=script.created_at, elements=element_reads,
             ))
         location = db.get(ProjectLocation, scene.location_id) if scene.location_id else None
         scenes.append(StoryboardSceneRead(
@@ -402,8 +419,6 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
     ).with_for_update())
     if scene is None:
         raise HTTPException(status_code=404, detail="Scene not found in this storyboard.")
-    if not payload.content.strip():
-        raise HTTPException(status_code=422, detail="Script content cannot be blank.")
     latest = db.scalar(select(SceneScriptVersion).where(
         SceneScriptVersion.scene_id == scene.id,
     ).order_by(SceneScriptVersion.revision_number.desc()).limit(1).with_for_update())
@@ -411,11 +426,66 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
         raise HTTPException(status_code=409, detail="This scene has no earlier script version.")
     if latest is not None and payload.base_version_id != latest.id:
         raise HTTPException(status_code=409, detail="The scene script has changed. Reload the latest version before saving.")
+
+    element_characters: dict[uuid.UUID, ProjectCharacter] = {}
+    if payload.elements:
+        character_ids = [
+            item.character_id for item in payload.elements
+            if item.character_id is not None
+        ]
+        if len(set(character_ids)) != len(character_ids):
+            # A character may speak multiple times in one script; repeated IDs
+            # are expected, so only validate existence/ownership, not uniqueness.
+            character_ids = list(set(character_ids))
+        if character_ids:
+            rows = db.scalars(select(ProjectCharacter).where(
+                ProjectCharacter.id.in_(character_ids),
+                ProjectCharacter.project_id == project_id,
+                ProjectCharacter.status == "active",
+            )).all()
+            element_characters = {row.id: row for row in rows}
+            if len(element_characters) != len(character_ids):
+                raise HTTPException(
+                    status_code=422,
+                    detail="Every dialogue or parenthetical character must be active and belong to this project.",
+                )
+
+    def render_elements() -> str:
+        rendered: list[str] = []
+        for item in payload.elements or []:
+            if item.element_type == "action":
+                rendered.append(item.content)
+            elif item.element_type == "dialogue":
+                character = element_characters[item.character_id]
+                rendered.append(f"{character.name.upper()}\\n{item.content}")
+            elif item.element_type == "parenthetical":
+                rendered.append(f"({item.content})")
+            elif item.element_type == "transition":
+                rendered.append(item.content.upper())
+            else:
+                rendered.append(f"[PRODUCTION NOTE: {item.content}]")
+        return "\\n\\n".join(rendered)
+
+    script_content = payload.content if payload.content is not None else render_elements()
+    if not script_content.strip():
+        raise HTTPException(status_code=422, detail="Script content cannot be blank.")
+
     version = SceneScriptVersion(
         scene_id=scene.id, revision_number=(latest.revision_number + 1 if latest else 1),
-        content=payload.content, parent_version_id=latest.id if latest else None,
+        content=script_content, parent_version_id=latest.id if latest else None,
         author_user_id=user.id,
     )
     db.add(version)
+    db.flush()
+    for element_order, item in enumerate(payload.elements or [], start=1):
+        character = element_characters.get(item.character_id) if item.character_id else None
+        db.add(SceneScriptElement(
+            script_version_id=version.id,
+            element_order=element_order,
+            element_type=item.element_type,
+            content=item.content,
+            character_id=character.id if character else None,
+            character_name_snapshot=character.name if character else None,
+        ))
     db.commit()
     return _storyboard_detail(db, storyboard)
