@@ -130,9 +130,15 @@ def create_casting(project_id: uuid.UUID, payload: CastingAssignmentCreate, db: 
             raise HTTPException(status_code=409, detail="Project settings do not allow replacing an active casting assignment.")
         existing_character_cast.status = "replaced"
     if not settings.allow_actor_reuse:
-        actor_in_project = db.scalar(select(CastingAssignment.id).where(CastingAssignment.project_id == project_id, CastingAssignment.actor_id == actor.id, CastingAssignment.status == "active").limit(1))
+        actor_query = select(CastingAssignment.id).where(CastingAssignment.project_id == project_id, CastingAssignment.actor_id == actor.id, CastingAssignment.status == "active")
+        if existing_character_cast:
+            actor_query = actor_query.where(CastingAssignment.id != existing_character_cast.id)
+        actor_in_project = db.scalar(actor_query.limit(1))
         if actor_in_project:
             raise HTTPException(status_code=409, detail="Project settings do not allow this actor to portray multiple characters.")
+    if not payload.role_label.strip():
+        raise HTTPException(status_code=422, detail="Casting role label cannot be blank.")
+
     controller_type = payload.controller_type or settings.default_controller_type
     control_mode = payload.control_mode or settings.default_control_mode
     controller_user_id = payload.controller_user_id
