@@ -630,7 +630,7 @@ function App() {
               </div>
 
               <div className="detail-columns">
-                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>Story contributions</h2><p>Each participant can contribute an independent idea, scene, character, plot direction or piece of narrative. Contributions remain separate so no one's original work is lost when the group begins developing the story.</p><span className="stage-pill"><span className="status-dot" /> IN PROGRESS</span></div>
+                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>{selectedProject.current_phase === "storyboard" ? "Storyboard" : selectedProject.current_phase === "development" ? "Story development" : selectedProject.current_phase === "production" ? "Production" : selectedProject.current_phase === "published" ? "Published" : "Story contributions"}</h2><p>{selectedProject.current_phase === "storyboard" ? "The narrative has been approved. The project is ready to be broken into scenes and storyboards." : "Contributions remain independent while the group shapes and approves a shared narrative."}</p><span className="stage-pill"><span className="status-dot" /> {selectedProject.current_phase.replace("_", " ").toUpperCase()}</span></div>
                 <div className="detail-panel members-panel"><div className="panel-heading"><div><div className="section-kicker">THE CREATIVE TEAM</div><h2>Members <span>{selectedProject.members.length}</span></h2></div></div>
                   <div className="member-list">{selectedProject.members.map(member => <div className="member-row" key={member.id}><div className="avatar">{(member.display_name || member.invited_email || "?").charAt(0).toUpperCase()}</div><div className="member-copy"><strong>{member.display_name || member.invited_email}</strong><span>{member.email || (member.status === "invited" ? "Invitation pending" : "")}</span></div><span className={member.status === "invited" ? "role-tag pending" : "role-tag"}>{member.role}</span></div>)}</div>
                   <form className="invite-form" onSubmit={inviteMember}><div className="section-kicker">INVITE A COLLABORATOR</div><input type="email" required placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} /><div className="invite-controls"><select value={inviteRole} onChange={e => setInviteRole(e.target.value)}><option value="contributor">Contributor</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button className="primary-button" type="submit"><Plus size={15} /> Invite</button></div>{inviteMessage && <p className="success-message">{inviteMessage}</p>}</form>
@@ -644,7 +644,28 @@ function App() {
                   <span className="step-count">{draft ? `Version ${draft.current_version_number} · proposal` : "Not compiled yet"}</span>
                 </div>
                 <p className="muted-note">This first compiler assembles selected text without rewriting it. Every generated version is an unapproved proposal with exact source references; original contributions remain untouched. A real AI provider can replace the mock compiler later.</p>
-                {canContribute && (
+
+                <div className="approval-rule-card">
+                  <div className="approval-rule-copy">
+                    <div className="section-kicker">PROJECT APPROVAL RULE</div>
+                    <strong>{approval?.rule.mode === "majority" ? "Majority of active creative members" : "Project owner approval"}</strong>
+                    <p>Owner approval requires the owner's vote. Majority requires more than half of active owners, editors and contributors. Viewers and pending invitations do not count.</p>
+                  </div>
+                  {canManageApprovalRule && (
+                    <form className="approval-rule-form" onSubmit={saveApprovalRule}>
+                      <label>Decision rule
+                        <select value={approvalMode} onChange={event => setApprovalMode(event.target.value as ApprovalMode)}>
+                          <option value="owner_only">Owner approval</option>
+                          <option value="majority">Majority of active creative members</option>
+                        </select>
+                      </label>
+                      <button className="secondary-button" type="submit" disabled={loading || approvalRuleLocked || selectedProject.current_phase === "storyboard"}>Save rule</button>
+                      {approvalRuleLocked && <small>Locked because voting has started on a draft version.</small>}
+                    </form>
+                  )}
+                </div>
+
+                {canContribute && selectedProject.current_phase !== "storyboard" && (
                   <form className="draft-compile-form" onSubmit={compileNarrativeDraft}>
                     <label>Draft title<input maxLength={160} value={draftTitle} onChange={event => setDraftTitle(event.target.value)} placeholder={selectedProject.title} /></label>
                     <div className="draft-source-picker">
@@ -686,13 +707,14 @@ function App() {
                   </form>
                 )}
                 {!canContribute && !draft && <p className="muted-note">A project contributor can compile the first narrative proposal.</p>}
+                {selectedProject.current_phase === "storyboard" && <p className="muted-note">Narrative drafting is locked because this project has entered storyboarding.</p>}
                 {draft && latestDraftVersion && (
                   <div className="draft-workspace">
                     <div className="draft-version-bar">
                       <div><div className="section-kicker">CURRENT PROPOSAL</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
                         <p>Version {selectedDraftVersion?.version_number || latestDraftVersion.version_number} · {selectedDraftVersion?.origin === "manual" ? "Manually revised" : "Compiled proposal"} · {selectedDraftVersion?.author_display_name}</p>
                       </div>
-                      {canContribute && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
+                      {canContribute && selectedProject.current_phase !== "storyboard" && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
                     </div>
                     {editingDraft ? (
                       <form className="draft-editor" onSubmit={saveDraftRevision}>
@@ -720,6 +742,65 @@ function App() {
                       ))}
                       <p className="muted-note">Each reference stores the exact source text snapshot as well as its contribution and revision identifiers.</p>
                     </div>
+
+                    {selectedApproval && selectedDraftVersion && (
+                      <section className="approval-panel">
+                        <div className="approval-heading">
+                          <div><div className="section-kicker">VERSION-SPECIFIC DECISION</div><h3>Review and approval</h3></div>
+                          <span className={selectedApproval.decision_outcome === "approved" ? "approval-status approved" : selectedApproval.decision_outcome === "rejected" ? "approval-status rejected" : "approval-status pending"}>
+                            {selectedApproval.decision_outcome || "Awaiting decision"}
+                          </span>
+                        </div>
+                        <div className="approval-tally">
+                          <div><strong>{selectedApproval.approve_count}</strong><span>Approve votes</span></div>
+                          <div><strong>{selectedApproval.reject_count}</strong><span>Reject votes</span></div>
+                          <div><strong>{selectedApproval.required_votes}</strong><span>Matching votes required</span></div>
+                          <div><strong>{selectedApproval.eligible_voter_count}</strong><span>Eligible voters</span></div>
+                        </div>
+                        {selectedApproval.decision_outcome === null && selectedApproval.can_vote && (
+                          <div className="approval-vote-form">
+                            <label>Optional note<textarea rows={2} maxLength={3000} value={approvalNote} onChange={event => setApprovalNote(event.target.value)} placeholder="Add context for your vote…" /></label>
+                            <div className="approval-actions">
+                              <button type="button" className="secondary-button" disabled={loading || selectedApproval.current_user_vote === "approve"} onClick={() => castApprovalVote("approve")}>Approve this version</button>
+                              <button type="button" className="secondary-button danger-button" disabled={loading || selectedApproval.current_user_vote === "reject"} onClick={() => castApprovalVote("reject")}>Reject this version</button>
+                              {selectedApproval.current_user_vote && <small>Your current vote: {selectedApproval.current_user_vote}. You may change it before a final decision.</small>}
+                            </div>
+                          </div>
+                        )}
+                        {selectedApproval.decision_outcome === null && !selectedApproval.can_vote && !selectedApproval.can_finalize && (
+                          <p className="muted-note">{selectedApproval.is_current_version ? "You cannot vote under the current approval rule, or this project is not accepting votes." : "Only the current draft version can receive votes."}</p>
+                        )}
+                        {selectedApproval.can_finalize && (
+                          <div className="approval-finalize">
+                            <p>{selectedApproval.approve_count >= selectedApproval.required_votes ? "The approval threshold has been reached." : "The rejection threshold has been reached."} The project owner can now record the final decision.</p>
+                            <button className="primary-button" type="button" disabled={loading} onClick={finalizeApprovalDecision}>
+                              {selectedApproval.approve_count >= selectedApproval.required_votes ? "Approve narrative & enter storyboarding" : "Finalize rejection"}
+                            </button>
+                          </div>
+                        )}
+                        {selectedApproval.decision && (
+                          <div className={selectedApproval.decision.outcome === "approved" ? "approval-decision approved" : "approval-decision rejected"}>
+                            <strong>{selectedApproval.decision.outcome === "approved" ? "Narrative version approved" : "Narrative version rejected"}</strong>
+                            <span>Finalized by {selectedApproval.decision.actor_display_name} · {new Date(selectedApproval.decision.created_at).toLocaleString()}</span>
+                            <small>Rule: {selectedApproval.decision.rule_mode === "majority" ? "majority" : "owner approval"} · {selectedApproval.decision.approve_count} approve / {selectedApproval.decision.reject_count} reject · {selectedApproval.decision.required_votes} required</small>
+                            {selectedApproval.decision.note && <p>{selectedApproval.decision.note}</p>}
+                          </div>
+                        )}
+                        <div className="approval-vote-history">
+                          <div className="section-kicker">VOTE HISTORY</div>
+                          {selectedApproval.votes.length === 0 && <p className="muted-note">No votes have been recorded for this version.</p>}
+                          {selectedApproval.votes.map(vote => (
+                            <div className="approval-vote-row" key={vote.id}>
+                              <strong>{vote.voter_display_name}</strong>
+                              <span className={vote.choice === "approve" ? "vote-choice approve" : "vote-choice reject"}>{vote.choice}</span>
+                              <small>{new Date(vote.created_at).toLocaleString()}{vote.is_latest ? " · latest" : " · superseded"}{vote.counts_toward_result ? " · counted" : " · not counted"}</small>
+                              {vote.note && <p>{vote.note}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
                     <div className="draft-history">
                       <div className="section-kicker">PROPOSAL HISTORY</div>
                       <div className="draft-history-list">{[...draft.versions].reverse().map(version => (
@@ -728,10 +809,23 @@ function App() {
                         </button>
                       ))}</div>
                     </div>
-                    <p className="draft-disclaimer">Proposal only · No approval, voting, or storyboard transition occurs in M0.5.</p>
+                    <p className="draft-disclaimer">Votes are attached to this exact immutable version. Approval is a separate recorded decision; only an approved version advances the project to storyboarding.</p>
                   </div>
                 )}
               </section>
+
+                {approval && approval.phase_history.length > 0 && (
+                  <section className="phase-history-panel">
+                    <div className="section-kicker">PROJECT PHASE HISTORY</div>
+                    {approval.phase_history.map(item => (
+                      <div className="phase-history-row" key={item.id}>
+                        <strong>{item.from_phase} → {item.to_phase}</strong>
+                        <span>{item.actor_display_name} · {new Date(item.created_at).toLocaleString()}</span>
+                        <small>{item.reason}</small>
+                      </div>
+                    ))}
+                  </section>
+                )}
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
