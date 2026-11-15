@@ -52,8 +52,6 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
-- **Vote:** voter, decision target, choice, timestamp.
-- **PhaseTransition:** project, previous phase, next phase, actor, timestamp, rationale.
 - **PublishedRelease (future):** immutable publication snapshot linked to its source project and approved narrative/production versions.
 - **ReleaseCredit / ReleaseRating / ReleaseReview (future):** public attribution and audience evaluation attached to one release.
 - **ActorProfile (future):** a public performer identity that may be created and managed by a user, including users who do not create stories themselves.
