@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Activity, Camera, Check, ChevronDown, ChevronUp, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
 
-type SceneOption = { id: string; title: string; characters: Array<{ id: string; name: string }> };
+type SceneOption = { id: string; title: string };
 type Member = { id: string; user_id: string | null; display_name: string | null; email: string | null; role: string; status: string };
 type ControllerType = "user" | "ai_agent" | "script_engine" | "system";
 type ControlMode = "direct" | "command" | "assisted" | "autonomous" | "scripted";
@@ -101,6 +101,14 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const writable = canManage && phase === "production";
 
   useEffect(() => {
+    if (selectedTake) {
+      const latest = Math.max(0, ...selectedTake.events.map(item => item.timestamp_ms));
+      setEventTimestamp(String(latest + 250));
+      setEventInstanceId("");
+    }
+  }, [selectedTake?.id]);
+
+  useEffect(() => {
     if (!selectedSequence) return;
     setItemDrafts(Object.fromEntries(selectedSequence.items.map(item => [item.id, {
       in_ms: String(item.in_ms), out_ms: String(item.out_ms),
@@ -120,6 +128,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
     await perform(async () => {
       await api(`${root(projectId)}/production/activate`, { method: "POST", body: JSON.stringify({ reason: "Storyboard and cast approved for production." }) });
       await onPhaseChanged();
+      await refresh();
     }, "Project entered production.");
   }
 
@@ -377,7 +386,6 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
             {writable && selectedRun.status === "running" && <><button className="secondary-button" disabled={busy} onClick={() => transitionRun("paused")}><Pause size={13} /> Pause</button><button className="quiet-button" disabled={busy} onClick={() => transitionRun("completed")}><Square size={12} /> Complete</button></>}
             {writable && selectedRun.status === "paused" && <><button className="primary-button" disabled={busy} onClick={() => transitionRun("running")}><Play size={13} /> Resume</button><button className="quiet-button" disabled={busy} onClick={() => transitionRun("completed")}><Check size={13} /> Complete</button></>}
             {writable && selectedRun.status === "prepared" && <button className="quiet-button" disabled={busy} onClick={() => transitionRun("aborted")}>Abort</button>}
-            {writable && selectedRun.status === "running" && <button className="secondary-button" disabled={busy} onClick={createTake}><Video size={13} /> Start take</button>}
           </div>
         </> : <div className="production-viewport-empty"><Clapperboard size={26} /><span>Choose or prepare a scene run to load the set.</span></div>}
       </section>
