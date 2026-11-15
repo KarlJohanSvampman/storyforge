@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Bot, Clapperboard, Plus, Save, UserRound, Users } from "lucide-react";
 
 type ProjectCharacter = { id: string; name: string; description: string; status: string };
-type Member = { id: string; display_name: string | null; email: string | null; role: string; status: string };
 type Actor = { id: string; display_name: string; biography: string; performance_notes: string; status: string };
 type ControllerType = "user" | "ai_agent" | "script_engine" | "system";
 type ControlMode = "direct" | "command" | "assisted" | "autonomous" | "scripted";
@@ -16,7 +15,7 @@ type Settings = {
   allow_actor_reuse: boolean; allow_character_recasting: boolean;
 };
 type Props = {
-  projectId: string; phase: string; characters: ProjectCharacter[]; members: Member[];
+  projectId: string; phase: string; characters: ProjectCharacter[];
   currentUserId: string | null; canManage: boolean;
 };
 
@@ -39,7 +38,7 @@ const modeLabels: Record<ControlMode, string> = {
   direct: "Direct", command: "Command", assisted: "Assisted", autonomous: "Autonomous", scripted: "Scripted",
 };
 
-export default function CastingWorkspace({ projectId, phase, characters, members, currentUserId, canManage }: Props) {
+export default function CastingWorkspace({ projectId, phase, characters, currentUserId, canManage }: Props) {
   const [actors, setActors] = useState<Actor[]>([]);
   const [casting, setCasting] = useState<Casting[]>([]);
   const [settings, setSettings] = useState<Settings>({
