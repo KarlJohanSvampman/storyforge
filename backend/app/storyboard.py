@@ -161,6 +161,10 @@ def initialize_storyboard(project_id: uuid.UUID, db: DbSession, user: CurrentUse
     project = _require_project(db, project_id, user.id, write=True)
     # The project row lock serializes first-time initialization.
     project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found.")
+    if project.current_phase != "storyboard":
+        raise HTTPException(status_code=409, detail="Storyboard initialization requires the project to be in the storyboard phase.")
     existing = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id))
     if existing:
         return _storyboard_detail(db, existing)
@@ -196,6 +200,7 @@ def initialize_storyboard(project_id: uuid.UUID, db: DbSession, user: CurrentUse
 @router.post("/characters", response_model=CharacterRead, status_code=status.HTTP_201_CREATED)
 def create_character(project_id: uuid.UUID, payload: CharacterCreate, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id, write=True)
+    _storyboard_or_404(db, project_id)
     character = ProjectCharacter(
         project_id=project_id, name=payload.name, description=payload.description,
         visual_description=payload.visual_description, personality_notes=payload.personality_notes,
@@ -210,6 +215,7 @@ def create_character(project_id: uuid.UUID, payload: CharacterCreate, db: DbSess
 @router.patch("/characters/{character_id}", response_model=CharacterRead)
 def update_character(project_id: uuid.UUID, character_id: uuid.UUID, payload: CharacterUpdate, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id, write=True)
+    _storyboard_or_404(db, project_id)
     character = db.scalar(select(ProjectCharacter).where(
         ProjectCharacter.id == character_id, ProjectCharacter.project_id == project_id,
     ))
@@ -226,6 +232,7 @@ def update_character(project_id: uuid.UUID, character_id: uuid.UUID, payload: Ch
 @router.post("/locations", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
 def create_location(project_id: uuid.UUID, payload: LocationCreate, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id, write=True)
+    _storyboard_or_404(db, project_id)
     location = ProjectLocation(
         project_id=project_id, name=payload.name, description=payload.description,
         environment_type=payload.environment_type, time_period=payload.time_period,
@@ -240,6 +247,7 @@ def create_location(project_id: uuid.UUID, payload: LocationCreate, db: DbSessio
 @router.patch("/locations/{location_id}", response_model=LocationRead)
 def update_location(project_id: uuid.UUID, location_id: uuid.UUID, payload: LocationUpdate, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id, write=True)
+    _storyboard_or_404(db, project_id)
     location = db.scalar(select(ProjectLocation).where(
         ProjectLocation.id == location_id, ProjectLocation.project_id == project_id,
     ))
@@ -336,7 +344,12 @@ def reorder_scenes(project_id: uuid.UUID, payload: SceneReorder, db: DbSession, 
 def add_scene_passage(project_id: uuid.UUID, scene_id: uuid.UUID, payload: ScenePassageCreate, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id, write=True)
     storyboard = _storyboard_or_404(db, project_id)
-    scene = _scene_or_404(db, storyboard.id, scene_id)
+    scene = db.scalar(select(StoryboardScene).where(
+        StoryboardScene.id == scene_id,
+        StoryboardScene.storyboard_id == storyboard.id,
+    ).with_for_update())
+    if scene is None:
+        raise HTTPException(status_code=404, detail="Scene not found in this storyboard.")
     narrative = db.get(NarrativeDraftVersion, storyboard.narrative_version_id)
     if narrative is None:
         raise HTTPException(status_code=409, detail="The approved narrative source is unavailable.")
@@ -376,6 +389,8 @@ def add_scene_script_version(project_id: uuid.UUID, scene_id: uuid.UUID, payload
     ).with_for_update())
     if scene is None:
         raise HTTPException(status_code=404, detail="Scene not found in this storyboard.")
+    if not payload.content.strip():
+        raise HTTPException(status_code=422, detail="Script content cannot be blank.")
     latest = db.scalar(select(SceneScriptVersion).where(
         SceneScriptVersion.scene_id == scene.id,
     ).order_by(SceneScriptVersion.revision_number.desc()).limit(1).with_for_update())
