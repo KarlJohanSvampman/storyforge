@@ -1395,12 +1395,6 @@ function App() {
   }
 
 
-  async function refreshDocumentaryProduction() {
-    if (!selectedProject) return;
-    const updated = await api<DocumentaryProduction>(`/api/projects/${selectedProject.id}/documentary/production`);
-    setDocumentaryProduction(updated);
-  }
-
   async function submitInterviewSubject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject || !interviewSubjectLabel.trim()) return;
