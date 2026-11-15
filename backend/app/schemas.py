@@ -1412,3 +1412,53 @@ class SceneRunRead(BaseModel):
     ended_at: datetime | None
     cast_members: list[CastMemberInstanceRead] = Field(default_factory=list)
     uncast_character_ids: list[uuid.UUID] = Field(default_factory=list)
+
+
+PerformanceEventType = Literal["transform", "gesture", "expression", "voice_marker", "camera", "cue"]
+
+
+class PerformanceEventCreate(BaseModel):
+    sequence_number: int = Field(ge=0)
+    timestamp_ms: int = Field(ge=0)
+    event_type: PerformanceEventType
+    payload: dict = Field(default_factory=dict)
+
+
+class PerformanceTakeCreate(BaseModel):
+    title: str = Field(default="Take", min_length=1, max_length=160)
+    cast_member_instance_id: uuid.UUID | None = None
+    camera_snapshot: dict = Field(default_factory=dict)
+
+    @field_validator("title")
+    @classmethod
+    def clean_take_title(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Take title cannot be blank.")
+        return value.strip()
+
+
+class PerformanceTakeFinalize(BaseModel):
+    duration_ms: int = Field(ge=0)
+
+
+class PerformanceEventRead(BaseModel):
+    id: uuid.UUID
+    sequence_number: int
+    timestamp_ms: int
+    event_type: PerformanceEventType
+    payload: dict
+
+
+class PerformanceTakeRead(BaseModel):
+    id: uuid.UUID
+    scene_run_id: uuid.UUID
+    cast_member_instance_id: uuid.UUID | None
+    take_number: int
+    title: str
+    status: str
+    camera_snapshot: dict
+    duration_ms: int | None
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    finalized_at: datetime | None
+    events: list[PerformanceEventRead] = Field(default_factory=list)
