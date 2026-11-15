@@ -96,9 +96,18 @@ type ScenePassage = {
   id: string; reference_order: number; start_offset: number; end_offset: number;
   passage_snapshot: string; created_by_user_id: string; created_at: string;
 };
+type ScriptElementType = "action" | "dialogue" | "parenthetical" | "transition" | "production_note";
+type SceneScriptElement = {
+  id: string; element_order: number; element_type: ScriptElementType; content: string;
+  character_id: string | null; character_name: string | null; created_at: string;
+};
+type SceneScriptElementDraft = {
+  element_type: ScriptElementType; content: string; character_id: string;
+};
 type SceneScriptVersion = {
   id: string; revision_number: number; content: string; parent_version_id: string | null;
   author_user_id: string; author_display_name: string; created_at: string;
+  elements: SceneScriptElement[];
 };
 type SceneCharacter = { id: string; name: string; role_label: string; notes: string };
 type StoryboardScene = {
@@ -171,7 +180,8 @@ function App() {
   const [sceneLocationId, setSceneLocationId] = useState("");
   const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
   const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
-  const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
+  const [scriptElementDrafts, setScriptElementDrafts] = useState<Record<string, SceneScriptElementDraft[]>>({});
+  const [scriptEditorOpen, setScriptEditorOpen] = useState<Record<string, boolean>>({});
   const [passageDrafts, setPassageDrafts] = useState<Record<string, string>>({});
   const [passageOccurrences, setPassageOccurrences] = useState<Record<string, string>>({});
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
@@ -249,7 +259,8 @@ function App() {
       setSelectedProject(detail);
       setStoryboard(currentStoryboard);
       setSceneEdits({});
-      setScriptDrafts({});
+      setScriptElementDrafts({});
+      setScriptEditorOpen({});
       setPassageDrafts({});
       setPassageOccurrences({});
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
@@ -658,24 +669,81 @@ function App() {
     }
   }
 
+  function startStructuredScriptEdit(scene: StoryboardScene) {
+    const latest = scene.script_versions[scene.script_versions.length - 1] || null;
+    setScriptElementDrafts(current => ({
+      ...current,
+      [scene.id]: current[scene.id] || (latest?.elements.length
+        ? latest.elements.map(element => ({
+            element_type: element.element_type,
+            content: element.content,
+            character_id: element.character_id || "",
+          }))
+        : [{ element_type: "action", content: latest?.content || "", character_id: "" }]),
+    }));
+    setScriptEditorOpen(current => ({ ...current, [scene.id]: true }));
+  }
+
+  function addScriptElement(sceneId: string, elementType: ScriptElementType) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: [
+        ...(current[sceneId] || []),
+        { element_type: elementType, content: "", character_id: "" },
+      ],
+    }));
+    setScriptEditorOpen(current => ({ ...current, [sceneId]: true }));
+  }
+
+  function updateScriptElement(sceneId: string, index: number, changes: Partial<SceneScriptElementDraft>) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: (current[sceneId] || []).map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...changes } : item
+      ),
+    }));
+  }
+
+  function removeScriptElement(sceneId: string, index: number) {
+    setScriptElementDrafts(current => ({
+      ...current,
+      [sceneId]: (current[sceneId] || []).filter((_, itemIndex) => itemIndex !== index),
+    }));
+  }
+
   async function saveSceneScript(scene: StoryboardScene) {
     if (!selectedProject) return;
     const latest = scene.script_versions[scene.script_versions.length - 1] || null;
-    const content = scriptDrafts[scene.id] ?? latest?.content ?? "";
-    if (!content.trim()) return;
+    const elements = scriptElementDrafts[scene.id] || [];
+    if (elements.length === 0 || elements.some(item => !item.content.trim())) {
+      setError("Add at least one non-empty screenplay block before saving.");
+      return;
+    }
+    if (elements.some(item => item.element_type === "dialogue" && !item.character_id)) {
+      setError("Every dialogue block needs a speaking character.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
       const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/script`, {
         method: "POST",
-        body: JSON.stringify({ base_version_id: latest?.id || null, content }),
+        body: JSON.stringify({
+          base_version_id: latest?.id || null,
+          elements: elements.map(item => ({
+            element_type: item.element_type,
+            content: item.content,
+            character_id: item.character_id || null,
+          })),
+        }),
       });
       setStoryboard(updated);
-      setScriptDrafts(current => {
+      setScriptElementDrafts(current => {
         const next = { ...current };
         delete next[scene.id];
         return next;
       });
+      setScriptEditorOpen(current => ({ ...current, [scene.id]: false }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save script revision.");
     } finally {
