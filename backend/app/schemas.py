@@ -537,14 +537,59 @@ class ScenePassageRead(BaseModel):
     created_at: datetime
 
 
-class SceneScriptVersionCreate(BaseModel):
-    base_version_id: uuid.UUID | None = None
-    content: str = Field(min_length=1, max_length=50000)
+ScriptElementType = Literal["action", "dialogue", "parenthetical", "transition", "production_note"]
+
+
+class SceneScriptElementCreate(BaseModel):
+    element_type: ScriptElementType
+    content: str = Field(min_length=1, max_length=10000)
+    character_id: uuid.UUID | None = None
 
     @field_validator("content")
     @classmethod
-    def clean_script_content(cls, value: str) -> str:
+    def clean_element_content(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Script element content cannot be blank.")
         return value.strip()
+
+    @model_validator(mode="after")
+    def validate_character_assignment(self):
+        if self.element_type == "dialogue" and self.character_id is None:
+            raise ValueError("Dialogue elements must identify the speaking character.")
+        if self.element_type in ("action", "transition", "production_note") and self.character_id is not None:
+            raise ValueError("Only dialogue and parenthetical elements may reference a character.")
+        return self
+
+
+class SceneScriptElementRead(BaseModel):
+    id: uuid.UUID
+    element_order: int
+    element_type: ScriptElementType
+    content: str
+    character_id: uuid.UUID | None
+    character_name: str | None
+    created_at: datetime
+
+
+class SceneScriptVersionCreate(BaseModel):
+    base_version_id: uuid.UUID | None = None
+    content: str | None = Field(default=None, min_length=1, max_length=50000)
+    elements: list[SceneScriptElementCreate] | None = Field(default=None, min_length=1, max_length=100)
+
+    @field_validator("content")
+    @classmethod
+    def clean_script_content(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Script content cannot be blank.")
+        return value.strip() if value is not None else None
+
+    @model_validator(mode="after")
+    def require_one_script_representation(self):
+        has_text = self.content is not None
+        has_elements = bool(self.elements)
+        if has_text == has_elements:
+            raise ValueError("Provide either plain-text content or a non-empty list of structured elements.")
+        return self
 
 
 class SceneScriptVersionRead(BaseModel):
@@ -555,6 +600,7 @@ class SceneScriptVersionRead(BaseModel):
     author_user_id: uuid.UUID
     author_display_name: str
     created_at: datetime
+    elements: list[SceneScriptElementRead] = Field(default_factory=list)
 
 
 class SceneCharacterRead(BaseModel):
