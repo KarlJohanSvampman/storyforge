@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Activity, Camera, Check, ChevronUp, CircleDot, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
 
@@ -247,7 +247,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   if (phase === "storyboard") return <section className="production-studio">
     <div className="section-kicker">M2.1 · PRODUCTION HANDOFF</div><h2>Ready to enter production?</h2>
     <p className="production-studio-intro">The storyboard and cast are the source for runtime instances. Entering production locks the project into its production workspace; scene runs will snapshot the approved storyboard and current casting assignments.</p>
-    {writable && <button className="primary-button" disabled={busy} onClick={() => perform(async () => {
+    {canManage && <button className="primary-button" disabled={busy} onClick={() => perform(async () => {
       await api(`${base(projectId)}/activate`, { method: "POST", body: JSON.stringify({ reason: "Storyboard and casting approved for production." }) });
       await onPhaseChanged();
     }, "Project entered production.")}><Clapperboard size={14} /> Enter production</button>}
