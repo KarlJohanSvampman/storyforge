@@ -28,6 +28,9 @@ type ContributionRevision = {
   author_display_name: string; created_at: string;
 };
 type ContributionDetail = Contribution & { revisions: ContributionRevision[] };
+type Comment = { id: string; contribution_id: string; revision_id: string | null; parent_comment_id: string | null; author_user_id: string; author_display_name: string; body: string; created_at: string };
+type SuggestionDecision = { id: string; actor_user_id: string; actor_display_name: string; previous_status: string | null; new_status: string; note: string; created_at: string };
+type Suggestion = { id: string; contribution_id: string; target_revision_id: string; author_user_id: string; author_display_name: string; title: string; rationale: string; proposed_text: string; status: string; created_at: string; updated_at: string; decisions: SuggestionDecision[] };
 
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
@@ -59,6 +62,12 @@ function App() {
   const [selectedProject, setSelectedProject] = useState<ProjectDetail | null>(null);
   const [contributions, setContributions] = useState<Contribution[]>([]);
   const [selectedContribution, setSelectedContribution] = useState<ContributionDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [commentBody, setCommentBody] = useState("");
+  const [suggestionTitle, setSuggestionTitle] = useState("");
+  const [suggestionRationale, setSuggestionRationale] = useState("");
+  const [suggestionText, setSuggestionText] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<ProjectForm>(emptyForm);
   const [contributionTitle, setContributionTitle] = useState("");
@@ -182,12 +191,57 @@ function App() {
     try {
       const detail = await api<ContributionDetail>(`/api/projects/${selectedProject.id}/contributions/${item.id}`);
       setSelectedContribution(detail);
+      const [commentItems, suggestionItems] = await Promise.all([
+        api<Comment[]>("/api/projects/" + selectedProject.id + "/contributions/" + item.id + "/comments"),
+        api<Suggestion[]>("/api/projects/" + selectedProject.id + "/contributions/" + item.id + "/suggestions"),
+      ]);
+      setComments(commentItems);
+      setSuggestions(suggestionItems);
       setContributionTitle(detail.title);
       setContributionBody(detail.current_body);
       setEditingContribution(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load contribution.");
     }
+  }
+
+
+  async function submitComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !selectedContribution || !commentBody.trim()) return;
+    setError("");
+    try {
+      const latest = selectedContribution.revisions[selectedContribution.revisions.length - 1];
+      const created = await api<Comment>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/comments", {
+        method: "POST", body: JSON.stringify({ body: commentBody, revision_id: latest?.id || null }),
+      });
+      setComments([...comments, created]); setCommentBody("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not add comment."); }
+  }
+
+  async function submitSuggestion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !selectedContribution) return;
+    const latest = selectedContribution.revisions[selectedContribution.revisions.length - 1];
+    if (!latest) return;
+    setError("");
+    try {
+      const created = await api<Suggestion>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/suggestions", {
+        method: "POST", body: JSON.stringify({ target_revision_id: latest.id, title: suggestionTitle, rationale: suggestionRationale, proposed_text: suggestionText }),
+      });
+      setSuggestions([...suggestions, created]); setSuggestionTitle(""); setSuggestionRationale(""); setSuggestionText("");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not submit suggestion."); }
+  }
+
+  async function decideSuggestion(suggestion: Suggestion, status: "accepted" | "rejected" | "deferred") {
+    if (!selectedProject || !selectedContribution) return;
+    setError("");
+    try {
+      const updated = await api<Suggestion>("/api/projects/" + selectedProject.id + "/contributions/" + selectedContribution.id + "/suggestions/" + suggestion.id + "/decision", {
+        method: "POST", body: JSON.stringify({ status, note: "" }),
+      });
+      setSuggestions(suggestions.map(item => item.id === updated.id ? updated : item));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not update suggestion."); }
   }
 
   function startRevision() {
@@ -387,6 +441,19 @@ function App() {
                     <div className="revision-list"><div className="section-kicker">REVISION HISTORY</div>{[...selectedContribution.revisions].reverse().map(revision => (
                       <article className="revision-item" key={revision.id}><div className="revision-meta"><strong>Revision {revision.revision_number} · {revision.title}</strong><span>{revision.author_display_name} · {new Date(revision.created_at).toLocaleString()}</span></div><p>{revision.body}</p></article>
                     ))}</div>
+
+                    <div className="discussion-grid">
+                      <section className="discussion-panel">
+                        <div className="section-kicker">PROJECT DISCUSSION</div><h3>Comments <span>{comments.length}</span></h3>
+                        <div className="comment-list">{comments.map(comment => <article className="comment-item" key={comment.id}><div className="comment-meta"><strong>{comment.author_display_name}</strong><span>{new Date(comment.created_at).toLocaleString()}</span></div><p>{comment.body}</p></article>)}{comments.length === 0 && <p className="muted-note">No comments yet. Start the discussion.</p>}</div>
+                        {canContribute && selectedContribution.status === "active" && <form className="discussion-form" onSubmit={submitComment}><textarea rows={3} required maxLength={10000} placeholder="Add a comment…" value={commentBody} onChange={e => setCommentBody(e.target.value)} /><button className="primary-button" type="submit" disabled={!commentBody.trim()}><Send size={14} /> Comment</button></form>}
+                      </section>
+                      <section className="discussion-panel">
+                        <div className="section-kicker">PROPOSE AN ALTERNATIVE</div><h3>Suggestions <span>{suggestions.length}</span></h3>
+                        <div className="suggestion-list">{suggestions.map(suggestion => <article className="suggestion-item" key={suggestion.id}><div className="suggestion-meta"><strong>{suggestion.title}</strong><span className="status-tag">{suggestion.status}</span></div><small>By {suggestion.author_display_name} · {new Date(suggestion.created_at).toLocaleDateString()}</small>{suggestion.rationale && <p>{suggestion.rationale}</p>}<div className="suggested-text">{suggestion.proposed_text}</div>{suggestion.decisions.map(decision => <small className="decision-line" key={decision.id}>{decision.actor_display_name}: {decision.new_status}{decision.note ? " — " + decision.note : ""}</small>)}{(myMembership?.role === "owner" || myMembership?.role === "editor") && !["accepted", "rejected"].includes(suggestion.status) && <div className="decision-actions"><button type="button" onClick={() => decideSuggestion(suggestion, "accepted")}>Accept</button><button type="button" onClick={() => decideSuggestion(suggestion, "deferred")}>Defer</button><button type="button" onClick={() => decideSuggestion(suggestion, "rejected")}>Reject</button></div>}</article>)}{suggestions.length === 0 && <p className="muted-note">No suggestions yet.</p>}</div>
+                        {canContribute && selectedContribution.status === "active" && <form className="discussion-form" onSubmit={submitSuggestion}><input required maxLength={160} placeholder="Suggestion title" value={suggestionTitle} onChange={e => setSuggestionTitle(e.target.value)} /><textarea rows={2} maxLength={10000} placeholder="Why would this improve the contribution? (optional)" value={suggestionRationale} onChange={e => setSuggestionRationale(e.target.value)} /><textarea rows={4} required maxLength={30000} placeholder="Your proposed alternative…" value={suggestionText} onChange={e => setSuggestionText(e.target.value)} /><button className="primary-button" type="submit" disabled={!suggestionTitle.trim() || !suggestionText.trim()}><Lightbulb size={14} /> Submit suggestion</button></form>}
+                      </section>
+                    </div>
                   </div>
                 )}
               </section>

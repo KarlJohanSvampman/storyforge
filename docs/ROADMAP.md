@@ -28,10 +28,11 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, API, and UI verification.
 
 ### M0.4 — Discussion and suggestions
-- [ ] Add comments to contributions and drafts.
-- [ ] Submit a suggestion referencing a target.
-- [ ] Accept, reject, or defer a suggestion.
-- [ ] Preserve discussion history.
+- [x] Add comments to contributions, optionally anchored to a specific revision.
+- [x] Submit a proposed alternative anchored to an exact contribution revision.
+- [x] Allow owners/editors to accept, reject, or defer suggestions.
+- [x] Preserve comment history and append-only suggestion decision history.
+- [ ] Local migration, API, permission, and UI verification.
 
 ### M0.5 — Draft compilation and AI seam
 - [ ] Create a combined narrative draft from selected contributions.
@@ -76,13 +77,24 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Add discovery by genre, popularity, recency, and creator.
 - [ ] Add moderation and anti-brigading safeguards.
 
-## M6 — Adaptations and lineage
+## M6 — Actor profiles and production economics
+- [ ] Allow any user to create one or more actor personas, whether or not they create content.
+- [ ] Add public performer profiles with biographies, media, skills, availability, and published credits.
+- [ ] Allow users to manage actors through explicit, revocable manager relationships.
+- [ ] Support casting offers and fee snapshots, with explainable rates influenced by credits, experience, and demand.
+- [ ] Add production budgets and an auditable ledger for estimated, committed, and actual costs.
+- [ ] Track retakes and other production actions as resource costs rather than arbitrary quality-score deductions.
+- [ ] Add configurable unlimited-budget mode that still displays notional costs.
+- [ ] Track views and simulated gross revenue separately from costs, ratings, and artistic quality.
+- [ ] Design compatible casting contracts for human-controlled and AI-controlled performers.
+
+## M7 — Adaptations and lineage
 - [ ] Fork projects while preserving source lineage.
 - [ ] Compare alternative storyboards and scene interpretations.
 - [ ] Link adaptation releases to source works.
 - [ ] Separate automated production metrics from human audience ratings.
 
-## M7 — Advanced capture and immersive tools
+## M8 — Advanced capture and immersive tools
 - [ ] Improve webcam body and face tracking.
 - [ ] Add manual facial performance tools and lip-sync refinement.
 - [ ] Add WebXR acting and camera operation where supported.
@@ -91,4 +103,4 @@ Work in small, demonstrable increments. Each milestone should produce something 
 A small group can create a project, submit individual contributions, discuss and suggest changes, produce a combined draft, approve a specific version, and see the project move to the storyboard phase. The workflow must preserve authorship and history.
 
 ## Deferred
-Do not implement webcam tracking, facial capture, WebXR, character rigs, virtual cameras, editing, scoring, or public review features during M0. Keep future requirements in mind without building speculative infrastructure.
+Do not implement webcam tracking, facial capture, WebXR, character rigs, virtual cameras, editing, actor marketplace, budgets, dynamic hiring prices, revenue calculations, or public review features during M0. Keep future requirements in mind without building speculative infrastructure. Production economics must be designed as a cost ledger, not as a disguised scoring system.

@@ -117,3 +117,72 @@ class ContributionRead(BaseModel):
 
 class ContributionDetail(ContributionRead):
     revisions: list[ContributionRevisionRead]
+
+
+class CommentCreate(BaseModel):
+    body: str = Field(min_length=1, max_length=10000)
+    revision_id: uuid.UUID | None = None
+    parent_comment_id: uuid.UUID | None = None
+
+    @field_validator("body")
+    @classmethod
+    def trim_body(cls, value: str) -> str:
+        return value.strip()
+
+
+class CommentRead(BaseModel):
+    id: uuid.UUID
+    contribution_id: uuid.UUID
+    revision_id: uuid.UUID | None
+    parent_comment_id: uuid.UUID | None
+    author_user_id: uuid.UUID
+    author_display_name: str
+    body: str
+    created_at: datetime
+
+
+class SuggestionCreate(BaseModel):
+    target_revision_id: uuid.UUID
+    title: str = Field(min_length=1, max_length=160)
+    rationale: str = Field(default="", max_length=10000)
+    proposed_text: str = Field(min_length=1, max_length=30000)
+
+    @field_validator("title", "rationale", "proposed_text")
+    @classmethod
+    def trim_fields(cls, value: str) -> str:
+        return value.strip()
+
+
+class SuggestionDecisionCreate(BaseModel):
+    status: Literal["accepted", "rejected", "deferred"]
+    note: str = Field(default="", max_length=5000)
+
+    @field_validator("note")
+    @classmethod
+    def trim_note(cls, value: str) -> str:
+        return value.strip()
+
+
+class SuggestionDecisionRead(BaseModel):
+    id: uuid.UUID
+    actor_user_id: uuid.UUID
+    actor_display_name: str
+    previous_status: str | None
+    new_status: str
+    note: str
+    created_at: datetime
+
+
+class SuggestionRead(BaseModel):
+    id: uuid.UUID
+    contribution_id: uuid.UUID
+    target_revision_id: uuid.UUID
+    author_user_id: uuid.UUID
+    author_display_name: str
+    title: str
+    rationale: str
+    proposed_text: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+    decisions: list[SuggestionDecisionRead] = Field(default_factory=list)
