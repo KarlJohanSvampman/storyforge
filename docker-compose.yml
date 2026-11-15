@@ -20,11 +20,13 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - storyforge_documentary_media:/app/storage/documentary
     environment:
       DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
       STORYFORGE_AUTH_MODE: development
       STORYFORGE_DEV_USER_EMAIL: storyteller@storyforge.local
       STORYFORGE_DEV_USER_NAME: Storyteller
+      STORYFORGE_MEDIA_DIR: /app/storage/documentary
     depends_on:
       db:
         condition: service_healthy
@@ -51,3 +53,4 @@ services:
 volumes:
   frontend_node_modules:
   storyforge_postgres_data:
+  storyforge_documentary_media:

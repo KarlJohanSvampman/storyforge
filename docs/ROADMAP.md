@@ -96,12 +96,13 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Keep screenplay name snapshots immutable when story-bible character names change.
 - [ ] Local UI/API permission, existing-reference, archive/restore, name-snapshot, and persistence verification.
 
-### M1.6 — Documentary interviews, media and rights (planned)
-- [ ] Add interview subject and interview-session records, including interviewer, date, transcript/media references, and notes.
-- [ ] Track signed releases, consent scope, withdrawal terms, and permitted usage by release/production.
-- [ ] Add archival-media provenance, ownership/rights holder, licence, territory, duration, and permitted-use records.
-- [ ] Support source-file uploads and immutable file metadata/checksums with controlled access.
-- [ ] Link verified claims into documentary outlines, scenes, scripts, narration, and lower-third/caption references.
+### M1.6 — Documentary interviews, media and rights
+- [x] Add interview subjects with named, pseudonymous, and anonymous identity modes, plus dated interview sessions and notes.
+- [x] Track draft/signed releases, explicit consent scope, permitted uses, expiry, signed-document references, and append-only withdrawal events.
+- [x] Add archival/interview media provenance, rights holder, licence/basis, territory, validity, duration, attribution and permitted-use records, with version history.
+- [x] Support private source-file uploads with size/type validation, SHA-256 checksums, project membership access, and a dedicated persistent storage volume.
+- [x] Link currently supported claims into documentary outlines, scenes, exact screenplay revisions, narration, lower-thirds, and captions.
+- [ ] Local migration, upload/download access, consent withdrawal, rights enforcement, claim placement, and persistence verification.
 
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.

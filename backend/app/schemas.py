@@ -952,3 +952,326 @@ class DocumentaryResearchOverview(BaseModel):
     project_id: uuid.UUID
     sources: list[DocumentarySourceRead] = Field(default_factory=list)
     claims: list[DocumentaryClaimRead] = Field(default_factory=list)
+
+
+# M1.6 — documentary interview, consent, media-rights and production-reference contracts.
+DocumentaryIdentityMode = Literal["named", "pseudonym", "anonymous"]
+DocumentarySessionFormat = Literal["in_person", "remote", "phone", "written", "other"]
+DocumentaryConsentUse = Literal[
+    "research", "storyboard", "script", "narration", "lower_third",
+    "caption", "promotion", "publication", "trailer", "social",
+]
+DocumentaryReleaseScope = Literal["project", "production", "release"]
+DocumentaryReleaseStatus = Literal["draft", "signed", "withdrawn", "expired"]
+DocumentaryAssetType = Literal["transcript", "audio", "video", "image", "document", "release_document", "other"]
+DocumentaryRightsBasis = Literal["owned", "licensed", "public_domain", "permission", "fair_use", "research_only", "unknown"]
+DocumentaryRightsStatus = Literal["active", "needs_review", "withdrawn", "superseded"]
+DocumentaryClaimUsageType = Literal["outline", "scene", "script", "narration", "lower_third", "caption"]
+
+
+class DocumentaryInterviewSubjectCreate(BaseModel):
+    name_or_pseudonym: str = Field(min_length=1, max_length=200)
+    identity_mode: DocumentaryIdentityMode = "named"
+    role_or_relationship: str = Field(default="", max_length=240)
+    background_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("name_or_pseudonym", "role_or_relationship", "background_notes")
+    @classmethod
+    def clean_subject_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("name_or_pseudonym")
+    @classmethod
+    def require_subject_label(cls, value: str) -> str:
+        if not value:
+            raise ValueError("A name or pseudonym is required.")
+        return value
+
+
+class DocumentaryInterviewSubjectUpdate(BaseModel):
+    name_or_pseudonym: str | None = Field(default=None, min_length=1, max_length=200)
+    identity_mode: DocumentaryIdentityMode | None = None
+    role_or_relationship: str | None = Field(default=None, max_length=240)
+    background_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("name_or_pseudonym", "role_or_relationship", "background_notes")
+    @classmethod
+    def clean_subject_update_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("name_or_pseudonym")
+    @classmethod
+    def require_subject_update_label(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("A name or pseudonym is required.")
+        return value
+
+
+class DocumentaryInterviewSubjectRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    name_or_pseudonym: str
+    identity_mode: DocumentaryIdentityMode
+    role_or_relationship: str
+    background_notes: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentaryInterviewSessionCreate(BaseModel):
+    subject_id: uuid.UUID
+    session_date: datetime
+    interviewer_name: str = Field(default="", max_length=200)
+    session_format: DocumentarySessionFormat = "in_person"
+    location_or_platform: str = Field(default="", max_length=240)
+    transcript_notes: str = Field(default="", max_length=20000)
+
+    @field_validator("interviewer_name", "location_or_platform", "transcript_notes")
+    @classmethod
+    def clean_session_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("session_date")
+    @classmethod
+    def require_timezone_aware_session_date(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Interview session dates must include a timezone.")
+        return value
+
+
+class DocumentaryInterviewSessionUpdate(BaseModel):
+    interviewer_name: str | None = Field(default=None, max_length=200)
+    session_format: DocumentarySessionFormat | None = None
+    location_or_platform: str | None = Field(default=None, max_length=240)
+    transcript_notes: str | None = Field(default=None, max_length=20000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("interviewer_name", "location_or_platform", "transcript_notes")
+    @classmethod
+    def clean_session_update_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
+class DocumentaryInterviewSessionRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    subject_id: uuid.UUID
+    subject_label: str
+    session_date: datetime
+    interviewer_name: str
+    session_format: DocumentarySessionFormat
+    location_or_platform: str
+    transcript_notes: str
+    status: str
+    media_asset_ids: list[uuid.UUID] = Field(default_factory=list)
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentaryReleaseCreate(BaseModel):
+    subject_id: uuid.UUID
+    interview_session_id: uuid.UUID | None = None
+    scope_type: DocumentaryReleaseScope = "project"
+    scope_label: str = Field(default="", max_length=240)
+    consent_scope: str = Field(min_length=1, max_length=10000)
+    withdrawal_terms: str = Field(default="", max_length=10000)
+    permitted_uses: list[DocumentaryConsentUse] = Field(default_factory=list, max_length=10)
+    status: Literal["draft", "signed"] = "draft"
+    signed_at: datetime | None = None
+    expires_at: datetime | None = None
+    release_document_asset_id: uuid.UUID | None = None
+
+    @field_validator("scope_label", "consent_scope", "withdrawal_terms")
+    @classmethod
+    def clean_release_text(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_release_state(self):
+        for label, value in (("signed_at", self.signed_at), ("expires_at", self.expires_at)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{label} must include a timezone.")
+        if not self.consent_scope:
+            raise ValueError("Consent scope is required.")
+        if self.status == "signed" and self.signed_at is None:
+            raise ValueError("A signed release requires the signing date.")
+        if self.status == "draft" and self.signed_at is not None:
+            raise ValueError("A draft release cannot have a signing date.")
+        if self.expires_at is not None and self.signed_at is not None and self.expires_at < self.signed_at:
+            raise ValueError("Release expiry cannot precede its signing date.")
+        if self.scope_type == "release" and not self.scope_label:
+            raise ValueError("A release-scoped consent record needs a scope label.")
+        return self
+
+
+class DocumentaryReleaseEventRead(BaseModel):
+    id: uuid.UUID
+    actor_user_id: uuid.UUID
+    previous_status: str | None
+    new_status: str
+    reason: str
+    created_at: datetime
+
+
+class DocumentaryReleaseRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    subject_id: uuid.UUID
+    subject_label: str
+    interview_session_id: uuid.UUID | None
+    scope_type: DocumentaryReleaseScope
+    scope_label: str
+    consent_scope: str
+    withdrawal_terms: str
+    permitted_uses: list[DocumentaryConsentUse]
+    status: DocumentaryReleaseStatus
+    signed_at: datetime | None
+    expires_at: datetime | None
+    release_document_asset_id: uuid.UUID | None
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    events: list[DocumentaryReleaseEventRead] = Field(default_factory=list)
+
+
+class DocumentaryMediaRightsCreate(BaseModel):
+    rights_holder: str = Field(default="", max_length=240)
+    rights_basis: DocumentaryRightsBasis = "unknown"
+    license_name: str = Field(default="", max_length=240)
+    license_url: str = Field(default="", max_length=2048)
+    territory: str = Field(default="Worldwide", min_length=1, max_length=240)
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
+    permitted_uses: list[DocumentaryConsentUse] = Field(default_factory=list, max_length=10)
+    attribution_required: bool = False
+    attribution_text: str = Field(default="", max_length=5000)
+    restrictions: str = Field(default="", max_length=10000)
+
+    @field_validator("rights_holder", "license_name", "territory", "attribution_text", "restrictions")
+    @classmethod
+    def clean_rights_text(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("license_url")
+    @classmethod
+    def validate_license_url(cls, value: str) -> str:
+        cleaned = value.strip()
+        if cleaned and not cleaned.startswith(("https://", "http://")):
+            raise ValueError("Licence URLs must begin with http:// or https://.")
+        return cleaned
+
+    @model_validator(mode="after")
+    def validate_rights_record(self):
+        for label, value in (("valid_from", self.valid_from), ("valid_until", self.valid_until)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{label} must include a timezone.")
+        if not self.territory:
+            raise ValueError("A territory or jurisdiction is required.")
+        if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
+            raise ValueError("Rights expiry cannot precede the effective date.")
+        if self.rights_basis == "licensed" and not self.license_name:
+            raise ValueError("Licensed media must identify the licence.")
+        return self
+
+
+class DocumentaryMediaRightsRead(BaseModel):
+    id: uuid.UUID
+    media_asset_id: uuid.UUID
+    version_number: int
+    supersedes_rights_id: uuid.UUID | None
+    rights_holder: str
+    rights_basis: DocumentaryRightsBasis
+    license_name: str
+    license_url: str
+    territory: str
+    valid_from: datetime | None
+    valid_until: datetime | None
+    permitted_uses: list[DocumentaryConsentUse]
+    attribution_required: bool
+    attribution_text: str
+    restrictions: str
+    status: DocumentaryRightsStatus
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class DocumentaryMediaAssetRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    source_id: uuid.UUID | None
+    interview_session_id: uuid.UUID | None
+    title: str
+    asset_type: DocumentaryAssetType
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    duration_seconds: int | None
+    status: str
+    download_url: str
+    latest_rights: DocumentaryMediaRightsRead | None
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class DocumentaryClaimUsageCreate(BaseModel):
+    usage_type: DocumentaryClaimUsageType
+    scene_id: uuid.UUID | None = None
+    script_version_id: uuid.UUID | None = None
+    reference_text: str = Field(default="", max_length=10000)
+
+    @field_validator("reference_text")
+    @classmethod
+    def clean_usage_reference(cls, value: str) -> str:
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_usage_target(self):
+        if self.usage_type in ("scene", "script", "lower_third", "caption") and self.scene_id is None:
+            raise ValueError("This usage type must identify a storyboard scene.")
+        if self.usage_type == "script" and self.script_version_id is None:
+            raise ValueError("A screenplay usage must identify an exact script revision.")
+        if self.usage_type != "script" and self.script_version_id is not None:
+            raise ValueError("Only a screenplay usage can identify a script revision.")
+        return self
+
+
+class DocumentaryClaimUsageRead(BaseModel):
+    id: uuid.UUID
+    claim_id: uuid.UUID
+    claim_statement: str
+    claim_review_status: str
+    usage_type: DocumentaryClaimUsageType
+    scene_id: uuid.UUID | None
+    scene_title: str | None
+    script_version_id: uuid.UUID | None
+    script_revision_number: int | None
+    reference_text: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class DocumentaryProductionOverview(BaseModel):
+    project_id: uuid.UUID
+    subjects: list[DocumentaryInterviewSubjectRead] = Field(default_factory=list)
+    sessions: list[DocumentaryInterviewSessionRead] = Field(default_factory=list)
+    releases: list[DocumentaryReleaseRead] = Field(default_factory=list)
+    media_assets: list[DocumentaryMediaAssetRead] = Field(default_factory=list)
+    claim_usages: list[DocumentaryClaimUsageRead] = Field(default_factory=list)
+
+
+class DocumentaryReleaseWithdraw(BaseModel):
+    reason: str = Field(min_length=1, max_length=10000)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_withdrawal_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("A withdrawal reason is required.")
+        return cleaned

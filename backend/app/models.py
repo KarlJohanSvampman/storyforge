@@ -590,3 +590,155 @@ class DocumentaryClaimReview(Base):
     reviewed_evidence_snapshot: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
     reviewer_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentaryInterviewSubject(Base):
+    """Documentary interview source identity; supports anonymised/pseudonymous attribution."""
+    __tablename__ = "documentary_interview_subjects"
+    __table_args__ = (
+        CheckConstraint("identity_mode IN ('named', 'pseudonym', 'anonymous')", name="ck_documentary_interview_subjects_identity_mode"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_documentary_interview_subjects_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name_or_pseudonym: Mapped[str] = mapped_column(String(200), nullable=False)
+    identity_mode: Mapped[str] = mapped_column(String(20), default="named", nullable=False)
+    role_or_relationship: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    background_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DocumentaryInterviewSession(Base):
+    """An interview event. Transcript and media files are separately stored assets."""
+    __tablename__ = "documentary_interview_sessions"
+    __table_args__ = (
+        CheckConstraint("session_format IN ('in_person', 'remote', 'phone', 'written', 'other')", name="ck_documentary_interview_sessions_format"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_documentary_interview_sessions_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_interview_subjects.id", ondelete="RESTRICT"), nullable=False, index=True)
+    session_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    interviewer_name: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    session_format: Mapped[str] = mapped_column(String(20), default="in_person", nullable=False)
+    location_or_platform: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    transcript_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DocumentaryMediaAsset(Base):
+    """Uploaded project media. The storage key is private and never returned by the API."""
+    __tablename__ = "documentary_media_assets"
+    __table_args__ = (
+        CheckConstraint("asset_type IN ('transcript', 'audio', 'video', 'image', 'document', 'release_document', 'other')", name="ck_documentary_media_assets_type"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_documentary_media_assets_status"),
+        CheckConstraint("size_bytes > 0", name="ck_documentary_media_assets_size"),
+        CheckConstraint("duration_seconds IS NULL OR duration_seconds > 0", name="ck_documentary_media_assets_duration"),
+        UniqueConstraint("storage_key", name="uq_documentary_media_assets_storage_key"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("documentary_research_sources.id", ondelete="RESTRICT"), nullable=True, index=True)
+    interview_session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("documentary_interview_sessions.id", ondelete="RESTRICT"), nullable=True, index=True)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    asset_type: Mapped[str] = mapped_column(String(30), default="document", nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(160), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DocumentaryRelease(Base):
+    """Interview release/consent record with explicit purpose and revocation terms."""
+    __tablename__ = "documentary_releases"
+    __table_args__ = (
+        CheckConstraint("scope_type IN ('project', 'production', 'release')", name="ck_documentary_releases_scope"),
+        CheckConstraint("status IN ('draft', 'signed', 'withdrawn', 'expired')", name="ck_documentary_releases_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    subject_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_interview_subjects.id", ondelete="RESTRICT"), nullable=False, index=True)
+    interview_session_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("documentary_interview_sessions.id", ondelete="RESTRICT"), nullable=True)
+    scope_type: Mapped[str] = mapped_column(String(20), default="project", nullable=False)
+    scope_label: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    consent_scope: Mapped[str] = mapped_column(Text, nullable=False)
+    withdrawal_terms: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    permitted_uses: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="draft", nullable=False)
+    signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    release_document_asset_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("documentary_media_assets.id", ondelete="RESTRICT"), nullable=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DocumentaryReleaseEvent(Base):
+    """Append-only audit event for consent signing, withdrawal, and expiry."""
+    __tablename__ = "documentary_release_events"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    release_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_releases.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    previous_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentaryMediaRights(Base):
+    """Versioned rights clearance. New records supersede, rather than overwrite, prior terms."""
+    __tablename__ = "documentary_media_rights"
+    __table_args__ = (
+        UniqueConstraint("media_asset_id", "version_number", name="uq_documentary_media_rights_version"),
+        CheckConstraint("version_number >= 1", name="ck_documentary_media_rights_positive_version"),
+        CheckConstraint("rights_basis IN ('owned', 'licensed', 'public_domain', 'permission', 'fair_use', 'research_only', 'unknown')", name="ck_documentary_media_rights_basis"),
+        CheckConstraint("status IN ('active', 'needs_review', 'withdrawn', 'superseded')", name="ck_documentary_media_rights_status"),
+        CheckConstraint("valid_until IS NULL OR valid_from IS NULL OR valid_until >= valid_from", name="ck_documentary_media_rights_validity"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    media_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_media_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    supersedes_rights_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("documentary_media_rights.id", ondelete="RESTRICT"), nullable=True)
+    rights_holder: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    rights_basis: Mapped[str] = mapped_column(String(30), default="unknown", nullable=False)
+    license_name: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    license_url: Mapped[str] = mapped_column(String(2048), default="", nullable=False)
+    territory: Mapped[str] = mapped_column(String(240), default="Worldwide", nullable=False)
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    valid_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    permitted_uses: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    attribution_required: Mapped[bool] = mapped_column(default=False, nullable=False)
+    attribution_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    restrictions: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentaryClaimUsage(Base):
+    """Append-only placement of a verified documentary claim in production material."""
+    __tablename__ = "documentary_claim_usages"
+    __table_args__ = (
+        CheckConstraint("usage_type IN ('outline', 'scene', 'script', 'narration', 'lower_third', 'caption')", name="ck_documentary_claim_usages_type"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    claim_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_claims.id", ondelete="RESTRICT"), nullable=False, index=True)
+    scene_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("storyboard_scenes.id", ondelete="RESTRICT"), nullable=True, index=True)
+    script_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("scene_script_versions.id", ondelete="RESTRICT"), nullable=True, index=True)
+    usage_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    reference_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
