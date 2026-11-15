@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -502,4 +502,91 @@ class SceneScriptElement(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     character_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("project_characters.id", ondelete="RESTRICT"), nullable=True)
     character_name_snapshot: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentaryResearchSource(Base):
+    """A project-level research source, independent of a specific storyboard or scene."""
+    __tablename__ = "documentary_research_sources"
+    __table_args__ = (
+        CheckConstraint(
+            "source_type IN ('article', 'book', 'academic_paper', 'official_record', 'government_data', 'interview', 'archival_record', 'website', 'other')",
+            name="ck_documentary_sources_type",
+        ),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_documentary_sources_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), default="article", nullable=False)
+    creator: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    publisher: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    publication_date: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    citation_text: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    research_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    accessed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class DocumentaryClaim(Base):
+    """A discrete factual proposition requiring explicit human fact-check review."""
+    __tablename__ = "documentary_claims"
+    __table_args__ = (
+        CheckConstraint("origin IN ('human', 'ai_assisted')", name="ck_documentary_claims_origin"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_documentary_claims_status"),
+        CheckConstraint(
+            "current_review_status IN ('unreviewed', 'needs_review', 'supported', 'contested', 'not_supported', 'insufficient_evidence')",
+            name="ck_documentary_claims_review_status",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    statement: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    origin: Mapped[str] = mapped_column(String(20), default="human", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    current_review_status: Mapped[str] = mapped_column(String(30), default="unreviewed", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class DocumentaryClaimEvidence(Base):
+    """A claim-to-source link with the exact excerpt and locator cited as evidence."""
+    __tablename__ = "documentary_claim_evidence"
+    __table_args__ = (
+        UniqueConstraint("claim_id", "source_id", name="uq_documentary_claim_evidence_pair"),
+        CheckConstraint("evidence_relation IN ('supports', 'challenges', 'context')", name="ck_documentary_evidence_relation"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_claims.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_research_sources.id", ondelete="RESTRICT"), nullable=False, index=True)
+    evidence_relation: Mapped[str] = mapped_column(String(20), nullable=False)
+    excerpt: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    locator: Mapped[str] = mapped_column(String(240), default="", nullable=False)
+    notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class DocumentaryClaimReview(Base):
+    """Append-only human review with a snapshot of the evidence visible at decision time."""
+    __tablename__ = "documentary_claim_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "result IN ('supported', 'contested', 'not_supported', 'insufficient_evidence')",
+            name="ck_documentary_claim_reviews_result",
+        ),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    claim_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("documentary_claims.id", ondelete="CASCADE"), nullable=False, index=True)
+    previous_status: Mapped[str] = mapped_column(String(30), nullable=False)
+    result: Mapped[str] = mapped_column(String(30), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    reviewed_evidence_snapshot: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    reviewer_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
