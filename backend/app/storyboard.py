@@ -458,6 +458,8 @@ def update_episode(project_id: uuid.UUID, episode_id: uuid.UUID, payload: Storyb
 def create_scene(project_id: uuid.UUID, payload: StoryboardSceneCreate, db: DbSession, user: CurrentUser):
     project = _require_project(db, project_id, user.id, write=True)
     storyboard = _storyboard_or_404(db, project_id)
+    # Serialize scene-order allocation against other scene creates/reorders.
+    storyboard = db.scalar(select(Storyboard).where(Storyboard.id == storyboard.id).with_for_update())
     _validate_location(db, project_id, payload.location_id)
     episode = _validate_scene_episode(db, project, storyboard, payload.episode_id)
     characters = _validate_characters(db, project_id, payload.character_ids)
@@ -490,6 +492,8 @@ def create_scene(project_id: uuid.UUID, payload: StoryboardSceneCreate, db: DbSe
 def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: StoryboardSceneUpdate, db: DbSession, user: CurrentUser):
     project = _require_project(db, project_id, user.id, write=True)
     storyboard = _storyboard_or_404(db, project_id)
+    # The storyboard lock serializes moves into an episode with scene creation.
+    storyboard = db.scalar(select(Storyboard).where(Storyboard.id == storyboard.id).with_for_update())
     scene = db.scalar(select(StoryboardScene).where(
         StoryboardScene.id == scene_id,
         StoryboardScene.storyboard_id == storyboard.id,
@@ -533,6 +537,8 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
 def reorder_scenes(project_id: uuid.UUID, payload: SceneReorder, db: DbSession, user: CurrentUser):
     project = _require_project(db, project_id, user.id, write=True)
     storyboard = _storyboard_or_404(db, project_id)
+    # Share the same ordering lock used by scene creation and reassignment.
+    storyboard = db.scalar(select(Storyboard).where(Storyboard.id == storyboard.id).with_for_update())
     episode = _validate_scene_episode(
         db, project, storyboard, payload.episode_id, require_active=False,
     )
