@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from .database import get_db
 from .models import (
@@ -10,7 +10,7 @@ from .models import (
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
-    NarrativeDraftCompile, NarrativeDraftDetail, NarrativeDraftSourceSelection,
+    NarrativeDraftCompile, NarrativeDraftDetail,
     NarrativeDraftVersionCreate, NarrativeDraftVersionRead, NarrativeDraftSourceRead,
 )
 from .services.narrative_compiler import CompilerSource, get_narrative_compiler
@@ -118,7 +118,6 @@ def compile_draft(
         raise HTTPException(status_code=422, detail="One or more selected revisions are missing, withdrawn, or outside this project.")
 
     selected_sources: list[tuple[str, str, str, uuid.UUID, uuid.UUID, uuid.UUID | None]] = []
-    source_records: list[tuple[str, str, str, uuid.UUID, uuid.UUID, uuid.UUID | None]] = []
     suggestion_ids = [suggestion_id for item in payload.sources for suggestion_id in item.accepted_suggestion_ids]
     if len(set(suggestion_ids)) != len(suggestion_ids):
         raise HTTPException(status_code=422, detail="An accepted suggestion can only be selected once.")
