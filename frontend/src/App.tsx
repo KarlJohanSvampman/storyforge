@@ -1321,6 +1321,67 @@ function App() {
                         <small>To connect a scene to its source, copy an exact passage from here and paste it into that scene's passage-link form.</small>
                       </details>
 
+                      {selectedProject.format === "tv_series" && (
+                        <section className="series-structure-panel">
+                          <div className="section-heading">
+                            <div><div className="section-kicker">SERIES STRUCTURE</div><h2>Seasons & episodes <span className="contribution-count">{storyboard.seasons.length}</span></h2></div>
+                            <span className="step-count">Each episode has its own scene sequence and screenplay.</span>
+                          </div>
+                          {canEditStoryboard && (
+                            <div className="series-forms-grid">
+                              <form className="storyboard-mini-form" onSubmit={submitSeason}>
+                                <h3>Create a season</h3>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Season number<input type="number" min="1" max="100" required value={seasonNumber} onChange={event => setSeasonNumber(event.target.value)} /></label>
+                                  <label>Season title<input required maxLength={160} value={seasonTitle} onChange={event => setSeasonTitle(event.target.value)} placeholder="e.g. The Beginning" /></label>
+                                </div>
+                                <label>Description<textarea rows={2} maxLength={10000} value={seasonDescription} onChange={event => setSeasonDescription(event.target.value)} placeholder="What defines this season?" /></label>
+                                <label>Season story arc<textarea rows={3} maxLength={10000} value={seasonStoryArc} onChange={event => setSeasonStoryArc(event.target.value)} placeholder="The larger narrative movement across the season…" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !seasonTitle.trim()}><Plus size={13} /> Add season</button>
+                              </form>
+                              <form className="storyboard-mini-form" onSubmit={submitEpisode}>
+                                <h3>Create an episode</h3>
+                                <label>Season<select required value={episodeSeasonId} onChange={event => setEpisodeSeasonId(event.target.value)}>
+                                  <option value="">Select a season</option>
+                                  {storyboard.seasons.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>Season {item.season_number} · {item.title}</option>)}
+                                </select></label>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Episode number<input type="number" min="1" max="1000" required value={episodeNumber} onChange={event => setEpisodeNumber(event.target.value)} /></label>
+                                  <label>Episode title<input required maxLength={160} value={episodeTitle} onChange={event => setEpisodeTitle(event.target.value)} placeholder="Episode title" /></label>
+                                </div>
+                                <label>Logline<input maxLength={500} value={episodeLogline} onChange={event => setEpisodeLogline(event.target.value)} placeholder="A one-sentence episode hook" /></label>
+                                <label>Synopsis<textarea rows={2} maxLength={10000} value={episodeSynopsis} onChange={event => setEpisodeSynopsis(event.target.value)} placeholder="What happens in this episode?" /></label>
+                                <label>Estimated runtime (seconds)<input type="number" min="1" max="86400" value={episodeDuration} onChange={event => setEpisodeDuration(event.target.value)} placeholder="e.g. 2700" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !episodeSeasonId || !episodeTitle.trim()}><Plus size={13} /> Add episode</button>
+                              </form>
+                            </div>
+                          )}
+                          <div className="series-season-list">
+                            {storyboard.seasons.map(season => (
+                              <article className={season.status === "archived" ? "series-season-card archived" : "series-season-card"} key={season.id}>
+                                <div className="series-season-heading">
+                                  <div><span>SEASON {season.season_number} · {season.status.toUpperCase()}</span><strong>{season.title}</strong></div>
+                                  {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateSeasonStatus(season, season.status === "active" ? "archived" : "active")}>{season.status === "active" ? "Archive season" : "Restore season"}</button>}
+                                </div>
+                                {season.description && <p>{season.description}</p>}
+                                {season.story_arc && <div className="series-story-arc"><strong>SEASON ARC</strong><p>{season.story_arc}</p></div>}
+                                <div className="series-episode-list">
+                                  {season.episodes.map(episode => (
+                                    <article className={episode.status === "archived" ? "series-episode-card archived" : "series-episode-card"} key={episode.id}>
+                                      <div><span>EPISODE {episode.episode_number} · {episode.status.toUpperCase()}</span><strong>{episode.title}</strong></div>
+                                      {episode.logline && <p>{episode.logline}</p>}
+                                      {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateEpisodeStatus(episode, episode.status === "active" ? "archived" : "active")}>{episode.status === "active" ? "Archive" : "Restore"}</button>}
+                                    </article>
+                                  ))}
+                                  {season.episodes.length === 0 && <p className="muted-note">No episodes in this season yet.</p>}
+                                </div>
+                              </article>
+                            ))}
+                            {storyboard.seasons.length === 0 && <p className="muted-note">Start by creating Season 1, then add its episodes. Scenes are attached to an episode rather than a project-wide sequence.</p>}
+                          </div>
+                        </section>
+                      )}
+
                       <div className="storyboard-assets-grid">
                         <section className="storyboard-asset-panel">
                           <div className="section-kicker">CHARACTER DIRECTORY</div>
@@ -1383,6 +1444,10 @@ function App() {
                       {canEditStoryboard && (
                         <form className="storyboard-scene-form" onSubmit={submitScene}>
                           <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
+                          {selectedProject.format === "tv_series" && <label>Episode<select required value={sceneEpisodeId} onChange={event => setSceneEpisodeId(event.target.value)}>
+                            <option value="">Select an active episode</option>
+                            {storyboard.seasons.filter(season => season.status === "active").flatMap(season => season.episodes.filter(episode => episode.status === "active").map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                          </select><small className="field-hint">Create a season and episode above before adding scenes to a series.</small></label>}
                           <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
                           <label>Summary<textarea rows={3} maxLength={10000} value={sceneSummary} onChange={event => setSceneSummary(event.target.value)} placeholder="What happens in this scene?" /></label>
                           <label>Requirements<textarea rows={2} maxLength={10000} value={sceneRequirements} onChange={event => setSceneRequirements(event.target.value)} placeholder="Props, visual effects, stunts, special conditions, continuity…" /></label>
@@ -1391,22 +1456,28 @@ function App() {
                             <label>Primary location<select value={sceneLocationId} onChange={event => setSceneLocationId(event.target.value)}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                           </div>
                           <label>Characters in this scene <select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={sceneCharacterIds} onChange={event => setSceneCharacterIds(Array.from(event.target.selectedOptions, option => option.value))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="field-hint">Use Ctrl / Cmd to select more than one character.</small></label>
-                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim()}><Plus size={15} /> Add scene</button></div>
+                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim() || (selectedProject.format === "tv_series" && !sceneEpisodeId)}><Plus size={15} /> Add scene</button></div>
                         </form>
                       )}
 
                       <div className="storyboard-scene-list">
                         <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
                         {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
-                        {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
+                        {[...storyboard.scenes].sort((a, b) =>
+                          (a.season_number || 0) - (b.season_number || 0) ||
+                          (a.episode_number || 0) - (b.episode_number || 0) ||
+                          a.scene_order - b.scene_order
+                        ).map(scene => {
                           const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          const siblingScenes = storyboard.scenes.filter(item => item.episode_id === scene.episode_id).sort((a, b) => a.scene_order - b.scene_order);
+                          const siblingIndex = siblingScenes.findIndex(item => item.id === scene.id);
                           const edit = sceneEditDraft(scene);
                           return (
                             <article className="storyboard-scene-card" key={scene.id}>
                               <div className="storyboard-scene-heading">
                                 <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
-                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
-                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.episode_id ? `S${scene.season_number} · E${scene.episode_number} — ${scene.episode_title} · ` : ""}{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
+                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || siblingIndex === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || siblingIndex === siblingScenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
                               </div>
                               {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
                               {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
@@ -1416,6 +1487,9 @@ function App() {
                                 <details className="scene-edit-panel">
                                   <summary>Edit scene details</summary>
                                   <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
+                                    {selectedProject.format === "tv_series" && <label>Episode<select required value={edit.episode_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, episode_id: event.target.value } }))}>
+                                      {storyboard.seasons.flatMap(season => season.episodes.filter(episode => (season.status === "active" && episode.status === "active") || episode.id === scene.episode_id).map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                                    </select></label>}
                                     <label>Scene title<input required maxLength={160} value={edit.title} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, title: event.target.value } }))} /></label>
                                     <label>Summary<textarea rows={3} maxLength={10000} value={edit.summary} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, summary: event.target.value } }))} /></label>
                                     <label>Production requirements<textarea rows={2} maxLength={10000} value={edit.requirements} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, requirements: event.target.value } }))} /></label>
