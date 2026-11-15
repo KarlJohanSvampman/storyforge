@@ -142,6 +142,36 @@ type SceneEditDraft = {
   estimated_duration_seconds: string; location_id: string; episode_id: string; character_ids: string[];
 };
 
+type DocumentarySourceType = "article" | "book" | "academic_paper" | "official_record" | "government_data" | "interview" | "archival_record" | "website" | "other";
+type DocumentaryEvidenceRelation = "supports" | "challenges" | "context";
+type DocumentaryReviewResult = "supported" | "contested" | "not_supported" | "insufficient_evidence";
+type DocumentaryResearchSource = {
+  id: string; project_id: string; title: string; source_type: DocumentarySourceType;
+  creator: string; publisher: string; publication_date: string; url: string | null;
+  citation_text: string; research_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string; accessed_at: string;
+};
+type DocumentaryClaimEvidence = {
+  id: string; source_id: string; source_title: string; source_type: DocumentarySourceType;
+  source_url: string | null; evidence_relation: DocumentaryEvidenceRelation;
+  excerpt: string; locator: string; notes: string; created_by_user_id: string; created_at: string;
+};
+type DocumentaryClaimReview = {
+  id: string; previous_status: string; result: DocumentaryReviewResult; rationale: string;
+  reviewed_evidence_snapshot: Array<Record<string, string | null>>;
+  reviewer_user_id: string; reviewer_display_name: string; created_at: string;
+};
+type DocumentaryClaim = {
+  id: string; project_id: string; statement: string; context: string;
+  origin: "human" | "ai_assisted"; status: string; current_review_status: string;
+  created_by_user_id: string; created_by_display_name: string;
+  created_at: string; updated_at: string;
+  evidence: DocumentaryClaimEvidence[]; reviews: DocumentaryClaimReview[];
+};
+type DocumentaryResearch = {
+  project_id: string; sources: DocumentaryResearchSource[]; claims: DocumentaryClaim[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -179,6 +209,25 @@ function App() {
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [documentaryResearch, setDocumentaryResearch] = useState<DocumentaryResearch | null>(null);
+  const [researchSourceTitle, setResearchSourceTitle] = useState("");
+  const [researchSourceType, setResearchSourceType] = useState<DocumentarySourceType>("article");
+  const [researchSourceCreator, setResearchSourceCreator] = useState("");
+  const [researchSourcePublisher, setResearchSourcePublisher] = useState("");
+  const [researchSourceDate, setResearchSourceDate] = useState("");
+  const [researchSourceUrl, setResearchSourceUrl] = useState("");
+  const [researchSourceCitation, setResearchSourceCitation] = useState("");
+  const [researchSourceNotes, setResearchSourceNotes] = useState("");
+  const [claimStatement, setClaimStatement] = useState("");
+  const [claimContext, setClaimContext] = useState("");
+  const [claimOrigin, setClaimOrigin] = useState<"human" | "ai_assisted">("human");
+  const [evidenceSourceId, setEvidenceSourceId] = useState("");
+  const [evidenceRelation, setEvidenceRelation] = useState<DocumentaryEvidenceRelation>("supports");
+  const [evidenceExcerpt, setEvidenceExcerpt] = useState("");
+  const [evidenceLocator, setEvidenceLocator] = useState("");
+  const [evidenceNotes, setEvidenceNotes] = useState("");
+  const [reviewResult, setReviewResult] = useState<DocumentaryReviewResult>("supported");
+  const [reviewRationale, setReviewRationale] = useState("");
   const [characterName, setCharacterName] = useState("");
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterVisual, setCharacterVisual] = useState("");
@@ -282,7 +331,17 @@ function App() {
         api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
         api<Storyboard | null>(`/api/projects/${projectId}/storyboard`),
       ]);
+      const currentResearch = detail.category === "documentary"
+        ? await api<DocumentaryResearch>(`/api/projects/${projectId}/documentary`)
+        : null;
       setSelectedProject(detail);
+      setDocumentaryResearch(currentResearch);
+      setResearchSourceTitle(""); setResearchSourceType("article");
+      setResearchSourceCreator(""); setResearchSourcePublisher(""); setResearchSourceDate("");
+      setResearchSourceUrl(""); setResearchSourceCitation(""); setResearchSourceNotes("");
+      setClaimStatement(""); setClaimContext(""); setClaimOrigin("human");
+      setEvidenceSourceId(""); setEvidenceRelation("supports"); setEvidenceExcerpt(""); setEvidenceLocator(""); setEvidenceNotes("");
+      setReviewResult("supported"); setReviewRationale("");
       setStoryboard(currentStoryboard);
       setSceneEdits({});
       setScriptElementDrafts({});
@@ -949,6 +1008,7 @@ function App() {
     setSelectedProject(null);
     setSelectedContribution(null);
     setStoryboard(null);
+    setDocumentaryResearch(null);
     setShowCreate(false);
     setError("");
   }
