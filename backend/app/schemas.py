@@ -783,6 +783,7 @@ class DocumentarySourceCreate(BaseModel):
     publisher: str = Field(default="", max_length=240)
     publication_date: str = Field(default="", max_length=80)
     url: str | None = Field(default=None, max_length=2048)
+    accessed_at: datetime | None = None
     citation_text: str = Field(default="", max_length=10000)
     research_notes: str = Field(default="", max_length=10000)
 
