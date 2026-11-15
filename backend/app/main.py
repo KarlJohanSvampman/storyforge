@@ -9,6 +9,7 @@ from .storyboard import router as storyboard_router
 from .documentary import router as documentary_router
 from .documentary_media import router as documentary_media_router
 from .actors import router as actors_router
+from .scene_runtime import router as scene_runtime_router
 from .projects import CurrentUser
 
 app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.13.0")
@@ -28,6 +29,7 @@ app.include_router(storyboard_router)
 app.include_router(documentary_router)
 app.include_router(documentary_media_router)
 app.include_router(actors_router)
+app.include_router(scene_runtime_router)
 
 
 @app.get("/api/me", tags=["users"])
