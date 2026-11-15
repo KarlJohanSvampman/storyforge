@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { Activity, Camera, Check, ChevronDown, ChevronUp, CircleDot, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
+import { Activity, Camera, Check, ChevronUp, CircleDot, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
 
 type SceneOption = { id: string; title: string; characters: Array<{ id: string; name: string }> };
@@ -15,7 +15,6 @@ type SceneRun = {
   id: string; scene_id: string; run_number: number; status: string; scene_snapshot: Record<string, any>;
   cast_members: CastMember[]; created_at: string; started_at: string | null; ended_at: string | null;
 };
-type TakeEvent = { id: string; event_order: number; timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; authority_epoch: number | null; payload: Record<string, unknown> };
 type Take = { id: string; scene_run_id: string; take_number: number; status: string; duration_ms: number; event_count: number; state_snapshot: Record<string, unknown>; events: TakeEvent[] };
 type EditItem = { id: string; take_id: string; scene_id: string; item_order: number; in_ms: number; out_ms: number; transition: string; title_overlay: string; effects: Record<string, unknown>; audio_cue: string };
 type EditSequence = { id: string; name: string; status: string; revision_number: number; items: EditItem[] };
@@ -86,7 +85,6 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const selectedRun = runs.find(item => item.id === selectedRunId) || null;
   const selectedTake = takes.find(item => item.id === selectedTakeId) || null;
   const selectedSequence = sequences.find(item => item.id === selectedSequenceId) || null;
-  const runTakes = useMemo(() => selectedRun ? takes.filter(item => item.scene_run_id === selectedRun.id) : [], [takes, selectedRun]);
   const selectedScene = selectedRun ? scenes.find(scene => scene.id === selectedRun.scene_id) : null;
   const writable = canManage && phase === "production";
 
@@ -129,6 +127,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
         }),
       });
       await refresh();
+      setControllerDrafts(current => ({ ...current, [instance.id]: draft }));
     }, "Controller handoff recorded with a new authority epoch.");
   }
 
