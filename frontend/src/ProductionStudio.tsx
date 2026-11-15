@@ -96,6 +96,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
 
   const selectedRun = runs.find(item => item.id === selectedRunId) || null;
   const selectedTake = takes.find(item => item.id === selectedTakeId) || null;
+  const takeRun = selectedTake ? runs.find(item => item.id === selectedTake.scene_run_id) || null : null;
   const selectedSequence = sequences.find(item => item.id === selectedSequenceId) || null;
   const writable = canManage && phase === "production";
 
@@ -193,8 +194,8 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   }
 
   async function appendEvent(type: "transform" | "gesture" | "expression" | "voice_marker" | "camera" | "cue", timestamp: number, payload: Record<string, unknown>, instanceId?: string) {
-    if (!selectedTake || !selectedRun) return;
-    const instance = instanceId ? selectedRun.cast_members.find(item => item.id === instanceId) : undefined;
+    if (!selectedTake || !takeRun) return;
+    const instance = instanceId ? takeRun.cast_members.find(item => item.id === instanceId) : undefined;
     const next = selectedTake.events.length ? Math.max(...selectedTake.events.map(item => item.sequence_number)) + 1 : 0;
     await api<Take>(`${root(projectId)}/takes/${selectedTake.id}/events`, {
       method: "POST", body: JSON.stringify([{
@@ -220,10 +221,12 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
 
   async function changeCamera(preset: CameraPreset) {
     setCameraPreset(preset);
-    if (selectedTake?.status === "recording") {
+    if (selectedTake?.status === "recording" && selectedTake.scene_run_id === selectedRun?.id) {
       await perform(async () => {
         const started = selectedRun?.started_at ? new Date(selectedRun.started_at).getTime() : Date.now();
-        await appendEvent("camera", Math.max(0, Date.now() - started), { preset });
+        const timestamp = Math.max(0, Date.now() - started);
+        await appendEvent("camera", timestamp, { preset });
+        setEventTimestamp(String(timestamp + 250));
       }, "Virtual camera cut recorded.");
     }
   }
@@ -428,7 +431,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
               <option value="transform">Transform</option><option value="gesture">Gesture</option><option value="expression">Expression</option><option value="voice_marker">Voice marker</option><option value="camera">Camera</option><option value="cue">Cue</option>
             </select></label>
             <label>Timestamp (ms)<input type="number" min="0" value={eventTimestamp} onChange={event => setEventTimestamp(event.target.value)} /></label>
-            <label>Cast member<select value={eventInstanceId} onChange={event => setEventInstanceId(event.target.value)}><option value="">Scene-level event</option>{selectedRun?.cast_members.map(item => <option key={item.id} value={item.id}>{item.character_name_snapshot}</option>)}</select></label>
+            <label>Cast member<select value={eventInstanceId} onChange={event => setEventInstanceId(event.target.value)}><option value="">Scene-level event</option>{takeRun?.cast_members.map(item => <option key={item.id} value={item.id}>{item.character_name_snapshot}</option>)}</select></label>
             <label>Payload (JSON)<textarea rows={3} value={eventPayload} onChange={event => setEventPayload(event.target.value)} /></label>
             <button className="secondary-button" disabled={busy || !eventType.trim()}><Plus size={12} /> Record event</button>
             <label>Take duration (ms)<input type="number" min="0" value={durationInput} onChange={event => setDurationInput(event.target.value)} /></label>
