@@ -95,6 +95,12 @@ type ProjectLocation = {
   environment_type: string; time_period: string; visual_notes: string; status: string;
   created_by_user_id: string; created_at: string; updated_at: string;
 };
+type CharacterEditDraft = {
+  name: string; description: string; visual_description: string; personality_notes: string;
+};
+type LocationEditDraft = {
+  name: string; description: string; environment_type: string; time_period: string; visual_notes: string;
+};
 type StoryboardEpisode = {
   id: string; season_id: string; episode_number: number; title: string;
   logline: string; synopsis: string; estimated_duration_seconds: number | null;
@@ -233,6 +239,10 @@ function App() {
   const [characterDescription, setCharacterDescription] = useState("");
   const [characterVisual, setCharacterVisual] = useState("");
   const [characterPersonality, setCharacterPersonality] = useState("");
+  const [characterEdits, setCharacterEdits] = useState<Record<string, CharacterEditDraft>>({});
+  const [showArchivedCharacters, setShowArchivedCharacters] = useState(false);
+  const [locationEdits, setLocationEdits] = useState<Record<string, LocationEditDraft>>({});
+  const [showArchivedLocations, setShowArchivedLocations] = useState(false);
   const [locationName, setLocationName] = useState("");
   const [locationDescription, setLocationDescription] = useState("");
   const [locationType, setLocationType] = useState("interior");
@@ -344,6 +354,8 @@ function App() {
       setEvidenceSourceIds({}); setEvidenceRelations({}); setEvidenceExcerpts({}); setEvidenceLocators({}); setEvidenceNotesByClaim({});
       setReviewResults({}); setReviewRationales({});
       setStoryboard(currentStoryboard);
+      setCharacterEdits({}); setShowArchivedCharacters(false);
+      setLocationEdits({}); setShowArchivedLocations(false);
       setSceneEdits({});
       setScriptElementDrafts({});
       setScriptEditorOpen({});
@@ -689,6 +701,141 @@ function App() {
       setLocationName(""); setLocationDescription(""); setLocationPeriod(""); setLocationVisual("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create location.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function characterEditDraft(character: ProjectCharacter): CharacterEditDraft {
+    return characterEdits[character.id] || {
+      name: character.name,
+      description: character.description,
+      visual_description: character.visual_description,
+      personality_notes: character.personality_notes,
+    };
+  }
+
+  function locationEditDraft(location: ProjectLocation): LocationEditDraft {
+    return locationEdits[location.id] || {
+      name: location.name,
+      description: location.description,
+      environment_type: location.environment_type,
+      time_period: location.time_period,
+      visual_notes: location.visual_notes,
+    };
+  }
+
+  async function saveCharacterDetails(character: ProjectCharacter) {
+    if (!selectedProject) return;
+    const edit = characterEditDraft(character);
+    if (!edit.name.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters/${character.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: edit.name,
+          description: edit.description,
+          visual_description: edit.visual_description,
+          personality_notes: edit.personality_notes,
+        }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        characters: current.characters.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.name.localeCompare(b.name)),
+        scenes: current.scenes.map(scene => ({
+          ...scene,
+          characters: scene.characters.map(item => item.id === updated.id ? { ...item, name: updated.name } : item),
+        })),
+      } : current);
+      setCharacterEdits(current => {
+        const next = { ...current };
+        delete next[character.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update character profile.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateCharacterStatus(character: ProjectCharacter, status: "active" | "archived") {
+    if (!selectedProject) return;
+    const explanation = status === "archived"
+      ? "Archive this character? Existing scene participation and screenplay history will remain. The character cannot be newly assigned or selected for new dialogue."
+      : "Restore this character? It will become available for new scene assignments and dialogue again.";
+    if (!window.confirm(explanation)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters/${character.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        characters: current.characters.map(item => item.id === updated.id ? updated : item),
+      } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update character status.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveLocationDetails(location: ProjectLocation) {
+    if (!selectedProject) return;
+    const edit = locationEditDraft(location);
+    if (!edit.name.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations/${location.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: edit.name,
+          description: edit.description,
+          environment_type: edit.environment_type,
+          time_period: edit.time_period,
+          visual_notes: edit.visual_notes,
+        }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        locations: current.locations.map(item => item.id === updated.id ? updated : item).sort((a, b) => a.name.localeCompare(b.name)),
+        scenes: current.scenes.map(scene => scene.location_id === updated.id ? { ...scene, location_name: updated.name } : scene),
+      } : current);
+      setLocationEdits(current => {
+        const next = { ...current };
+        delete next[location.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update location profile.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateLocationStatus(location: ProjectLocation, status: "active" | "archived") {
+    if (!selectedProject) return;
+    const explanation = status === "archived"
+      ? "Archive this location? Existing scenes will keep their location reference, but new scenes cannot use it."
+      : "Restore this location so it can be selected for new scenes again?";
+    if (!window.confirm(explanation)) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations/${location.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(current => current ? {
+        ...current,
+        locations: current.locations.map(item => item.id === updated.id ? updated : item),
+      } : current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update location status.");
     } finally {
       setLoading(false);
     }
