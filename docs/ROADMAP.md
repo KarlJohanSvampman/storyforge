@@ -120,19 +120,22 @@ Work in small, demonstrable increments. Each milestone should produce something 
 ### M2.1 — Scene runtime foundation
 - [x] Create isolated SceneRuns from storyboard scenes, snapshotting the exact storyboard narrative version and active casting assignments into CastMemberInstances.
 - [x] Add authority epochs, append-only controller assignment history, and time-bounded possession lease storage.
-- [ ] Add lease acquisition/renewal/revocation and authority-epoch enforcement endpoints.
-- [ ] Render a simple 3D set and rigged characters.
+- [x] Add lease acquisition/renewal/revocation and authority-epoch enforcement endpoints, including temporary director possession and restoration of prior control.
+- [x] Render an interactive Three.js set with procedural character stand-ins and selectable virtual camera presets.
+- [x] Add owner-controlled storyboard-to-production phase activation with scene/casting readiness checks.
 
 ### M2.2 — Performance and recording
 - [x] Add take lifecycle and timestamped, sequenced performance-event capture API with camera-state snapshots.
 - [x] Store finalized takes as structured, replayable data.
-- [ ] Add browser-based virtual camera controls and live recording UI.
+- [x] Add browser-based virtual camera controls, take recording, event capture, and take finalization/selection UI.
 - [ ] Add runtime playback/reconstruction of captured transforms and performance events.
 
 ## M3 — Editing and finished-film workflow
-- [ ] Select takes, cut scenes, arrange sequences, and manage audio.
-- [ ] Add basic transitions, titles, and simple effects.
-- [ ] Export a rendered film.
+- [x] Select takes and arrange non-destructive scene clips in an editable sequence.
+- [x] Support source trims, clip reordering, cut/fade/dissolve transitions, title overlays, effect metadata, and audio cues.
+- [x] Export immutable, revision-stamped JSON edit decision lists (EDLs).
+- [ ] Manage actual audio media, tracks, mixing, and synchronization.
+- [ ] Render and export a finished video file.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
