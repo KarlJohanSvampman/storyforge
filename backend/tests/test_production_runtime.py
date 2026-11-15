@@ -13,14 +13,14 @@ from app.models import (
 client = TestClient(app)
 
 
-def _production_scene(title: str = "Runtime test") -> tuple[str, str]:
+def _production_scene(title: str = "Runtime test", phase: str = "production") -> tuple[str, str]:
     response = client.post("/api/projects", json={"title": title, "format": "movie", "category": "fiction"})
     assert response.status_code == 201
     project_id = response.json()["id"]
     character_id = str(uuid.uuid4())
     with SessionLocal() as db:
         project = db.scalar(select(Project).where(Project.id == uuid.UUID(project_id)))
-        project.current_phase = "production"
+        project.current_phase = phase
         draft = NarrativeDraft(
             project_id=project.id, title="Approved source", current_version_number=1,
             created_by_user_id=project.owner_user_id,
@@ -193,3 +193,28 @@ def test_scene_run_requires_active_cast_for_every_scene_character():
     )
     assert response.status_code == 409
     assert "active casting assignment" in response.json()["detail"]
+
+
+
+def test_owner_activates_production_only_after_storyboard_characters_are_cast():
+    project_id, scene_id = _production_scene("Production handoff", phase="storyboard")
+    blocked = client.post(
+        f"/api/projects/{project_id}/production/activate",
+        json={"reason": "Ready"},
+    )
+    assert blocked.status_code == 409
+    with SessionLocal() as db:
+        project = db.get(Project, uuid.UUID(project_id))
+        character_id = db.scalar(select(ProjectCharacter.id).where(ProjectCharacter.project_id == project.id))
+    _cast(project_id, str(character_id))
+    activated = client.post(
+        f"/api/projects/{project_id}/production/activate",
+        json={"reason": "Storyboard and cast approved."},
+    )
+    assert activated.status_code == 200, activated.text
+    assert activated.json()["current_phase"] == "production"
+    created = client.post(
+        f"/api/projects/{project_id}/production/scene-runs",
+        json={"scene_id": scene_id},
+    )
+    assert created.status_code == 201
