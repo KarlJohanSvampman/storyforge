@@ -124,7 +124,7 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add an owner-controlled storyboard-to-production phase handoff with scene and casting readiness checks.
 
 ### M2.2 — Performance and recording
-- [ ] Provide dedicated virtual cameras and camera take controls.
+- [x] Provide selectable virtual camera presets and record camera cuts in the take event stream.
 - [x] Record typed, timestamped, ordered performance events with actor-instance references and authority epochs.
 - [x] Store take snapshots and event streams as replayable data; preserve selected/rejected take decisions.
 
