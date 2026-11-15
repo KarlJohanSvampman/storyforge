@@ -635,6 +635,13 @@ class StoryboardEpisodeCreate(BaseModel):
     def clean_episode_fields(cls, value: str) -> str:
         return value.strip()
 
+    @field_validator("title")
+    @classmethod
+    def require_episode_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
+
 
 class StoryboardEpisodeUpdate(BaseModel):
     episode_number: int | None = Field(default=None, ge=1, le=1000)
@@ -648,6 +655,13 @@ class StoryboardEpisodeUpdate(BaseModel):
     @classmethod
     def clean_episode_update_fields(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_episode_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
 
 
 class StoryboardEpisodeRead(BaseModel):
@@ -675,6 +689,13 @@ class StoryboardSeasonCreate(BaseModel):
     def clean_season_fields(cls, value: str) -> str:
         return value.strip()
 
+    @field_validator("title")
+    @classmethod
+    def require_season_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
+
 
 class StoryboardSeasonUpdate(BaseModel):
     season_number: int | None = Field(default=None, ge=1, le=100)
@@ -687,6 +708,13 @@ class StoryboardSeasonUpdate(BaseModel):
     @classmethod
     def clean_season_update_fields(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_season_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
 
 
 class StoryboardSeasonRead(BaseModel):
