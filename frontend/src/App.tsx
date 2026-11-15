@@ -248,6 +248,12 @@ function App() {
       ]);
       setSelectedProject(detail);
       setStoryboard(currentStoryboard);
+      setSceneEdits({});
+      setScriptDrafts({});
+      setPassageDrafts({});
+      setPassageOccurrences({});
+      setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
+      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -665,6 +671,11 @@ function App() {
         body: JSON.stringify({ base_version_id: latest?.id || null, content }),
       });
       setStoryboard(updated);
+      setScriptDrafts(current => {
+        const next = { ...current };
+        delete next[scene.id];
+        return next;
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save script revision.");
     } finally {
