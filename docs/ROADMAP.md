@@ -55,6 +55,7 @@ Work in small, demonstrable increments. Each milestone should produce something 
 
 ### M1.1 — Approved narrative storyboard foundation
 - [x] Initialize one storyboard from the exact narrative version that triggered the approved storyboard phase transition.
+- [x] Preserve separate storyboard interpretations for each approved narrative version.
 - [x] Create and reorder scenes with summaries, production requirements, estimated duration, primary location, and participating story characters.
 - [x] Create and update project-level character and location story-bible records.
 - [x] Link scenes to exact excerpts from the immutable approved narrative, preserving offsets and excerpt snapshots.
