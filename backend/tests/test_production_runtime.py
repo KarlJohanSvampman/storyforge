@@ -101,18 +101,18 @@ def test_scene_run_instances_controller_epochs_and_possession_lease():
         json={"duration_seconds": 20},
     )
     assert lease.status_code == 201, lease.text
-    assert lease.json()["authority_epoch"] == 1
+    assert lease.json()["authority_epoch"] == 2
 
     switched = client.post(
         f"/api/projects/{project_id}/production/scene-runs/{run['id']}/instances/{instance['id']}/controller",
         json={"controller_type": "ai_agent", "control_mode": "autonomous", "reason": "director_handoff"},
     )
     assert switched.status_code == 200
-    assert switched.json()["authority_epoch"] == 2
+    assert switched.json()["authority_epoch"] == 3
     assert switched.json()["controller_user_id"] is None
     history = client.get(f"/api/projects/{project_id}/production/scene-runs/{run['id']}/controller-events")
     assert history.status_code == 200
-    assert [event["authority_epoch"] for event in history.json()] == [1, 2]
+    assert [event["authority_epoch"] for event in history.json()] == [1, 2, 3]
 
     paused = client.patch(
         f"/api/projects/{project_id}/production/scene-runs/{run['id']}",
@@ -218,3 +218,41 @@ def test_owner_activates_production_only_after_storyboard_characters_are_cast():
         json={"scene_id": scene_id},
     )
     assert created.status_code == 201
+
+
+
+def test_direct_possession_temporarily_overrides_ai_and_restores_it():
+    project_id, scene_id = _production_scene("AI possession integration")
+    with SessionLocal() as db:
+        project = db.get(Project, uuid.UUID(project_id))
+        character_id = db.scalar(select(ProjectCharacter.id).where(ProjectCharacter.project_id == project.id))
+    assignment_id = _cast(project_id, str(character_id))
+    switched = client.patch(
+        f"/api/projects/{project_id}/casting/{assignment_id}",
+        json={"controller_type": "ai_agent", "control_mode": "autonomous"},
+    )
+    assert switched.status_code == 200
+    run = client.post(f"/api/projects/{project_id}/production/scene-runs", json={"scene_id": scene_id}).json()
+    instance = run["cast_members"][0]
+    client.patch(f"/api/projects/{project_id}/production/scene-runs/{run['id']}", json={"status": "running"})
+    lease = client.post(
+        f"/api/projects/{project_id}/production/scene-runs/{run['id']}/instances/{instance['id']}/lease",
+        json={"duration_seconds": 30},
+    )
+    assert lease.status_code == 201, lease.text
+    possessed = client.get(f"/api/projects/{project_id}/production/scene-runs/{run['id']}").json()["cast_members"][0]
+    assert possessed["controller_type"] == "user"
+    assert possessed["controller_user_id"] is not None
+    assert possessed["control_mode"] == "direct"
+    assert possessed["authority_epoch"] == 2
+
+    released = client.post(
+        f"/api/projects/{project_id}/production/scene-runs/{run['id']}/instances/{instance['id']}/lease/release",
+        json={"lease_token": lease.json()["lease_token"]},
+    )
+    assert released.status_code == 200
+    restored = client.get(f"/api/projects/{project_id}/production/scene-runs/{run['id']}").json()["cast_members"][0]
+    assert restored["controller_type"] == "ai_agent"
+    assert restored["controller_user_id"] is None
+    assert restored["control_mode"] == "autonomous"
+    assert restored["authority_epoch"] == 3
