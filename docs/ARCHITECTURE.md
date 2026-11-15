@@ -46,6 +46,10 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeDraft:** one project-level proposal stream, with a current version counter.
 - **NarrativeDraftVersion:** immutable title/content snapshot, author, parent version, proposal status, origin, and optional provider/model/template metadata.
 - **DraftSourceReference:** ordered provenance link to an exact contribution revision or accepted suggestion, plus a snapshot of the source title and text.
+- **ProjectApprovalRule:** a project's owner-only or majority approval policy.
+- **NarrativeApprovalVote:** append-only vote events for an exact immutable narrative version.
+- **NarrativeApprovalDecision:** one final approved/rejected decision per narrative version, including a snapshot of the rule and tally.
+- **ProjectPhaseTransition:** append-only history of project phase changes, linked to the narrative version where applicable.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
 - **Vote:** voter, decision target, choice, timestamp.
@@ -84,6 +88,19 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 - Manual edits create another immutable version rather than changing the compiled version. The new version inherits its parent's source map and links to its parent.
 - Every M0.5 version has status `proposal`. There is no approval endpoint, voting, publication, or phase transition in this milestone. M0.6 owns those decisions.
 - Project members can read the draft. Owners, editors, and contributors can compile or revise it; viewers are read-only. These rules are enforced by the API, not only by the UI.
+
+### M0.6 approval and phase progression contract
+
+- A project has one approval rule. If no rule has been explicitly saved, the effective default is `owner_only`. The owner can select `owner_only` or `majority`.
+- Under `owner_only`, only the project owner may cast the approval vote; one approve or reject vote meets the threshold.
+- Under `majority`, active owners, editors, and contributors are eligible. Viewers and pending invitations are excluded. The threshold is a strict majority: `floor(eligible_members / 2) + 1`.
+- Each vote is an append-only event. A participant may change their vote before a final decision; only their latest vote counts in the tally. Earlier votes remain visible in history.
+- The owner alone finalizes the result once either approve or reject reaches the threshold. A split or incomplete tally cannot be finalized. The final decision records the exact narrative version, rule mode, eligible voter count, approval/rejection counts, required threshold, actor, note, and timestamp.
+- A decision is unique to one immutable narrative version. Only the current draft version can be voted on or finalized. A rejected version remains rejected; participants can create another proposal version and vote on that new version.
+- A rejected decision does not change the project phase. An approved decision atomically records the decision and transitions the project to `storyboard`, with a `ProjectPhaseTransition` entry referencing the approved version.
+- Once the project enters `storyboard`, narrative compilation, manual draft revision, voting, and approval-rule changes are blocked. The approved narrative version remains available as the authoritative input for M1.
+- Approval rules become locked after the first vote, preventing a rule change from altering a tally already in progress.
+- The client may display and submit votes, but all eligibility checks, tally calculations, finalization, and phase changes are enforced by the API.
 
 ## 7. Later production and publication data
 
