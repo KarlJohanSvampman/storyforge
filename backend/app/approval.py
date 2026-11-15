@@ -13,7 +13,7 @@ from .models import (
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
     ApprovalOverview, ApprovalRuleRead, ApprovalRuleUpdate,
-    ApprovalVoteCreate, ApprovalVoteRead, ApprovalDecisionRead,
+    ApprovalVoteCreate, ApprovalVoteRead, ApprovalDecisionRead, ApprovalDecisionCreate,
     ApprovalVersionStatusRead, PhaseTransitionRead,
 )
 
@@ -313,7 +313,7 @@ def finalize_approval_decision(
     project_id: uuid.UUID,
     draft_id: uuid.UUID,
     version_id: uuid.UUID,
-    payload: ApprovalVoteCreate,
+    payload: ApprovalDecisionCreate,
     db: DbSession,
     user: CurrentUser,
 ):
