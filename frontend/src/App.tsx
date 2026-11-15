@@ -711,6 +711,16 @@ function App() {
     }));
   }
 
+  function moveScriptElement(sceneId: string, index: number, direction: -1 | 1) {
+    setScriptElementDrafts(current => {
+      const elements = [...(current[sceneId] || [])];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= elements.length) return current;
+      [elements[index], elements[targetIndex]] = [elements[targetIndex], elements[index]];
+      return { ...current, [sceneId]: elements };
+    });
+  }
+
   async function saveSceneScript(scene: StoryboardScene) {
     if (!selectedProject) return;
     const latest = scene.script_versions[scene.script_versions.length - 1] || null;
@@ -1342,6 +1352,8 @@ function App() {
                                                 <option value="transition">Transition</option>
                                                 <option value="production_note">Production note</option>
                                               </select>
+                                              <button type="button" className="quiet-button" disabled={elementIndex === 0} onClick={() => moveScriptElement(scene.id, elementIndex, -1)} aria-label="Move screenplay block up">↑</button>
+                                              <button type="button" className="quiet-button" disabled={elementIndex === (scriptElementDrafts[scene.id] || []).length - 1} onClick={() => moveScriptElement(scene.id, elementIndex, 1)} aria-label="Move screenplay block down">↓</button>
                                               <button type="button" className="quiet-button danger-button" onClick={() => removeScriptElement(scene.id, elementIndex)} aria-label="Remove screenplay block">Remove</button>
                                             </div>
                                             {(element.element_type === "dialogue" || element.element_type === "parenthetical") && (
@@ -1353,7 +1365,7 @@ function App() {
                                                   onChange={event => updateScriptElement(scene.id, elementIndex, { character_id: event.target.value })}
                                                 >
                                                   <option value="">Select a character</option>
-                                                  {storyboard.characters.filter(character => character.status === "active").map(character => (
+                                                  {scene.characters.map(character => (
                                                     <option key={character.id} value={character.id}>{character.name}</option>
                                                   ))}
                                                 </select>
