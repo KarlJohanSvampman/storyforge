@@ -251,7 +251,7 @@ The API prevents changing a project's production format after its first storyboa
 
 The documentary workspace appears on a project detail page when the project's category is **Documentary**. It is project-level, so researchers can begin before a storyboard exists. Both movie-documentaries and documentary series use the same register.
 
-The source register captures source type, title, creator/author, publisher/institution, publication date, URL, citation text, notes, and a server-recorded access timestamp. It is a bibliographic register, not a document downloader: source content must currently be reviewed externally and excerpts entered manually.
+The source register captures source type, title, creator/author, publisher/institution, publication date, URL, citation text, notes, and an access timestamp. Researchers may enter the time they accessed the source; if left blank, the server records when the source entry was created. It is a bibliographic register, not a document downloader: source content must currently be reviewed externally and excerpts entered manually.
 
 Claims are discrete factual statements with an origin of **Human-authored** or **AI-assisted**. Both begin unreviewed. Each claim can be linked to a source using an evidence relationship:
 - **Supports:** the source provides evidence in favour of the statement.
