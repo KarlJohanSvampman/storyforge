@@ -347,3 +347,12 @@ class ApprovalOverview(BaseModel):
     rule: ApprovalRuleRead
     versions: list[ApprovalVersionStatusRead] = Field(default_factory=list)
     phase_history: list[PhaseTransitionRead] = Field(default_factory=list)
+
+
+class ApprovalDecisionCreate(BaseModel):
+    note: str = Field(default="", max_length=3000)
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str) -> str:
+        return value.strip()
