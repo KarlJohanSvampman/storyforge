@@ -1000,6 +1000,13 @@ class DocumentaryInterviewSubjectUpdate(BaseModel):
     def clean_subject_update_text(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
+    @field_validator("name_or_pseudonym")
+    @classmethod
+    def require_subject_update_label(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("A name or pseudonym is required.")
+        return value
+
 
 class DocumentaryInterviewSubjectRead(BaseModel):
     id: uuid.UUID
@@ -1026,6 +1033,13 @@ class DocumentaryInterviewSessionCreate(BaseModel):
     @classmethod
     def clean_session_text(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("session_date")
+    @classmethod
+    def require_timezone_aware_session_date(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("Interview session dates must include a timezone.")
+        return value
 
 
 class DocumentaryInterviewSessionUpdate(BaseModel):
@@ -1078,6 +1092,9 @@ class DocumentaryReleaseCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_release_state(self):
+        for label, value in (("signed_at", self.signed_at), ("expires_at", self.expires_at)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{label} must include a timezone.")
         if not self.consent_scope:
             raise ValueError("Consent scope is required.")
         if self.status == "signed" and self.signed_at is None:
@@ -1149,6 +1166,9 @@ class DocumentaryMediaRightsCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_rights_record(self):
+        for label, value in (("valid_from", self.valid_from), ("valid_until", self.valid_until)):
+            if value is not None and (value.tzinfo is None or value.utcoffset() is None):
+                raise ValueError(f"{label} must include a timezone.")
         if not self.territory:
             raise ValueError("A territory or jurisdiction is required.")
         if self.valid_from and self.valid_until and self.valid_until < self.valid_from:
