@@ -359,6 +359,7 @@ Rights:
 - `POST /api/projects/{project_id}/documentary/media/{asset_id}/rights` — create a new versioned rights/provenance record. The previous version is retained and marked superseded. Capture rights holder, basis, licence, territory, validity, permitted uses, attribution, and restrictions.
 - A new rights record supersedes the earlier record. The current clearance check requires a current, effective, non-expired rights record whose permitted uses include the destination use (or `all`).
 - If the asset is tied to an interview session, the usage check also requires a signed, non-expired project or production release for the same subject and destination use. A session-specific release applies only to that session; a project/production release without a session reference covers the subject's sessions.
+- A source-register item of type `interview` must be linked to exactly one interview session through at least one uploaded transcript/media asset before a supported claim using that source can be placed in production. This is how the system resolves which subject's consent applies.
 - A release scoped to one future publication/release is recorded for reference but is not a general project/production permission.
 
 Claim placements:
