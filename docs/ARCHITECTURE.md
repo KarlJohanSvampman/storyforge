@@ -43,6 +43,9 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **ProjectMembership:** user, project, role, status.
 - **StoryContribution:** project, author, title, status, timestamps.
 - **ContributionRevision:** contribution, revision number, body, author, timestamp. Revisions are append-only.
+- **NarrativeDraft:** one project-level proposal stream, with a current version counter.
+- **NarrativeDraftVersion:** immutable title/content snapshot, author, parent version, proposal status, origin, and optional provider/model/template metadata.
+- **DraftSourceReference:** ordered provenance link to an exact contribution revision or accepted suggestion, plus a snapshot of the source title and text.
 - **NarrativeDraft:** project, version, body or structured content, origin, status.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
@@ -69,6 +72,19 @@ Define an application-owned interface for AI tasks rather than coupling domain s
 Initial tasks may include combining selected contributions into a draft proposal, identifying contradictions or unresolved questions, suggesting improvements, and summarizing discussion.
 
 AI output must be stored as a proposal with provider/model metadata where available, input references, authoring context, and creation time. AI must not directly approve a narrative or silently replace user content.
+
+### M0.5 compilation contract
+
+The first compiler is deliberately deterministic and source-preserving. It assembles selected contribution revisions into a readable proposal without claiming to summarize, reconcile, or improve their content. This gives the project a working end-to-end draft workflow while the provider boundary is established.
+
+- A compile request identifies exact immutable contribution revision IDs. It may additionally identify accepted suggestions, but only when each suggestion is accepted and anchored to the selected revision.
+- Withdrawn contributions cannot be selected for a new compilation.
+- The compiler is an application-owned protocol. Its initial implementation reports provider `mock`, model `source-preserving-assembler-v1`, and template `assembly-template-v1`; no external AI service or API key is required in M0.5.
+- Each compile action creates a new immutable proposal version. It records parent version, author, timestamp, origin, provider/model/template metadata, and ordered source references.
+- Each source reference retains an exact text snapshot and identifiers for the contribution, revision, and optional suggestion. The snapshot remains understandable even if a participant later changes their contribution.
+- Manual edits create another immutable version rather than changing the compiled version. The new version inherits its parent's source map and links to its parent.
+- Every M0.5 version has status `proposal`. There is no approval endpoint, voting, publication, or phase transition in this milestone. M0.6 owns those decisions.
+- Project members can read the draft. Owners, editors, and contributors can compile or revise it; viewers are read-only. These rules are enforced by the API, not only by the UI.
 
 ## 7. Later production and publication data
 
