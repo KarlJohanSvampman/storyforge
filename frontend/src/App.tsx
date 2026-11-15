@@ -49,6 +49,38 @@ type NarrativeDraft = {
   created_by_user_id: string; created_at: string; updated_at: string; versions: DraftVersion[];
 };
 
+
+type ApprovalMode = "owner_only" | "majority";
+type ApprovalChoice = "approve" | "reject";
+type ApprovalVote = {
+  id: string; version_id: string; voter_user_id: string; voter_display_name: string;
+  choice: ApprovalChoice; note: string; created_at: string;
+  is_latest: boolean; counts_toward_result: boolean;
+};
+type ApprovalDecision = {
+  id: string; version_id: string; actor_user_id: string; actor_display_name: string;
+  outcome: "approved" | "rejected"; rule_mode: ApprovalMode;
+  eligible_voter_count: number; approve_count: number; reject_count: number;
+  required_votes: number; note: string; created_at: string;
+};
+type ApprovalVersion = {
+  version_id: string; version_number: number; is_current_version: boolean;
+  eligible_voter_count: number; required_votes: number; approve_count: number; reject_count: number;
+  current_user_vote: ApprovalChoice | null; can_vote: boolean; can_finalize: boolean;
+  decision_outcome: "approved" | "rejected" | null;
+  votes: ApprovalVote[]; decision: ApprovalDecision | null;
+};
+type PhaseTransition = {
+  id: string; from_phase: string; to_phase: string; actor_user_id: string;
+  actor_display_name: string; narrative_version_id: string | null;
+  reason: string; created_at: string;
+};
+type ApprovalOverview = {
+  project_id: string; current_phase: string;
+  rule: { mode: ApprovalMode; configured: boolean; updated_by_user_id: string | null; updated_at: string | null };
+  versions: ApprovalVersion[]; phase_history: PhaseTransition[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -84,6 +116,9 @@ function App() {
   const [acceptedDraftSuggestions, setAcceptedDraftSuggestions] = useState<Suggestion[]>([]);
   const [selectedDraftSuggestionIds, setSelectedDraftSuggestionIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
+  const [approval, setApproval] = useState<ApprovalOverview | null>(null);
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
+  const [approvalNote, setApprovalNote] = useState("");
   const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
   const [draftTitle, setDraftTitle] = useState("");
   const [editingDraft, setEditingDraft] = useState(false);
@@ -108,6 +143,14 @@ function App() {
   async function loadProjects() {
     setProjects(await api<Project[]>("/api/projects"));
   }
+
+  async function loadApproval(projectId: string) {
+    const result = await api<ApprovalOverview>(`/api/projects/${projectId}/approval`);
+    setApproval(result);
+    setApprovalMode(result.rule.mode);
+    return result;
+  }
+
 
   async function loadAcceptedDraftSuggestions(projectId: string, items: Contribution[]) {
     const active = items.filter(item => item.status === "active");
@@ -139,15 +182,19 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [detail, items, currentDraft] = await Promise.all([
+      const [detail, items, currentDraft, approvalOverview] = await Promise.all([
         api<ProjectDetail>(`/api/projects/${projectId}`),
         api<Contribution[]>(`/api/projects/${projectId}/contributions`),
         api<NarrativeDraft | null>(`/api/projects/${projectId}/draft`),
+        api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
       ]);
       setSelectedProject(detail);
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
+      setApproval(approvalOverview);
+      setApprovalMode(approvalOverview.rule.mode);
+      setApprovalNote("");
       setDraftTitle(currentDraft?.title || detail.title);
       setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
       setSelectedDraftVersionId(currentDraft?.versions[currentDraft.versions.length - 1]?.id || null);
@@ -321,6 +368,7 @@ function App() {
       setDraft(created);
       setDraftTitle(created.title);
       setSelectedDraftVersionId(created.versions[created.versions.length - 1]?.id || null);
+      await loadApproval(selectedProject.id);
       setEditingDraft(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not compile the narrative draft.");
@@ -356,9 +404,69 @@ function App() {
       });
       setDraft(updated);
       setSelectedDraftVersionId(updated.versions[updated.versions.length - 1]?.id || null);
+      await loadApproval(selectedProject.id);
       setEditingDraft(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the revised draft.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function saveApprovalRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(`/api/projects/${selectedProject.id}/approval-rule`, {
+        method: "PUT",
+        body: JSON.stringify({ mode: approvalMode }),
+      });
+      setApproval(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the approval rule.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function castApprovalVote(choice: ApprovalChoice) {
+    if (!selectedProject || !draft || !selectedDraftVersion) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(
+        `/api/projects/${selectedProject.id}/draft/${draft.id}/versions/${selectedDraftVersion.id}/votes`,
+        { method: "POST", body: JSON.stringify({ choice, note: approvalNote }) },
+      );
+      setApproval(updated);
+      setApprovalNote("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record your vote.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function finalizeApprovalDecision() {
+    if (!selectedProject || !draft || !selectedDraftVersion) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(
+        `/api/projects/${selectedProject.id}/draft/${draft.id}/versions/${selectedDraftVersion.id}/decision`,
+        { method: "POST", body: JSON.stringify({ note: approvalNote }) },
+      );
+      setApproval(updated);
+      setApprovalNote("");
+      setEditingDraft(false);
+      const refreshedProject = await api<ProjectDetail>(`/api/projects/${selectedProject.id}`);
+      setSelectedProject(refreshedProject);
+      await loadProjects();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not finalize the approval decision.");
     } finally {
       setLoading(false);
     }
@@ -399,6 +507,9 @@ function App() {
   );
   const latestDraftVersion = draft?.versions[draft.versions.length - 1] || null;
   const selectedDraftVersion = draft?.versions.find(version => version.id === selectedDraftVersionId) || latestDraftVersion;
+  const selectedApproval = approval?.versions.find(item => item.version_id === selectedDraftVersion?.id) || null;
+  const canManageApprovalRule = myMembership?.role === "owner";
+  const approvalRuleLocked = !!approval?.versions.some(item => item.votes.length > 0 || item.decision !== null);
 
 
   return (
