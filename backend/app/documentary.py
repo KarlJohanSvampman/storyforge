@@ -186,10 +186,15 @@ def update_research_source(
     user: CurrentUser,
 ):
     _require_documentary_project(db, project_id, user.id, write=True)
-    source = _source_or_404(db, project_id, source_id)
+    source = db.scalar(select(DocumentaryResearchSource).where(
+        DocumentaryResearchSource.id == source_id,
+        DocumentaryResearchSource.project_id == project_id,
+    ).with_for_update())
+    if source is None:
+        raise HTTPException(status_code=404, detail="Research source not found in this project.")
     values = payload.model_dump(exclude_unset=True)
     for key, value in values.items():
-        if value is not None:
+        if value is not None or key == "url":
             setattr(source, key, value)
 
     # Changing metadata or archiving a source invalidates any current claim
@@ -199,10 +204,16 @@ def update_research_source(
         select(DocumentaryClaimEvidence.claim_id)
         .where(DocumentaryClaimEvidence.source_id == source.id)
     ).all()
-    for claim_id in set(claim_ids):
-        claim = db.get(DocumentaryClaim, claim_id)
-        if claim and claim.current_review_status != "unreviewed":
-            claim.current_review_status = "needs_review"
+    distinct_claim_ids = set(claim_ids)
+    if distinct_claim_ids:
+        linked_claims = db.scalars(
+            select(DocumentaryClaim)
+            .where(DocumentaryClaim.id.in_(distinct_claim_ids))
+            .with_for_update()
+        ).all()
+        for claim in linked_claims:
+            if claim.current_review_status != "unreviewed":
+                claim.current_review_status = "needs_review"
     db.commit()
     return _documentary_detail(db, project_id)
 
@@ -246,7 +257,12 @@ def add_claim_evidence(
     user: CurrentUser,
 ):
     _require_documentary_project(db, project_id, user.id, write=True)
-    claim = _claim_or_404(db, project_id, claim_id)
+    claim = db.scalar(select(DocumentaryClaim).where(
+        DocumentaryClaim.id == claim_id,
+        DocumentaryClaim.project_id == project_id,
+    ).with_for_update())
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Documentary claim not found in this project.")
     if claim.status != "active":
         raise HTTPException(status_code=409, detail="Archived claims cannot receive new evidence.")
     source = _source_or_404(db, project_id, payload.source_id)
@@ -284,7 +300,12 @@ def review_documentary_claim(
     user: CurrentUser,
 ):
     _require_documentary_project(db, project_id, user.id, write=True)
-    claim = _claim_or_404(db, project_id, claim_id)
+    claim = db.scalar(select(DocumentaryClaim).where(
+        DocumentaryClaim.id == claim_id,
+        DocumentaryClaim.project_id == project_id,
+    ).with_for_update())
+    if claim is None:
+        raise HTTPException(status_code=404, detail="Documentary claim not found in this project.")
     if claim.status != "active":
         raise HTTPException(status_code=409, detail="Archived claims cannot be reviewed.")
 
