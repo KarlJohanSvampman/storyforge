@@ -15,6 +15,7 @@ type SceneRun = {
   id: string; scene_id: string; run_number: number; status: string; scene_snapshot: Record<string, any>;
   cast_members: CastMember[]; created_at: string; started_at: string | null; ended_at: string | null;
 };
+type TakeEvent = { id: string; event_order: number; timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; authority_epoch: number | null; payload: Record<string, unknown> };
 type Take = { id: string; scene_run_id: string; take_number: number; status: string; duration_ms: number; event_count: number; state_snapshot: Record<string, unknown>; events: TakeEvent[] };
 type EditItem = { id: string; take_id: string; scene_id: string; item_order: number; in_ms: number; out_ms: number; transition: string; title_overlay: string; effects: Record<string, unknown>; audio_cue: string };
 type EditItemDraft = { in_ms: string; out_ms: string; transition: "cut" | "fade" | "dissolve"; title_overlay: string; effects: string; audio_cue: string };
@@ -150,6 +151,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
         method: "POST", body: JSON.stringify({ duration_seconds: 30 }),
       });
       setLeases(current => ({ ...current, [instance.id]: lease }));
+      await refresh();
     }, "Direct-control possession acquired for 30 seconds.");
   }
 
@@ -161,6 +163,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
         method: "POST", body: JSON.stringify({ lease_token: lease.lease_token }),
       });
       setLeases(current => { const next = { ...current }; delete next[instance.id]; return next; });
+      await refresh();
     }, "Possession released.");
   }
 
@@ -358,7 +361,9 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       {selectedRun.cast_members.map(instance => {
         const draft = controllerDrafts[instance.id] || { controller_type: instance.controller_type, controller_user_id: instance.controller_user_id || currentUserId || "", control_mode: instance.control_mode };
         const lease = leases[instance.id];
-        const canPossess = selectedRun.status === "running" && instance.controller_type === "user" && instance.controller_user_id === currentUserId;
+        const assignedHuman = instance.controller_type === "user" && instance.controller_user_id === currentUserId;
+        const directorOverride = members.some(member => member.user_id === currentUserId && (member.role === "owner" || member.role === "editor"));
+        const canPossess = selectedRun.status === "running" && !!currentUserId && (assignedHuman || directorOverride);
         return <article className="runtime-cast-row" key={instance.id}>
           <div className="runtime-cast-identity"><strong>{instance.character_snapshot.name}</strong><span>{instance.actor_snapshot.display_name}</span><small>Authority epoch {instance.authority_epoch}</small></div>
           <div className="runtime-controller-fields">
