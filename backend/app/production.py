@@ -97,6 +97,40 @@ def _instance_or_404(db: Session, run_id: uuid.UUID, instance_id: uuid.UUID) -> 
     return item
 
 
+def _restore_possession_lease(
+    db: Session, lease: PossessionLease, instance: CastMemberInstance,
+    changed_by_user_id: uuid.UUID, reason: str,
+) -> None:
+    """Release a lease and restore its controller snapshot only if its epoch still owns authority."""
+    if lease.released_at is not None:
+        return
+    lease.released_at = datetime.now(timezone.utc)
+    if lease.authority_epoch != instance.authority_epoch:
+        return
+    restore_type = lease.previous_controller_type
+    restore_user = lease.previous_controller_user_id
+    if restore_type == "user" and restore_user is not None:
+        member = db.scalar(select(ProjectMembership.id).where(
+            ProjectMembership.user_id == restore_user,
+            ProjectMembership.status == "active",
+            ProjectMembership.project_id == db.scalar(select(SceneRun.project_id).where(SceneRun.id == instance.scene_run_id)),
+        ))
+        if member is None:
+            restore_type, restore_user = "system", None
+    previous_type, previous_user = instance.controller_type, instance.controller_user_id
+    instance.authority_epoch += 1
+    instance.controller_type = restore_type
+    instance.controller_user_id = restore_user
+    instance.control_mode = lease.previous_control_mode
+    db.add(ControllerAssignmentEvent(
+        cast_member_instance_id=instance.id, authority_epoch=instance.authority_epoch,
+        previous_controller_type=previous_type, previous_controller_user_id=previous_user,
+        new_controller_type=restore_type, new_controller_user_id=restore_user,
+        control_mode=instance.control_mode, reason=reason,
+        changed_by_user_id=changed_by_user_id,
+    ))
+
+
 def _run_read(db: Session, run: SceneRun) -> SceneRunRead:
     members = db.scalars(select(CastMemberInstance).where(
         CastMemberInstance.scene_run_id == run.id,
@@ -260,7 +294,11 @@ def update_scene_run(project_id: uuid.UUID, run_id: uuid.UUID, payload: SceneRun
             CastMemberInstance, CastMemberInstance.id == PossessionLease.cast_member_instance_id,
         ).where(CastMemberInstance.scene_run_id == run.id, PossessionLease.released_at.is_(None))).all()
         for lease in leases:
-            lease.released_at = datetime.now(timezone.utc)
+            instance = db.get(CastMemberInstance, lease.cast_member_instance_id)
+            if instance is not None:
+                _restore_possession_lease(db, lease, instance, user.id, "scene_run_ended")
+            else:
+                lease.released_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(run)
     return _run_read(db, run)
@@ -328,8 +366,11 @@ def acquire_possession_lease(project_id: uuid.UUID, run_id: uuid.UUID, instance_
     if run.status != "running":
         raise HTTPException(status_code=409, detail="Direct possession is available only while the scene run is running.")
     instance = _instance_or_404(db, run.id, instance_id)
-    if instance.status != "active" or instance.controller_type != "user" or instance.controller_user_id != user.id:
-        raise HTTPException(status_code=403, detail="This cast member instance is not assigned to your human controller.")
+    membership = _membership(db, project_id, user.id)
+    assigned_human = instance.controller_type == "user" and instance.controller_user_id == user.id
+    director_override = membership.role in ("owner", "editor")
+    if instance.status != "active" or not (assigned_human or director_override):
+        raise HTTPException(status_code=403, detail="Direct possession requires the assigned performer or a project director/editor.")
     now = datetime.now(timezone.utc)
     current = db.scalar(select(PossessionLease).where(
         PossessionLease.cast_member_instance_id == instance.id, PossessionLease.released_at.is_(None),
@@ -337,11 +378,23 @@ def acquire_possession_lease(project_id: uuid.UUID, run_id: uuid.UUID, instance_
     if current and current.expires_at > now:
         raise HTTPException(status_code=409, detail="This character already has an active possession lease.")
     if current:
-        current.released_at = now
+        _restore_possession_lease(db, current, instance, user.id, "possession_lease_expired")
         db.flush()
+    previous_type, previous_user, previous_mode = instance.controller_type, instance.controller_user_id, instance.control_mode
+    instance.authority_epoch += 1
+    instance.controller_type = "user"
+    instance.controller_user_id = user.id
+    instance.control_mode = "direct"
+    db.add(ControllerAssignmentEvent(
+        cast_member_instance_id=instance.id, authority_epoch=instance.authority_epoch,
+        previous_controller_type=previous_type, previous_controller_user_id=previous_user,
+        new_controller_type="user", new_controller_user_id=user.id,
+        control_mode="direct", reason="possession_acquired", changed_by_user_id=user.id,
+    ))
     lease = PossessionLease(
         cast_member_instance_id=instance.id, controller_user_id=user.id,
-        authority_epoch=instance.authority_epoch,
+        previous_controller_type=previous_type, previous_controller_user_id=previous_user,
+        previous_control_mode=previous_mode, authority_epoch=instance.authority_epoch,
         expires_at=now + timedelta(seconds=payload.duration_seconds),
     )
     db.add(lease)
@@ -360,7 +413,7 @@ def _lease_or_404(db: Session, instance: CastMemberInstance, user_id: uuid.UUID,
     if lease is None:
         raise HTTPException(status_code=404, detail="Active possession lease not found.")
     if lease.expires_at <= datetime.now(timezone.utc) or lease.authority_epoch != instance.authority_epoch:
-        lease.released_at = datetime.now(timezone.utc)
+        _restore_possession_lease(db, lease, instance, user_id, "possession_lease_expired")
         db.commit()
         raise HTTPException(status_code=409, detail="Possession lease expired or its authority epoch is stale.")
     return lease
@@ -386,7 +439,7 @@ def release_possession_lease(project_id: uuid.UUID, run_id: uuid.UUID, instance_
     run = _run_or_404(db, project_id, run_id)
     instance = _instance_or_404(db, run.id, instance_id)
     lease = _lease_or_404(db, instance, user.id, payload.lease_token)
-    lease.released_at = datetime.now(timezone.utc)
+    _restore_possession_lease(db, lease, instance, user.id, "possession_released")
     db.commit()
     db.refresh(lease)
     return PossessionLeaseRead.model_validate(lease, from_attributes=True)
