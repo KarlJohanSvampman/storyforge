@@ -1374,7 +1374,9 @@ function App() {
                                                   onChange={event => updateScriptElement(scene.id, elementIndex, { character_id: event.target.value })}
                                                 >
                                                   <option value="">Select a character</option>
-                                                  {scene.characters.map(character => (
+                                                  {scene.characters.filter(character =>
+                                                    storyboard.characters.some(item => item.id === character.id && item.status === "active")
+                                                  ).map(character => (
                                                     <option key={character.id} value={character.id}>{character.name}</option>
                                                   ))}
                                                 </select>
