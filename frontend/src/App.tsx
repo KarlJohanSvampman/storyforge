@@ -1301,9 +1301,121 @@ function App() {
                               </div>
 
                               <div className="scene-script-area">
-                                <div className="section-kicker">WORKING SCRIPT · {scene.script_versions.length} REVISIONS</div>
-                                {canEditStoryboard && <><textarea rows={7} maxLength={50000} value={scriptDrafts[scene.id] ?? latestScript?.content ?? ""} onChange={event => setScriptDrafts(current => ({ ...current, [scene.id]: event.target.value }))} placeholder="Write dialogue, action, and scene directions. Saving creates a new immutable script revision." /><button type="button" className="secondary-button" disabled={loading || !(scriptDrafts[scene.id] ?? latestScript?.content ?? "").trim()} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new script revision" : "Save first script version"}</button></>}
-                                {scene.script_versions.length > 0 && <details className="scene-script-history"><summary>Script history</summary>{[...scene.script_versions].reverse().map(version => <article key={version.id}><strong>Revision {version.revision_number} · {version.author_display_name}</strong><pre>{version.content}</pre></article>)}</details>}
+                                <div className="section-kicker">WORKING SCREENPLAY · {scene.script_versions.length} REVISIONS</div>
+                                {latestScript && (
+                                  <details className="scene-current-script">
+                                    <summary>Current script · Revision {latestScript.revision_number}</summary>
+                                    <pre>{latestScript.content}</pre>
+                                  </details>
+                                )}
+                                {canEditStoryboard && (
+                                  <>
+                                    {!scriptEditorOpen[scene.id] && (
+                                      <button type="button" className="secondary-button" onClick={() => startStructuredScriptEdit(scene)}>
+                                        {latestScript ? "Edit as structured screenplay" : "Write screenplay"}
+                                      </button>
+                                    )}
+                                    {scriptEditorOpen[scene.id] && (
+                                      <div className="structured-script-editor">
+                                        <div className="script-editor-intro">
+                                          <strong>{latestScript ? `Create revision ${latestScript.revision_number + 1}` : "Create first screenplay revision"}</strong>
+                                          <span>Each block is stored separately and remains in order. Dialogue is attributed to a story character, not a performer.</span>
+                                        </div>
+                                        {(scriptElementDrafts[scene.id] || []).map((element, elementIndex) => (
+                                          <div className="script-element-card" key={elementIndex}>
+                                            <div className="script-element-heading">
+                                              <span>{(elementIndex + 1).toString().padStart(2, "0")}</span>
+                                              <select
+                                                aria-label="Screenplay block type"
+                                                value={element.element_type}
+                                                onChange={event => {
+                                                  const elementType = event.target.value as ScriptElementType;
+                                                  updateScriptElement(scene.id, elementIndex, {
+                                                    element_type: elementType,
+                                                    character_id: elementType === "dialogue" || elementType === "parenthetical" ? element.character_id : "",
+                                                  });
+                                                }}
+                                              >
+                                                <option value="action">Action</option>
+                                                <option value="dialogue">Dialogue</option>
+                                                <option value="parenthetical">Parenthetical</option>
+                                                <option value="transition">Transition</option>
+                                                <option value="production_note">Production note</option>
+                                              </select>
+                                              <button type="button" className="quiet-button danger-button" onClick={() => removeScriptElement(scene.id, elementIndex)} aria-label="Remove screenplay block">Remove</button>
+                                            </div>
+                                            {(element.element_type === "dialogue" || element.element_type === "parenthetical") && (
+                                              <label className="script-speaker-select">
+                                                {element.element_type === "dialogue" ? "Speaking character" : "Associated character (optional)"}
+                                                <select
+                                                  required={element.element_type === "dialogue"}
+                                                  value={element.character_id}
+                                                  onChange={event => updateScriptElement(scene.id, elementIndex, { character_id: event.target.value })}
+                                                >
+                                                  <option value="">Select a character</option>
+                                                  {storyboard.characters.filter(character => character.status === "active").map(character => (
+                                                    <option key={character.id} value={character.id}>{character.name}</option>
+                                                  ))}
+                                                </select>
+                                              </label>
+                                            )}
+                                            <label className="script-element-content">
+                                              {element.element_type === "action" ? "Action / description"
+                                                : element.element_type === "dialogue" ? "Spoken line"
+                                                : element.element_type === "parenthetical" ? "Delivery / parenthetical"
+                                                : element.element_type === "transition" ? "Transition"
+                                                : "Production note"}
+                                              <textarea
+                                                rows={element.element_type === "action" ? 4 : 2}
+                                                maxLength={10000}
+                                                value={element.content}
+                                                onChange={event => updateScriptElement(scene.id, elementIndex, { content: event.target.value })}
+                                                placeholder={element.element_type === "action" ? "Describe what happens on screen…"
+                                                  : element.element_type === "dialogue" ? "Write the character's spoken words…"
+                                                  : element.element_type === "parenthetical" ? "e.g. quietly, after a pause…"
+                                                  : element.element_type === "transition" ? "e.g. CUT TO:"
+                                                  : "Camera, sound, continuity, or production instruction…"}
+                                              />
+                                            </label>
+                                          </div>
+                                        ))}
+                                        <div className="script-add-blocks">
+                                          <span>Add a block</span>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "action")}>+ Action</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "dialogue")}>+ Dialogue</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "parenthetical")}>+ Parenthetical</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "transition")}>+ Transition</button>
+                                          <button type="button" onClick={() => addScriptElement(scene.id, "production_note")}>+ Production note</button>
+                                        </div>
+                                        <div className="script-editor-actions">
+                                          <span>{(scriptElementDrafts[scene.id] || []).length} ordered blocks · Save creates a new immutable revision</span>
+                                          <button type="button" className="quiet-button" onClick={() => setScriptEditorOpen(current => ({ ...current, [scene.id]: false }))}>Cancel</button>
+                                          <button type="button" className="primary-button" disabled={loading || !(scriptElementDrafts[scene.id] || []).length || (scriptElementDrafts[scene.id] || []).some(item => !item.content.trim() || (item.element_type === "dialogue" && !item.character_id))} onClick={() => saveSceneScript(scene)}>{latestScript ? "Save new revision" : "Save screenplay"}</button>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                                {scene.script_versions.length > 0 && (
+                                  <details className="scene-script-history">
+                                    <summary>Script history</summary>
+                                    {[...scene.script_versions].reverse().map(version => (
+                                      <article key={version.id}>
+                                        <strong>Revision {version.revision_number} · {version.author_display_name}</strong>
+                                        {version.elements.length > 0 ? (
+                                          <div className="script-history-elements">
+                                            {version.elements.map(element => (
+                                              <div className={`script-history-element ${element.element_type}`} key={element.id}>
+                                                <small>{element.element_order.toString().padStart(2, "0")} · {element.element_type.replace("_", " ")}{element.character_name ? ` · ${element.character_name}` : ""}</small>
+                                                <p>{element.content}</p>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : <pre>{version.content}</pre>}
+                                      </article>
+                                    ))}
+                                  </details>
+                                )}
                               </div>
                             </article>
                           );
