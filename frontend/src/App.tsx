@@ -711,7 +711,7 @@ function App() {
                 {draft && latestDraftVersion && (
                   <div className="draft-workspace">
                     <div className="draft-version-bar">
-                      <div><div className="section-kicker">CURRENT PROPOSAL</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
+                      <div><div className="section-kicker">{selectedDraftVersion?.id === latestDraftVersion.id ? "CURRENT PROPOSAL" : "HISTORIC PROPOSAL"}</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
                         <p>Version {selectedDraftVersion?.version_number || latestDraftVersion.version_number} · {selectedDraftVersion?.origin === "manual" ? "Manually revised" : "Compiled proposal"} · {selectedDraftVersion?.author_display_name}</p>
                       </div>
                       {canContribute && selectedProject.current_phase !== "storyboard" && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
@@ -747,9 +747,12 @@ function App() {
                       <section className="approval-panel">
                         <div className="approval-heading">
                           <div><div className="section-kicker">VERSION-SPECIFIC DECISION</div><h3>Review and approval</h3></div>
-                          <span className={selectedApproval.decision_outcome === "approved" ? "approval-status approved" : selectedApproval.decision_outcome === "rejected" ? "approval-status rejected" : "approval-status pending"}>
-                            {selectedApproval.decision_outcome || "Awaiting decision"}
-                          </span>
+                          <div className="approval-heading-actions">
+                            <span className={selectedApproval.decision_outcome === "approved" ? "approval-status approved" : selectedApproval.decision_outcome === "rejected" ? "approval-status rejected" : "approval-status pending"}>
+                              {selectedApproval.decision_outcome || "Awaiting decision"}
+                            </span>
+                            <button type="button" className="quiet-button" onClick={() => loadApproval(selectedProject.id).catch(err => setError(err instanceof Error ? err.message : "Could not refresh votes."))}>Refresh tally</button>
+                          </div>
                         </div>
                         <div className="approval-tally">
                           <div><strong>{selectedApproval.approve_count}</strong><span>Approve votes</span></div>
