@@ -177,9 +177,10 @@ def create_scene_run(project_id: uuid.UUID, payload: SceneRunCreate, db: DbSessi
             new_controller_type=instance.controller_type, new_controller_user_id=instance.controller_user_id,
             control_mode=instance.control_mode, reason="scene_run_initialized", changed_by_user_id=user.id,
         ))
+    run.scene_snapshot = snapshot
     db.commit()
     db.refresh(run)
-    return _run_read(db, run)
+    return _run_read(db)
 
 
 @router.get("/scene-runs", response_model=list[SceneRunRead])
@@ -352,7 +353,7 @@ def create_take(project_id: uuid.UUID, run_id: uuid.UUID, payload: PerformanceTa
     run = _run_or_404(db, project_id, run_id)
     if run.status not in ("paused", "completed"):
         raise HTTPException(status_code=409, detail="Pause or complete a scene run before sealing a take.")
-    number = (db.scalar(select(func.max(PerformanceTake.take_number).where(PerformanceTake.scene_run_id == run.id)) or 0) + 1)
+    number = (db.scalar(select(func.max(PerformanceTake.take_number)).where(PerformanceTake.scene_run_id == run.id)) or 0) + 1
     take = PerformanceTake(
         project_id=project_id, scene_run_id=run.id, take_number=number,
         state_snapshot=payload.state_snapshot, created_by_user_id=user.id,
@@ -399,8 +400,11 @@ def append_take_events(project_id: uuid.UUID, take_id: uuid.UUID, payload: Perfo
         instance = None
         if item.cast_member_instance_id:
             instance = _instance_or_404(db, run.id, item.cast_member_instance_id)
-            if item.authority_epoch is None or item.authority_epoch != instance.authority_epoch:
-                raise HTTPException(status_code=409, detail="Event rejected because its controller authority epoch is stale.")
+            if item.authority_epoch is None or db.scalar(select(ControllerAssignmentEvent.id).where(
+                ControllerAssignmentEvent.cast_member_instance_id == instance.id,
+                ControllerAssignmentEvent.authority_epoch == item.authority_epoch,
+            )) is None:
+                raise HTTPException(status_code=409, detail="Event rejected because its controller authority epoch is unknown or stale.")
         elif item.authority_epoch is not None:
             raise HTTPException(status_code=422, detail="An authority epoch requires a cast member instance.")
         db.add(PerformanceTakeEvent(
@@ -642,7 +646,6 @@ def export_edit_sequence(project_id: uuid.UUID, sequence_id: uuid.UUID, db: DbSe
         created_by_user_id=user.id,
     )
     db.add(export)
-    sequence.status = "exported"
     db.commit()
     db.refresh(export)
     return EditExportRead.model_validate(export, from_attributes=True)
