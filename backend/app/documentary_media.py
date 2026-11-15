@@ -597,8 +597,17 @@ async def upload_documentary_media(
         raise HTTPException(status_code=422, detail="Video assets must use a video file format.")
     if asset_type == "image" and not media_type.startswith("image/"):
         raise HTTPException(status_code=422, detail="Image assets must use an image file format.")
-    if asset_type == "transcript" and media_type not in {"text/plain", "text/markdown", "application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.oasis.opendocument.text"}:
-        raise HTTPException(status_code=422, detail="Transcript assets must use a text or document format.")
+    document_types = {
+        "text/plain", "text/markdown", "text/csv", "application/json",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.oasis.opendocument.text",
+    }
+    if asset_type in {"document", "transcript", "release_document"} and media_type not in document_types:
+        raise HTTPException(status_code=422, detail="Document, transcript and release-document assets must use a supported document format.")
+    clean_title = title.strip()
+    if not clean_title:
+        raise HTTPException(status_code=422, detail="A non-empty asset title is required.")
     if len(original) > 255:
         original = original[-255:]
 
@@ -628,7 +637,7 @@ async def upload_documentary_media(
             project_id=project_id,
             source_id=source_id,
             interview_session_id=interview_session_id,
-            title=title.strip(),
+            title=clean_title,
             asset_type=asset_type,
             original_filename=original,
             content_type=media_type,
