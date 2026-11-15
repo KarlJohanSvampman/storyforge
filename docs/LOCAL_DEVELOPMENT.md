@@ -122,6 +122,8 @@ The local development identity is one fixed project owner. You can exercise owne
 
 After a narrative is approved and the project reaches the **storyboard** phase, open the project again. The Storyboard section offers an **Initialize storyboard** action. Initialization is anchored to the exact narrative version recorded by the approved phase transition; it does not use whichever draft happens to be newest.
 
+Each storyboard is unique to the pair of project and approved narrative version. Repeating initialization for the same approved version returns the existing storyboard. If a future phase-management workflow sends a project back through approval with a different narrative version, a separate storyboard can be created while the earlier interpretation remains stored. M0.6 currently implements the initial advance into storyboarding; returning to earlier phases is a later workflow capability.
+
 The storyboard workspace supports:
 
 - A project character directory with story description, visual description, personality notes, and active/archived status.
@@ -135,8 +137,8 @@ Character and location records are story-bible entries, not actor profiles, cast
 
 ### M1.1 API endpoints
 
-- `GET /api/projects/{project_id}/storyboard` — get the storyboard and its approved narrative source, or `null` when it has not been initialized.
-- `POST /api/projects/{project_id}/storyboard` — initialize the storyboard from the approved narrative transition; repeat calls return the existing storyboard.
+- `GET /api/projects/{project_id}/storyboard` — get the most recently initialized storyboard and its approved narrative source, or `null` when none has been initialized.
+- `POST /api/projects/{project_id}/storyboard` — initialize from the latest approved narrative transition; repeat calls for the same narrative version return the existing storyboard. A different approved narrative version can have its own storyboard history.
 - `POST /api/projects/{project_id}/storyboard/characters` and `PATCH .../characters/{character_id}` — create/update project character records.
 - `POST /api/projects/{project_id}/storyboard/locations` and `PATCH .../locations/{location_id}` — create/update project location records.
 - `POST /api/projects/{project_id}/storyboard/scenes` and `PATCH .../scenes/{scene_id}` — create/update scene breakdown and assignments.
