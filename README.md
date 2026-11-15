@@ -110,6 +110,7 @@ docs/           Product and technical decisions
 - **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`.
 - **M0.6:** owner-only or majority approval rules, append-only vote history, immutable version decisions, and approval-gated storyboard phase progression are implemented on `feature/m0-6-approval-and-phase-progression`. Local migration and end-to-end verification are the next step.
 - **M1.1:** approved-narrative storyboard initialization, ordered scenes, character/location story-bible records, exact narrative passage links, and append-only per-scene script revisions are implemented on `feature/m1-1-storyboard-foundation`. Local migration and end-to-end verification are pending.
+- **M1.2:** structured screenplay revisions with ordered action, dialogue, parenthetical, transition, and production-note blocks; scene-bound speaker attribution; readable rendering; and legacy text compatibility are implemented on `feature/m1-2-structured-screenplay`. Local migration and end-to-end verification are pending.
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
 
