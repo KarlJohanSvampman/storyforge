@@ -267,3 +267,9 @@ a { color: inherit; text-decoration: none; }
 .draft-provenance-item .draft-provenance-row { border-bottom: 0; cursor: pointer; list-style: none; }
 .draft-provenance-item summary::-webkit-details-marker { display: none; }
 .draft-provenance-item > pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0 0 12px 38px; padding: 12px; border-left: 2px solid #65754e; color: #aeb5a0; background: #191d18; font: 10px/1.8 "DM Sans", sans-serif; }
+
+.draft-suggestion-option { display: flex; align-items: center; gap: 10px; margin: -3px 0 5px 28px; padding: 9px 11px; border-left: 2px solid #65754e; background: #1a1f18; cursor: pointer; }
+.draft-suggestion-option input { accent-color: #a9bd78; }
+.draft-suggestion-option span { display: grid; gap: 4px; }
+.draft-suggestion-option strong { color: #b9c89a; font-size: 9px; font-weight: 500; }
+.draft-suggestion-option small { color: #858b7e; font-size: 8px; }
