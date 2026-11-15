@@ -208,3 +208,66 @@ class DraftSourceReference(Base):
     source_title: Mapped[str] = mapped_column(String(160), nullable=False)
     source_text_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
     version: Mapped[NarrativeDraftVersion] = relationship(back_populates="sources")
+
+
+
+class ProjectApprovalRule(Base):
+    """Project-level rule used when a narrative proposal is put to a vote."""
+    __tablename__ = "project_approval_rules"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_project_approval_rules_project"),
+        CheckConstraint("mode IN ('owner_only', 'majority')", name="ck_project_approval_rules_mode"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    mode: Mapped[str] = mapped_column(String(20), default="owner_only", nullable=False)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class NarrativeApprovalVote(Base):
+    """Append-only vote event. The latest vote from each eligible member is counted."""
+    __tablename__ = "narrative_approval_votes"
+    __table_args__ = (
+        CheckConstraint("choice IN ('approve', 'reject')", name="ck_narrative_approval_votes_choice"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    voter_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    choice: Mapped[str] = mapped_column(String(20), nullable=False)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NarrativeApprovalDecision(Base):
+    """One immutable final decision for a specific narrative draft version."""
+    __tablename__ = "narrative_approval_decisions"
+    __table_args__ = (
+        UniqueConstraint("version_id", name="uq_narrative_approval_decisions_version"),
+        CheckConstraint("outcome IN ('approved', 'rejected')", name="ck_narrative_approval_decisions_outcome"),
+        CheckConstraint("rule_mode IN ('owner_only', 'majority')", name="ck_narrative_approval_decisions_rule_mode"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(20), nullable=False)
+    rule_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    eligible_voter_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    approve_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    reject_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    required_votes: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProjectPhaseTransition(Base):
+    """Append-only project phase history, linked to the narrative version when applicable."""
+    __tablename__ = "project_phase_transitions"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_phase: Mapped[str] = mapped_column(String(30), nullable=False)
+    to_phase: Mapped[str] = mapped_column(String(30), nullable=False)
+    actor_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    narrative_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="SET NULL"), nullable=True)
+    reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
