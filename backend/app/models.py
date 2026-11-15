@@ -345,9 +345,11 @@ class ProjectLocation(Base):
 
 
 class Storyboard(Base):
-    """One storyboard workspace, permanently anchored to the narrative version approved for it."""
+    """A storyboard interpretation anchored to one approved narrative version."""
     __tablename__ = "storyboards"
-    __table_args__ = (UniqueConstraint("project_id", name="uq_storyboards_project"),)
+    __table_args__ = (
+        UniqueConstraint("project_id", "narrative_version_id", name="uq_storyboards_project_narrative"),
+    )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
