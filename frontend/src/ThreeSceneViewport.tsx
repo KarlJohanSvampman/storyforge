@@ -6,7 +6,6 @@ type CastVisual = {
   id: string;
   character_name_snapshot: string;
   actor_name_snapshot: string;
-  state_snapshot: Record<string, unknown>;
 };
 
 type Props = { castMembers: CastVisual[]; sceneTitle: string; cameraPreset: "wide" | "close" | "overhead" | "reverse" };
