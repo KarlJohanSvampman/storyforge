@@ -5,9 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import (
-    NarrativeApprovalDecision, NarrativeApprovalVote, NarrativeDraft,
-    NarrativeDraftVersion, Project, ProjectApprovalRule, ProjectMembership,
-    ProjectPhaseTransition, User,
+    NarrativeApprovalDecision, NarrativeApprovalRound, NarrativeApprovalVoter,
+    NarrativeApprovalVote, NarrativeDraft, NarrativeDraftVersion,
+    Project, ProjectApprovalRule, ProjectMembership, ProjectPhaseTransition, User,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
@@ -21,18 +21,25 @@ VOTING_ROLES = ("owner", "editor", "contributor")
 PHASES_OPEN_FOR_APPROVAL = ("contributions", "development")
 
 
-def _eligible_voter_ids(db: Session, project: Project, mode: str) -> set[uuid.UUID]:
-    active_ids = set(db.scalars(
-        select(ProjectMembership.user_id).where(
+def _eligible_members(db: Session, project: Project, mode: str) -> dict[uuid.UUID, str]:
+    memberships = db.scalars(
+        select(ProjectMembership).where(
             ProjectMembership.project_id == project.id,
             ProjectMembership.status == "active",
             ProjectMembership.user_id.is_not(None),
             ProjectMembership.role.in_(VOTING_ROLES),
         )
-    ).all())
+    ).all()
+    eligible = {
+        membership.user_id: membership.role
+        for membership in memberships
+        if membership.user_id is not None
+    }
     if mode == "owner_only":
-        return {project.owner_user_id} if project.owner_user_id in active_ids else set()
-    return active_ids
+        return {
+            project.owner_user_id: eligible[project.owner_user_id]
+        } if project.owner_user_id in eligible else {}
+    return eligible
 
 
 def _rule_read(db: Session, project_id: uuid.UUID) -> ApprovalRuleRead:
@@ -80,6 +87,25 @@ def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> App
             .order_by(NarrativeDraftVersion.version_number)
         ).all()
         for version in draft_versions:
+            ballot = db.scalar(
+                select(NarrativeApprovalRound)
+                .where(NarrativeApprovalRound.version_id == version.id)
+            )
+            if ballot:
+                mode = ballot.rule_mode
+                eligible_ids = set(db.scalars(
+                    select(NarrativeApprovalVoter.voter_user_id)
+                    .where(NarrativeApprovalVoter.round_id == ballot.id)
+                ).all())
+                eligible_voter_count = ballot.eligible_voter_count
+                required_votes = ballot.required_votes
+            else:
+                mode = rule_read.mode
+                eligible_members = _eligible_members(db, project, mode)
+                eligible_ids = set(eligible_members)
+                eligible_voter_count = len(eligible_ids)
+                required_votes = 1 if mode == "owner_only" else (eligible_voter_count // 2 + 1)
+
             vote_events = db.scalars(
                 select(NarrativeApprovalVote)
                 .where(NarrativeApprovalVote.version_id == version.id)
@@ -92,19 +118,19 @@ def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> App
                 vote for voter_id, vote in latest_by_user.items()
                 if voter_id in eligible_ids
             ]
-            required_votes = 1 if mode == "owner_only" else (len(eligible_ids) // 2 + 1)
             approve_count = sum(vote.choice == "approve" for vote in counted_votes)
             reject_count = sum(vote.choice == "reject" for vote in counted_votes)
             decision = db.scalar(
                 select(NarrativeApprovalDecision)
                 .where(NarrativeApprovalDecision.version_id == version.id)
             )
-            # After a final decision, display the exact tally snapshot that was
-            # recorded at decision time, rather than recalculating against later membership changes.
-            eligible_voter_count = decision.eligible_voter_count if decision else len(eligible_ids)
-            required_votes = decision.required_votes if decision else required_votes
-            approve_count = decision.approve_count if decision else approve_count
-            reject_count = decision.reject_count if decision else reject_count
+            # The final decision is authoritative; retain its exact decision-time tally snapshot.
+            if decision:
+                mode = decision.rule_mode
+                eligible_voter_count = decision.eligible_voter_count
+                required_votes = decision.required_votes
+                approve_count = decision.approve_count
+                reject_count = decision.reject_count
             vote_reads = []
             user_cache: dict[uuid.UUID, User | None] = {}
             for vote in vote_events:
@@ -141,6 +167,8 @@ def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> App
                 version_id=version.id,
                 version_number=version.version_number,
                 is_current_version=version.version_number == draft.current_version_number,
+                rule_mode=mode,
+                ballot_opened_at=ballot.created_at if ballot else None,
                 eligible_voter_count=eligible_voter_count,
                 required_votes=required_votes,
                 approve_count=approve_count,
@@ -237,6 +265,13 @@ def update_approval_rule(
         raise HTTPException(status_code=403, detail="Only the project owner can configure the approval rule.")
     if project.current_phase not in PHASES_OPEN_FOR_APPROVAL:
         raise HTTPException(status_code=409, detail="The approval rule is locked after the project enters storyboarding.")
+    round_exists = db.scalar(
+        select(NarrativeApprovalRound.id)
+        .join(NarrativeDraftVersion, NarrativeDraftVersion.id == NarrativeApprovalRound.version_id)
+        .join(NarrativeDraft, NarrativeDraft.id == NarrativeDraftVersion.draft_id)
+        .where(NarrativeDraft.project_id == project.id)
+        .limit(1)
+    )
     vote_exists = db.scalar(
         select(NarrativeApprovalVote.id)
         .join(NarrativeDraftVersion, NarrativeDraftVersion.id == NarrativeApprovalVote.version_id)
@@ -251,7 +286,7 @@ def update_approval_rule(
         .where(NarrativeDraft.project_id == project.id)
         .limit(1)
     )
-    if vote_exists or decision_exists:
+    if round_exists or vote_exists or decision_exists:
         raise HTTPException(status_code=409, detail="The approval rule cannot change after voting has started.")
     rule = db.scalar(
         select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id).with_for_update()
@@ -284,13 +319,49 @@ def cast_approval_vote(
     project = _locked_project(db, project_id)
     _membership(db, project.id, user.id)
     _, version = _current_version(db, project, draft_id, version_id)
-    rule = db.scalar(select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id))
-    mode = rule.mode if rule else "owner_only"
-    eligible_ids = _eligible_voter_ids(db, project, mode)
+    ballot = db.scalar(
+        select(NarrativeApprovalRound)
+        .where(NarrativeApprovalRound.version_id == version.id)
+        .with_for_update()
+    )
+    if ballot:
+        mode = ballot.rule_mode
+        eligible_members = {
+            voter.voter_user_id: voter.role_snapshot
+            for voter in db.scalars(
+                select(NarrativeApprovalVoter).where(NarrativeApprovalVoter.round_id == ballot.id)
+            ).all()
+        }
+    else:
+        rule = db.scalar(select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id))
+        mode = rule.mode if rule else "owner_only"
+        eligible_members = _eligible_members(db, project, mode)
+        if not eligible_members:
+            raise HTTPException(status_code=409, detail="There are no active eligible members for this approval rule.")
+    eligible_ids = set(eligible_members)
     if user.id not in eligible_ids:
         if mode == "owner_only":
             raise HTTPException(status_code=403, detail="Only the project owner may vote under this approval rule.")
-        raise HTTPException(status_code=403, detail="Only active owners, editors, and contributors may vote.")
+        raise HTTPException(status_code=403, detail="Only members eligible when this ballot opened may vote.")
+
+    if ballot is None:
+        eligible_count = len(eligible_members)
+        required_count = 1 if mode == "owner_only" else (eligible_count // 2 + 1)
+        ballot = NarrativeApprovalRound(
+            version_id=version.id,
+            rule_mode=mode,
+            eligible_voter_count=eligible_count,
+            required_votes=required_count,
+        )
+        db.add(ballot)
+        db.flush()
+        for voter_id, role_snapshot in eligible_members.items():
+            db.add(NarrativeApprovalVoter(
+                round_id=ballot.id,
+                voter_user_id=voter_id,
+                role_snapshot=role_snapshot,
+            ))
+        db.flush()
     latest = db.scalars(
         select(NarrativeApprovalVote)
         .where(
@@ -329,9 +400,18 @@ def finalize_approval_decision(
     if membership.role != "owner":
         raise HTTPException(status_code=403, detail="Only the project owner can finalize the approval decision.")
     draft, version = _current_version(db, project, draft_id, version_id)
-    rule = db.scalar(select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id))
-    mode = rule.mode if rule else "owner_only"
-    eligible_ids = _eligible_voter_ids(db, project, mode)
+    ballot = db.scalar(
+        select(NarrativeApprovalRound)
+        .where(NarrativeApprovalRound.version_id == version.id)
+        .with_for_update()
+    )
+    if ballot is None:
+        raise HTTPException(status_code=409, detail="Voting has not started for this narrative version.")
+    mode = ballot.rule_mode
+    eligible_ids = set(db.scalars(
+        select(NarrativeApprovalVoter.voter_user_id)
+        .where(NarrativeApprovalVoter.round_id == ballot.id)
+    ).all())
     vote_events = db.scalars(
         select(NarrativeApprovalVote)
         .where(NarrativeApprovalVote.version_id == version.id)
@@ -344,7 +424,7 @@ def finalize_approval_decision(
         vote for voter_id, vote in latest_by_user.items()
         if voter_id in eligible_ids
     ]
-    required_votes = 1 if mode == "owner_only" else (len(eligible_ids) // 2 + 1)
+    required_votes = ballot.required_votes
     approve_count = sum(vote.choice == "approve" for vote in counted_votes)
     reject_count = sum(vote.choice == "reject" for vote in counted_votes)
     if approve_count >= required_votes:
@@ -362,7 +442,7 @@ def finalize_approval_decision(
         actor_user_id=user.id,
         outcome=outcome,
         rule_mode=mode,
-        eligible_voter_count=len(eligible_ids),
+        eligible_voter_count=ballot.eligible_voter_count,
         approve_count=approve_count,
         reject_count=reject_count,
         required_votes=required_votes,
