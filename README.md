@@ -102,7 +102,7 @@ docs/           Product and technical decisions
 
 ## Development status
 
-- **M0.1:** runnable React/Vite, FastAPI, and PostgreSQL Docker Compose scaffold. The user has confirmed the stack starts and the frontend successfully reaches the health endpoint.
+- **M0.1:** runnable React/Vite, FastAPI, and PostgreSQL Docker Compose scaffold. The stack has been confirmed to start and the frontend successfully reaches the health endpoint.
 - **M0.2:** project creation, listing, detail views, PostgreSQL persistence, membership roles, and pending invitation records are implemented on `feature/m0-2-project-foundation`.\n- **M0.3:** individual story contributions, append-only revisions, authorship, withdrawal, and a contribution workspace are implemented on `feature/m0-3-story-contributions`.\n- **M0.4:** contribution comments, revision-anchored suggestions, owner/editor decisions, and decision history are implemented on `feature/m0-4-discussion-suggestions`.
 - **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`. Local migration and end-to-end verification are the next step.
 
