@@ -3,7 +3,7 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
-from tests.test_scene_runtime import _scene_with_casting
+from test_scene_runtime import _scene_with_casting
 
 
 def test_performance_take_records_ordered_replayable_events() -> None:
