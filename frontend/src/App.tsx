@@ -224,7 +224,7 @@ type DocumentaryProduction = {
 };
 type DocumentaryMediaRightsDraft = {
   rights_holder: string; rights_basis: string; license_name: string; license_url: string; territory: string;
-  valid_until: string; permitted_uses: DocumentaryConsentUse[]; attribution_required: boolean; attribution_text: string; restrictions: string;
+  valid_from: string; valid_until: string; permitted_uses: DocumentaryConsentUse[]; attribution_required: boolean; attribution_text: string; restrictions: string;
 };
 type DocumentaryClaimUsageDraft = { usage_type: string; scene_id: string; script_version_id: string; reference_text: string };
 const documentaryUseOptions: { value: DocumentaryConsentUse; label: string }[] = [
@@ -1343,7 +1343,7 @@ function App() {
       setError("Add a rationale before submitting a fact-check decision.");
       return;
     }
-    if (!window.confirm(`Record a human fact-check decision of “${result.replaceAll("_", " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
+    if (!window.confirm(`Record a human fact-check decision of “${result.replace(/_/g, " ")}” for this claim? The decision and current evidence snapshot will be kept in review history.`)) return;
     setLoading(true);
     setError("");
     try {
@@ -1828,7 +1828,7 @@ function App() {
                         {documentaryResearch.sources.map(source => (
                           <article className={source.status === "archived" ? "documentary-source-card archived" : "documentary-source-card"} key={source.id}>
                             <div className="documentary-card-heading">
-                              <div><span>{source.source_type.replaceAll("_", " ").toUpperCase()} · {source.status.toUpperCase()}</span><strong>{source.title}</strong></div>
+                              <div><span>{source.source_type.replace(/_/g, " ").toUpperCase()} · {source.status.toUpperCase()}</span><strong>{source.title}</strong></div>
                               {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateResearchSourceStatus(source, source.status === "active" ? "archived" : "active")}>{source.status === "active" ? "Archive" : "Restore"}</button>}
                             </div>
                             {(source.creator || source.publisher || source.publication_date) && <small>{[source.creator, source.publisher, source.publication_date].filter(Boolean).join(" · ")}</small>}
@@ -1857,7 +1857,7 @@ function App() {
                         {documentaryResearch.claims.map(claim => (
                           <article className={claim.status === "archived" ? "documentary-claim-card archived" : "documentary-claim-card"} key={claim.id}>
                             <div className="documentary-card-heading">
-                              <div><span>{claim.current_review_status.replaceAll("_", " ").toUpperCase()} · {claim.status.toUpperCase()}</span><strong>{claim.statement}</strong></div>
+                              <div><span>{claim.current_review_status.replace(/_/g, " ").toUpperCase()} · {claim.status.toUpperCase()}</span><strong>{claim.statement}</strong></div>
                               {canEditDocumentaryResearch && <button type="button" className="quiet-button" disabled={loading} onClick={() => updateDocumentaryClaimStatus(claim, claim.status === "active" ? "archived" : "active")}>{claim.status === "active" ? "Archive" : "Restore"}</button>}
                             </div>
                             <div className="documentary-claim-meta"><span>{claim.origin === "ai_assisted" ? "AI-assisted · not verified" : "Human-authored"}</span><span>Added by {claim.created_by_display_name}</span></div>
@@ -1867,7 +1867,7 @@ function App() {
                               <div className="section-kicker">LINKED EVIDENCE · {claim.evidence.length}</div>
                               {claim.evidence.map(evidence => (
                                 <div className="documentary-evidence-card" key={evidence.id}>
-                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")} · SOURCE {evidence.source_status.toUpperCase()}</span>
+                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replace(/_/g, " ")} · SOURCE {evidence.source_status.toUpperCase()}</span>
                                   {evidence.locator && <small>{evidence.locator}</small>}
                                   {evidence.excerpt && <blockquote>{evidence.excerpt}</blockquote>}
                                   {evidence.notes && <p>{evidence.notes}</p>}
@@ -1911,7 +1911,7 @@ function App() {
                               {claim.reviews.length === 0 && <p className="muted-note">No human fact-check review has been recorded.</p>}
                               {[...claim.reviews].reverse().map(review => (
                                 <article key={review.id}>
-                                  <strong>{review.result.replaceAll("_", " ").toUpperCase()}</strong>
+                                  <strong>{review.result.replace(/_/g, " ").toUpperCase()}</strong>
                                   <span>{review.reviewer_display_name} · {new Date(review.created_at).toLocaleString()}</span>
                                   <p>{review.rationale}</p>
                                   <details><summary>Evidence snapshot · {review.reviewed_evidence_snapshot.length} sources</summary>

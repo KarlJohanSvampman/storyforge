@@ -388,6 +388,23 @@ All endpoints above require a documentary-category project. Read access requires
 
 Security and legal limitations: this initial local-storage slice does not scan for malware, inspect file contents, encrypt files at rest, use external object storage, implement participant identity verification or e-signature, auto-transcode media, or automatically apply withdrawal/takedown instructions to a future published release. The extension allowlist is not a malware safety guarantee. Do not deploy the current development authentication/storage setup as a public production service or treat a rights-basis label as legal advice.
 
+
+## Repository CI checks
+
+The GitHub Actions workflow runs on pull requests targeting `main` and pushes to `main`.
+
+The backend job provisions PostgreSQL 16, installs the application and test dependencies, applies every Alembic migration, and runs the backend API tests. The frontend job installs dependencies and runs the TypeScript/Vite production build.
+
+To run the same checks locally:
+
+1. Start PostgreSQL using the repository Compose stack: `docker compose up -d db`.
+2. From the repository root, install backend dependencies: `python -m pip install -r backend/requirements.txt -r backend/requirements-dev.txt`.
+3. Set `DATABASE_URL=postgresql+psycopg://storyforge:change-me-locally@localhost:5432/storyforge` and the development identity variables used by Compose.
+4. From `backend/`, run `alembic upgrade head` and then `python -m pytest -q tests`.
+5. From `frontend/`, run `npm install` and `npm run build`.
+
+The CI workflow deliberately tests against a fresh PostgreSQL service and a fresh database. This is intended to catch migration-chain failures as well as basic API regressions. It is not a substitute for browser-driven end-to-end testing, media-volume persistence testing, penetration testing, or production deployment review.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
