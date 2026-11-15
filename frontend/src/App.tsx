@@ -7,8 +7,11 @@ import {
 
 type ApiHealth = { status: string; service: string; version: string };
 type CurrentUser = { id: string; display_name: string; email: string };
+type ProjectFormat = "movie" | "tv_series";
+type ProjectCategory = "fiction" | "documentary";
 type Project = {
   id: string; title: string; description: string; logline: string; genre: string;
+  format: ProjectFormat; category: ProjectCategory;
   visibility: string; current_phase: string; owner_user_id: string;
   created_at: string; updated_at: string; member_count: number;
 };
@@ -17,7 +20,7 @@ type Member = {
   invited_email: string | null; role: string; status: string; created_at: string;
 };
 type ProjectDetail = Project & { members: Member[] };
-type ProjectForm = { title: string; logline: string; genre: string; description: string; visibility: string };
+type ProjectForm = { title: string; logline: string; genre: string; description: string; format: ProjectFormat; category: ProjectCategory; visibility: string };
 type Contribution = {
   id: string; project_id: string; author_user_id: string; author_display_name: string;
   title: string; status: string; current_revision_number: number; current_revision_id: string; current_body: string;
@@ -92,6 +95,17 @@ type ProjectLocation = {
   environment_type: string; time_period: string; visual_notes: string; status: string;
   created_by_user_id: string; created_at: string; updated_at: string;
 };
+type StoryboardEpisode = {
+  id: string; season_id: string; episode_number: number; title: string;
+  logline: string; synopsis: string; estimated_duration_seconds: number | null;
+  status: string; created_by_user_id: string; created_at: string; updated_at: string;
+};
+type StoryboardSeason = {
+  id: string; storyboard_id: string; season_number: number; title: string;
+  description: string; story_arc: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+  episodes: StoryboardEpisode[];
+};
 type ScenePassage = {
   id: string; reference_order: number; start_offset: number; end_offset: number;
   passage_snapshot: string; created_by_user_id: string; created_at: string;
@@ -113,6 +127,7 @@ type SceneCharacter = { id: string; name: string; role_label: string; notes: str
 type StoryboardScene = {
   id: string; scene_order: number; title: string; summary: string; requirements: string;
   estimated_duration_seconds: number | null; location_id: string | null; location_name: string | null;
+  episode_id: string | null; episode_title: string | null; season_number: number | null; episode_number: number | null;
   characters: SceneCharacter[]; passages: ScenePassage[]; script_versions: SceneScriptVersion[];
   created_by_user_id: string; created_at: string; updated_at: string;
 };
@@ -120,11 +135,11 @@ type Storyboard = {
   id: string; project_id: string; title: string; narrative_version_id: string;
   narrative_version_number: number; narrative_title: string; narrative_content: string;
   created_by_user_id: string; created_at: string;
-  scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
+  scenes: StoryboardScene[]; seasons: StoryboardSeason[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
 };
 type SceneEditDraft = {
   title: string; summary: string; requirements: string;
-  estimated_duration_seconds: string; location_id: string; character_ids: string[];
+  estimated_duration_seconds: string; location_id: string; episode_id: string; character_ids: string[];
 };
 
 const phases = [
@@ -134,7 +149,7 @@ const phases = [
   { number: "04", title: "Bring it to life", detail: "Cast, perform, direct and edit.", icon: Film, state: "upcoming" },
 ];
 
-const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", visibility: "private" };
+const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", format: "movie", category: "fiction", visibility: "private" };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -178,6 +193,17 @@ function App() {
   const [sceneRequirements, setSceneRequirements] = useState("");
   const [sceneDuration, setSceneDuration] = useState("");
   const [sceneLocationId, setSceneLocationId] = useState("");
+  const [sceneEpisodeId, setSceneEpisodeId] = useState("");
+  const [seasonNumber, setSeasonNumber] = useState("1");
+  const [seasonTitle, setSeasonTitle] = useState("");
+  const [seasonDescription, setSeasonDescription] = useState("");
+  const [seasonStoryArc, setSeasonStoryArc] = useState("");
+  const [episodeSeasonId, setEpisodeSeasonId] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState("1");
+  const [episodeTitle, setEpisodeTitle] = useState("");
+  const [episodeLogline, setEpisodeLogline] = useState("");
+  const [episodeSynopsis, setEpisodeSynopsis] = useState("");
+  const [episodeDuration, setEpisodeDuration] = useState("");
   const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
   const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
   const [scriptElementDrafts, setScriptElementDrafts] = useState<Record<string, SceneScriptElementDraft[]>>({});
@@ -264,7 +290,9 @@ function App() {
       setPassageDrafts({});
       setPassageOccurrences({});
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
+      setSeasonNumber("1"); setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+      setEpisodeSeasonId(""); setEpisodeNumber("1"); setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -940,10 +968,15 @@ function App() {
                   <label>Project title<input autoFocus required maxLength={160} placeholder="Give your story a working title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
                   <label>Logline <span className="field-hint">A one-sentence hook (optional)</span><input maxLength={500} placeholder="What's the story about?" value={form.logline} onChange={e => setForm({ ...form, logline: e.target.value })} /></label>
                   <div className="form-row">
-                    <label>Genre<input maxLength={80} placeholder="e.g. Sci-fi, drama, fantasy" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
+                    <label>Production format<select value={form.format} onChange={e => setForm({ ...form, format: e.target.value as ProjectFormat })}><option value="movie">Movie</option><option value="tv_series">TV series</option></select></label>
+                    <label>Content category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ProjectCategory })}><option value="fiction">Fiction</option><option value="documentary">Documentary</option></select></label>
+                  </div>
+                  <div className="form-row">
+                    <label>Genre / subject<input maxLength={80} placeholder="e.g. Drama, history, nature, science" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
                     <label>Visibility<select value={form.visibility} onChange={e => setForm({ ...form, visibility: e.target.value })}><option value="private">Private · members only</option><option value="unlisted">Unlisted · link access later</option><option value="public">Public · discoverable later</option></select></label>
                   </div>
                   <label>Project description<textarea rows={3} maxLength={10000} placeholder="Set the scene. What do you want to make together?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+                  {form.category === "documentary" && <p className="field-hint">Documentary projects are fact-based works. Research, source attribution, interview records and fact-checking will be handled by the documentary workflow.</p>}
                   <div className="form-actions"><span>You'll be the project owner. You can invite collaborators next.</span><button className="primary-button" disabled={loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create project</button></div>
                 </form>
               )}
@@ -952,7 +985,7 @@ function App() {
               )}
               {projects.length > 0 && <div className="project-grid">{projects.map(project => (
                 <button className="project-card" key={project.id} onClick={() => openProject(project.id)}>
-                  <div className="project-card-top"><span className="project-genre">{project.genre || "Untitled genre"}</span><span className="project-visibility">{project.visibility}</span></div>
+                  <div className="project-card-top"><span className="project-genre">{project.genre || (project.category === "documentary" ? "Documentary" : "Untitled genre")}</span><span className="project-visibility">{project.format === "tv_series" ? "TV series" : "Movie"} · {project.category}</span></div>
                   <h2>{project.title}</h2><p>{project.logline || project.description || "A new story is waiting to be told."}</p>
                   <div className="project-card-bottom"><span><Users size={14} /> {project.member_count} {project.member_count === 1 ? "member" : "members"}</span><span>{project.current_phase} <ArrowUpRight size={14} /></span></div>
                 </button>
@@ -966,7 +999,7 @@ function App() {
               {error && <div className="error-banner">{error}</div>}
               <div className="detail-hero">
                 <div className="eyebrow"><span className="eyebrow-line" /> PROJECT WORKSPACE</div>
-                <div className="detail-meta"><span>{selectedProject.genre || "Story project"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
+                <div className="detail-meta"><span>{selectedProject.format === "tv_series" ? "TV series" : "Movie"}</span><span>{selectedProject.category === "documentary" ? "Documentary" : "Fiction"}</span><span>{selectedProject.genre || "No genre / subject"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
                 <h1>{selectedProject.title}</h1>
                 {selectedProject.logline && <p className="detail-logline">{selectedProject.logline}</p>}
                 {selectedProject.description && <p className="detail-description">{selectedProject.description}</p>}
