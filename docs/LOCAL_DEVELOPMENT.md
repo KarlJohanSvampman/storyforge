@@ -330,6 +330,63 @@ Renaming a character updates the current directory and scene-participant labels.
 13. Create a later storyboard interpretation for the same project if the approval flow permits it. Confirm the same project-level story-bible identities are returned and remain reusable.
 14. Restart Docker Compose and confirm profile updates, archived statuses, scene references, and screenplay history persist.
 
+
+## M1.6 documentary interviews, consent, media and claim placement
+
+M1.6 adds a second workspace alongside the existing M1.4 source/claim register. Both are shown on documentary movie and documentary-series projects, including before a storyboard exists. The production overview is available from:
+
+- `GET /api/projects/{project_id}/documentary/production`
+
+Interview directory:
+- `POST /api/projects/{project_id}/documentary/interview-subjects` — add a subject with a named, pseudonym, or anonymous identity mode.
+- `PATCH /api/projects/{project_id}/documentary/interview-subjects/{subject_id}` — edit subject details or archive/restore the record.
+- `POST /api/projects/{project_id}/documentary/interview-sessions` — record the subject, date/time, interviewer, format, location/platform, and transcript/session notes.
+- `PATCH /api/projects/{project_id}/documentary/interview-sessions/{session_id}` — update notes/format or archive/restore the session.
+
+Consent:
+- `POST /api/projects/{project_id}/documentary/releases` — create a draft or signed release. Signed records require an explicit `signed_at` timestamp. Each record stores the subject, optional session, project/production/release scope, consent wording, permitted uses, optional expiry, withdrawal terms, and optional private signed-document file.
+- `POST /api/projects/{project_id}/documentary/releases/{release_id}/withdraw` — record a required reason and append a withdrawal event. The status becomes withdrawn; the prior record and event remain visible.
+- Release creation and withdrawal are performed by project members, not by the interview subject through a verified identity/signature flow. A status of signed is a project-record assertion, not a cryptographic signature or legal certification.
+
+Private media:
+- `POST /api/projects/{project_id}/documentary/media` — multipart upload fields: `file`, `title`, `asset_type`, optional `source_id`, optional `interview_session_id`, optional `duration_seconds`.
+- `GET /api/projects/{project_id}/documentary/media/{asset_id}/download` — membership-protected download; signed release documents are restricted to owners/editors.
+- Each uploaded record stores original filename, detected-from-extension content type, byte size, SHA-256 digest and a private storage key. The storage key is not returned to the browser.
+- Uploads are limited to 100 MiB. The current extension allowlist covers PDF, TXT/Markdown, CSV, JSON, DOCX/ODT, common MP3/WAV/M4A/MP4/MOV/WebM, and PNG/JPEG/TIFF files.
+- Docker Compose mounts a named volume, `storyforge_documentary_media`, at `/app/storage/documentary`. Database backups alone do not include uploaded bytes; back up the database and media volume together. Removing the volume permanently removes those files.
+
+Rights:
+- `POST /api/projects/{project_id}/documentary/media/{asset_id}/rights` — create a new versioned rights/provenance record. The previous version is retained and marked superseded. Capture rights holder, basis, licence, territory, validity, permitted uses, attribution, and restrictions.
+- A new rights record supersedes the earlier record. The current clearance check requires a current, effective, non-expired rights record whose permitted uses include the destination use (or `all`).
+- If the asset is tied to an interview session, the usage check also requires a signed, non-expired project or production release for the same subject and destination use. A session-specific release applies only to that session; a project/production release without a session reference covers the subject's sessions.
+- A release scoped to one future publication/release is recorded for reference but is not a general project/production permission.
+
+Claim placements:
+- `POST /api/projects/{project_id}/documentary/claims/{claim_id}/usages` — append a placement of a currently Supported claim into an outline, scene, exact screenplay revision, narration, lower-third or caption.
+- A scene must belong to this project. A screenplay revision must belong to the selected scene. Existing usages are retained as append-only references.
+- A claim with a later `needs_review`, contested, or otherwise non-supported current state is not eligible for new placements. Existing placement history remains, and the overview reports the claim's current review status.
+
+All endpoints above require a documentary-category project. Read access requires project membership; writes require an owner, editor, or contributor and are blocked after publication. Viewers cannot write. A non-documentary project receives HTTP 409.
+
+### M1.6 verification checklist
+
+1. Create a documentary movie and documentary series; open both before and after storyboard initialization. Confirm the production workspace is present independently of the series hierarchy.
+2. Create named, pseudonymous, and anonymous subjects. Confirm project members see the entered identity label and archive/restore preserves the directory.
+3. Create multiple sessions for a subject with distinct dates, interviewers, formats, locations/platforms and notes. Confirm a session cannot be created for an archived subject and a session from another project is rejected.
+4. Upload a transcript and an audio/video file linked to their session. Confirm metadata, byte size, SHA-256, file persistence after container restart, and private download access.
+5. Try an unsupported extension, empty file, mismatched media type, and file larger than 100 MiB. Confirm upload validation rejects them and no partial file is exposed.
+6. Upload a signed release document. Confirm a viewer cannot download it while an owner/editor can. Verify the file is still stored outside the public frontend tree.
+7. Create a draft release and confirm it does not clear interview-use checks. Create a signed release with selected uses and an optional session scope; confirm a matching use is allowed only after rights clearance is also present.
+8. Withdraw a signed release with a reason. Confirm an audit event is appended, the status becomes withdrawn, and future placements relying on that consent are rejected. Confirm a release for another session does not grant consent for this session.
+9. Add media rights version 1, then a revised version. Confirm version 1 remains in history as superseded, the latest version is used, expiry blocks use, and missing/unknown rights do not clear production usage.
+10. Create a claim with active source evidence, record a Supported human review, and link it to an outline. Confirm the exact claim ID and current review status are retained.
+11. Try linking an unreviewed, contested, archived, or needs-review claim; confirm HTTP 409. For scene and screenplay placements, try a scene from another project and a script version from another scene; confirm rejection.
+12. Confirm rights checks enforce the destination use, and interview-linked evidence requires a matching current signed release. Try research-only rights for a screenplay placement and confirm it is rejected.
+13. Confirm viewers can read production metadata but cannot create subjects, sessions, releases, uploads, rights versions or claim placements. Confirm writes are blocked after publication and a fiction project cannot access these routes.
+14. Restart Docker Compose. Confirm interview metadata, consent history, media metadata, rights versions and claim placements persist. Verify that the separately mounted media volume still contains the corresponding uploaded bytes.
+
+Security and legal limitations: this initial local-storage slice does not scan for malware, inspect file contents, encrypt files at rest, use external object storage, implement participant identity verification or e-signature, auto-transcode media, or automatically apply withdrawal/takedown instructions to a future published release. The extension allowlist is not a malware safety guarantee. Do not deploy the current development authentication/storage setup as a public production service or treat a rights-basis label as legal advice.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
