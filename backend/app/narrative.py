@@ -159,6 +159,9 @@ def compile_draft(
     ]
     output = get_narrative_compiler().compile(title=title, sources=compiler_sources)
 
+    # Locking the project also serializes the first compilation, when no draft
+    # row exists yet and there is therefore no draft row available to lock.
+    db.scalar(select(Project).where(Project.id == project_id).with_for_update())
     draft = db.scalar(
         select(NarrativeDraft).where(NarrativeDraft.project_id == project_id).with_for_update()
     )
