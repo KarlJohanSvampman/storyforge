@@ -45,8 +45,8 @@ def test_project_create_list_detail_and_invitation_flow() -> None:
 
     invitation = client.post(
         f"/api/projects/{project_id}/invitations",
-        json={"email": "collaborator@example.test", "role": "contributor"},
+        json={"email": "collaborator@example.com", "role": "contributor"},
     )
     assert invitation.status_code == 201
     assert invitation.json()["status"] == "invited"
-    assert invitation.json()["invited_email"] == "collaborator@example.test"
+    assert invitation.json()["invited_email"] == "collaborator@example.com"
