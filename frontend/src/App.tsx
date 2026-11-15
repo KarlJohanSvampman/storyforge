@@ -82,6 +82,38 @@ type ApprovalOverview = {
   versions: ApprovalVersion[]; phase_history: PhaseTransition[];
 };
 
+type ProjectCharacter = {
+  id: string; project_id: string; name: string; description: string;
+  visual_description: string; personality_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type ProjectLocation = {
+  id: string; project_id: string; name: string; description: string;
+  environment_type: string; time_period: string; visual_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type ScenePassage = {
+  id: string; reference_order: number; start_offset: number; end_offset: number;
+  passage_snapshot: string; created_by_user_id: string; created_at: string;
+};
+type SceneScriptVersion = {
+  id: string; revision_number: number; content: string; parent_version_id: string | null;
+  author_user_id: string; author_display_name: string; created_at: string;
+};
+type SceneCharacter = { id: string; name: string; role_label: string; notes: string };
+type StoryboardScene = {
+  id: string; scene_order: number; title: string; summary: string; requirements: string;
+  estimated_duration_seconds: number | null; location_id: string | null; location_name: string | null;
+  characters: SceneCharacter[]; passages: ScenePassage[]; script_versions: SceneScriptVersion[];
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type Storyboard = {
+  id: string; project_id: string; title: string; narrative_version_id: string;
+  narrative_version_number: number; narrative_title: string; narrative_content: string;
+  created_by_user_id: string; created_at: string;
+  scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -118,6 +150,25 @@ function App() {
   const [selectedDraftSuggestionIds, setSelectedDraftSuggestionIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
+  const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
+  const [characterName, setCharacterName] = useState("");
+  const [characterDescription, setCharacterDescription] = useState("");
+  const [characterVisual, setCharacterVisual] = useState("");
+  const [characterPersonality, setCharacterPersonality] = useState("");
+  const [locationName, setLocationName] = useState("");
+  const [locationDescription, setLocationDescription] = useState("");
+  const [locationType, setLocationType] = useState("interior");
+  const [locationPeriod, setLocationPeriod] = useState("");
+  const [locationVisual, setLocationVisual] = useState("");
+  const [sceneTitle, setSceneTitle] = useState("");
+  const [sceneSummary, setSceneSummary] = useState("");
+  const [sceneRequirements, setSceneRequirements] = useState("");
+  const [sceneDuration, setSceneDuration] = useState("");
+  const [sceneLocationId, setSceneLocationId] = useState("");
+  const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
+  const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
+  const [passageDrafts, setPassageDrafts] = useState<Record<string, string>>({});
+  const [passageOccurrences, setPassageOccurrences] = useState<Record<string, string>>({});
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
   const [approvalNote, setApprovalNote] = useState("");
   const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
