@@ -1368,8 +1368,12 @@ function App() {
                                 <div className="series-episode-list">
                                   {season.episodes.map(episode => (
                                     <article className={episode.status === "archived" ? "series-episode-card archived" : "series-episode-card"} key={episode.id}>
-                                      <div><span>EPISODE {episode.episode_number} · {episode.status.toUpperCase()}</span><strong>{episode.title}</strong></div>
-                                      {episode.logline && <p>{episode.logline}</p>}
+                                      <div>
+                                        <span>EPISODE {episode.episode_number} · {episode.status.toUpperCase()}{episode.estimated_duration_seconds ? ` · EST. ${Math.round(episode.estimated_duration_seconds / 60)} MIN` : ""}</span>
+                                        <strong>{episode.title}</strong>
+                                        {episode.logline && <small>{episode.logline}</small>}
+                                        {episode.synopsis && <p>{episode.synopsis}</p>}
+                                      </div>
                                       {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateEpisodeStatus(episode, episode.status === "active" ? "archived" : "active")}>{episode.status === "active" ? "Archive" : "Restore"}</button>}
                                     </article>
                                   ))}
