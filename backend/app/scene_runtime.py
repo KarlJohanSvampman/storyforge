@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .models import (
-    Actor, CastMemberInstance, CastingAssignment, Project, SceneCharacterAssignment,
+    Actor, CastMemberInstance, CastingAssignment, ControllerAssignmentEvent, Project, ProjectCharacter, SceneCharacterAssignment,
     SceneRun, Storyboard, StoryboardScene,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
@@ -87,10 +87,10 @@ def create_scene_run(project_id: uuid.UUID, payload: SceneRunCreate, db: DbSessi
         if assignment is None:
             continue
         actor = db.get(Actor, assignment.actor_id)
-        character = db.get(__import__("app.models", fromlist=["ProjectCharacter"]).ProjectCharacter, character_id)
+        character = db.get(ProjectCharacter, character_id)
         if actor is None or character is None:
             continue
-        db.add(CastMemberInstance(
+        instance = CastMemberInstance(
             scene_run_id=run.id, casting_assignment_id=assignment.id,
             actor_id=actor.id, character_id=character.id,
             actor_name_snapshot=actor.display_name, character_name_snapshot=character.name,
@@ -99,6 +99,16 @@ def create_scene_run(project_id: uuid.UUID, payload: SceneRunCreate, db: DbSessi
             controller_user_id=assignment.controller_user_id,
             control_mode=assignment.control_mode,
             control_settings=assignment.control_settings or {},
+            authority_epoch=1,
+        )
+        db.add(instance)
+        db.flush()
+        db.add(ControllerAssignmentEvent(
+            scene_run_id=run.id, cast_member_instance_id=instance.id,
+            authority_epoch=1, previous_controller_type=None,
+            previous_controller_user_id=None, new_controller_type=assignment.controller_type,
+            new_controller_user_id=assignment.controller_user_id,
+            reason="scene_run_initialized", changed_by_user_id=user.id,
         ))
     db.commit()
     db.refresh(run)
