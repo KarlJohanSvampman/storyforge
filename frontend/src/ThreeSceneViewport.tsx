@@ -129,7 +129,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle }: Props) {
       cancelAnimationFrame(frame); observer.disconnect(); controls.dispose();
       scene.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
-          object.geometry?.dispose();
+          if (object instanceof THREE.Mesh) object.geometry.dispose();
           const material = object.material;
           if (Array.isArray(material)) material.forEach(item => item.dispose());
           else material?.dispose();
