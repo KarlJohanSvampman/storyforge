@@ -160,3 +160,45 @@ a { color: inherit; text-decoration: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 760px) { .project-grid, .detail-columns { grid-template-columns: 1fr; } .view-heading { align-items: start; flex-direction: column; } }
 @media (max-width: 520px) { .form-row { grid-template-columns: 1fr; gap: 0; } .form-actions { align-items: start; flex-direction: column; } .form-actions .primary-button { width: 100%; justify-content: center; } .project-form { padding: 17px; } .detail-meta { margin-top: 18px; } }
+
+
+/* M0.3 story contributions */
+.contributions-section { margin-top: 34px; }
+.contribution-heading { margin-bottom: 18px; }
+.contribution-heading h2 { display: flex; align-items: center; gap: 10px; }
+.contribution-count { display: inline-grid; place-items: center; min-width: 24px; height: 24px; border-radius: 20px; background: #303a27; color: var(--accent); font: 10px "DM Sans", sans-serif; }
+.contribution-form { border: 1px solid #4b5740; border-radius: 10px; background: #1d211c; padding: 22px; margin-bottom: 20px; }
+.contribution-form label { display: grid; gap: 7px; color: #c4c9b9; font-size: 10px; margin-bottom: 15px; }
+.contribution-form input, .contribution-form textarea { width: 100%; border: 1px solid #3a4035; border-radius: 6px; outline: none; color: #e9e9e2; background: #171a16; padding: 11px 12px; font: inherit; font-size: 11px; }
+.contribution-form input:focus, .contribution-form textarea:focus { border-color: #8a9c65; }
+.contribution-form textarea { resize: vertical; line-height: 1.75; }
+.contribution-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.contribution-card { display: block; min-width: 0; text-align: left; color: inherit; border: 1px solid var(--line); border-radius: 8px; background: #1d211c; padding: 17px; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+.contribution-card:hover, .contribution-card.selected { border-color: #65754e; background: #23291f; }
+.contribution-card-top, .contribution-card-bottom { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.contribution-author { color: #c4d58a; font-size: 9px; letter-spacing: .4px; }
+.status-tag { border-radius: 20px; background: #303a27; color: #c4d58a; padding: 4px 8px; font-size: 8px; text-transform: uppercase; letter-spacing: .6px; }
+.status-tag.withdrawn { color: #d4b27b; background: #3a3021; }
+.contribution-card h3 { font-family: "Playfair Display", serif; font-size: 19px; font-weight: 500; margin: 17px 0 7px; }
+.contribution-card > p { color: #969b8f; font-size: 10px; line-height: 1.75; min-height: 53px; margin: 0 0 15px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.contribution-card-bottom { border-top: 1px solid var(--line); padding-top: 11px; color: #858b7e; font-size: 8px; }
+.contribution-card-bottom span { display: flex; align-items: center; gap: 5px; }
+.contribution-detail { margin-top: 20px; border: 1px solid #4b5740; border-radius: 9px; background: #1d211c; padding: 21px; }
+.contribution-detail-heading { display: flex; align-items: start; justify-content: space-between; gap: 15px; }
+.contribution-detail-heading h2 { font-family: "Playfair Display", serif; font-size: 25px; font-weight: 500; margin: 8px 0 4px; }
+.contribution-detail-heading p { color: #92988a; font-size: 10px; margin: 0; }
+.current-contribution-text { color: #d0d2c9; font-size: 12px; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; padding: 18px 0; margin-top: 12px; border-top: 1px solid var(--line); }
+.contribution-actions { display: flex; flex-wrap: wrap; gap: 15px; align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 17px; }
+.secondary-button { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #566448; border-radius: 6px; background: #303a27; color: #d8e5b4; padding: 9px 11px; font-size: 10px; cursor: pointer; }
+.danger-button { color: #d7a99d; }
+.revision-list { display: grid; gap: 0; padding-top: 18px; }
+.revision-item { border-bottom: 1px solid var(--line); padding: 13px 0; }
+.revision-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.revision-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.revision-meta strong { color: #c4d58a; font-size: 10px; }
+.revision-meta span { color: #858b7e; font-size: 9px; }
+.revision-item p { color: #a8ad9f; font-size: 10px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; margin: 9px 0 0; }
+.muted-note { color: #969b8f; font-size: 11px; margin: 0 0 18px; }
+.compact-empty { margin: 25px auto; padding: 24px 20px; }
+@media (max-width: 760px) { .contribution-list { grid-template-columns: 1fr; } .revision-meta { align-items: start; flex-direction: column; gap: 5px; } }
+@media (max-width: 520px) { .contribution-form, .contribution-detail { padding: 16px; } .contribution-detail-heading { flex-direction: column; } .contribution-actions { align-items: flex-start; flex-direction: column; } .contribution-actions button { width: 100%; justify-content: center; } .contribution-card-bottom { align-items: flex-start; flex-direction: column; } }

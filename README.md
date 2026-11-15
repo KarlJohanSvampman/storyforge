@@ -4,7 +4,7 @@
 
 The StoryForge Collective is a browser-first platform for collaborative storytelling and virtual filmmaking. Participants create a story together, develop it into a production plan, and can eventually perform, direct, edit, publish, and adapt it.
 
-The project is being developed incrementally. The first milestone focuses on collaborative storytelling; 3D production, motion capture, and VR come later.
+The project is being developed incrementally. The first milestone focuses on collaborative storytelling and preserving the history of each participant’s contributions. 3D production, publication, motion capture, and VR follow later.
 
 ## Product vision
 
@@ -27,7 +27,7 @@ Not every project must use every phase. Projects should be able to skip or revis
 
 - **Collaborative by design:** participants contribute, discuss, suggest, and make decisions together.
 - **Human creative control:** AI assists but does not silently decide or overwrite group-approved creative work.
-- **Clear provenance:** preserve original contributions, approved narrative versions, and production interpretations separately.
+- **Clear provenance:** preserve original contributions and every revision, approved narrative versions, and production interpretations separately.\n- **Release integrity:** a published release will be an immutable snapshot with its own public page, trailer, opt-in credits, ratings, and reviews; it will not change when its source project continues evolving.
 - **Browser first:** the core application should work without installing a native client.
 - **Production as editable data:** performances, facial animation, audio, cameras, and scene state should remain independently editable rather than being flattened immediately into video.
 - **Adaptable stories:** a completed project can be forked into independent adaptations while retaining a link to its source.
@@ -103,7 +103,7 @@ docs/           Product and technical decisions
 ## Development status
 
 - **M0.1:** runnable React/Vite, FastAPI, and PostgreSQL Docker Compose scaffold. The user has confirmed the stack starts and the frontend successfully reaches the health endpoint.
-- **M0.2:** project creation, listing, detail views, PostgreSQL persistence, membership roles, and pending invitation records are implemented on `feature/m0-2-project-foundation`. Local rebuild and end-to-end verification are the next step.
+- **M0.2:** project creation, listing, detail views, PostgreSQL persistence, membership roles, and pending invitation records are implemented on `feature/m0-2-project-foundation`.\n- **M0.3:** individual story contributions, append-only revisions, authorship, withdrawal, and a contribution workspace are implemented on `feature/m0-3-story-contributions`. Local migration and end-to-end verification are the next step.
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
 
