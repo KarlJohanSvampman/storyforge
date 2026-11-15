@@ -139,3 +139,72 @@ class SuggestionDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     suggestion: Mapped[StorySuggestion] = relationship(back_populates="decisions")
     actor: Mapped[User] = relationship()
+
+
+class NarrativeDraft(Base):
+    """One collaborative proposal stream per project; versions are append-only."""
+    __tablename__ = "narrative_drafts"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_narrative_drafts_project"),
+        CheckConstraint("current_version_number >= 0", name="ck_narrative_drafts_version_number"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    current_version_number: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    versions: Mapped[list["NarrativeDraftVersion"]] = relationship(
+        back_populates="draft", cascade="all, delete-orphan",
+        order_by="NarrativeDraftVersion.version_number",
+    )
+
+
+class NarrativeDraftVersion(Base):
+    """Immutable proposed narrative snapshot; approval is a later milestone."""
+    __tablename__ = "narrative_draft_versions"
+    __table_args__ = (
+        UniqueConstraint("draft_id", "version_number", name="uq_narrative_draft_versions_number"),
+        CheckConstraint("version_number >= 1", name="ck_narrative_draft_versions_positive_number"),
+        CheckConstraint("status = 'proposal'", name="ck_narrative_draft_versions_proposal_only"),
+        CheckConstraint("origin IN ('compiled', 'manual')", name="ck_narrative_draft_versions_origin"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    draft_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_drafts.id", ondelete="CASCADE"), nullable=False, index=True)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="proposal", nullable=False)
+    origin: Mapped[str] = mapped_column(String(20), nullable=False)
+    provider_name: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    model_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prompt_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    parent_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    draft: Mapped[NarrativeDraft] = relationship(back_populates="versions")
+    sources: Mapped[list["DraftSourceReference"]] = relationship(
+        back_populates="version", cascade="all, delete-orphan",
+        order_by="DraftSourceReference.source_order",
+    )
+
+
+class DraftSourceReference(Base):
+    """Immutable source citation plus an exact text snapshot used in one draft version."""
+    __tablename__ = "draft_source_references"
+    __table_args__ = (
+        UniqueConstraint("version_id", "source_order", name="uq_draft_source_references_order"),
+        CheckConstraint("source_order >= 1", name="ck_draft_source_references_positive_order"),
+        CheckConstraint("source_kind IN ('contribution', 'accepted_suggestion')", name="ck_draft_source_references_kind"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_kind: Mapped[str] = mapped_column(String(30), nullable=False)
+    contribution_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("story_contributions.id", ondelete="RESTRICT"), nullable=False)
+    contribution_revision_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("contribution_revisions.id", ondelete="RESTRICT"), nullable=False)
+    suggestion_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("story_suggestions.id", ondelete="SET NULL"), nullable=True)
+    source_title: Mapped[str] = mapped_column(String(160), nullable=False)
+    source_text_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[NarrativeDraftVersion] = relationship(back_populates="sources")

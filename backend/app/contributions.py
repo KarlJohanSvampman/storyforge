@@ -36,7 +36,7 @@ def _contribution_read(db: Session, contribution: StoryContribution) -> Contribu
     revision = _latest_revision(db, contribution.id)
     author = db.get(User, contribution.author_user_id)
     return ContributionRead(
-        id=contribution.id, project_id=contribution.project_id,
+        id=contribution.id, project_id=contribution.project_id, current_revision_id=revision.id,
         author_user_id=contribution.author_user_id,
         author_display_name=author.display_name if author else "Unknown participant",
         title=revision.title, status=contribution.status,
