@@ -1275,3 +1275,104 @@ class DocumentaryReleaseWithdraw(BaseModel):
         if not cleaned:
             raise ValueError("A withdrawal reason is required.")
         return cleaned
+
+
+ControllerType = Literal["user", "ai_agent", "script_engine", "system"]
+ControlMode = Literal["direct", "command", "assisted", "autonomous", "scripted"]
+CastingStatus = Literal["active", "ended", "replaced"]
+
+
+class ActorCreate(BaseModel):
+    display_name: str = Field(min_length=1, max_length=160)
+    biography: str = Field(default="", max_length=10000)
+    performance_notes: str = Field(default="", max_length=10000)
+
+    @field_validator("display_name", "biography", "performance_notes")
+    @classmethod
+    def trim_actor_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class ActorUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=160)
+    biography: str | None = Field(default=None, max_length=10000)
+    performance_notes: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("display_name", "biography", "performance_notes")
+    @classmethod
+    def trim_actor_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
+class ActorRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    owner_user_id: uuid.UUID
+    display_name: str
+    biography: str
+    performance_notes: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class PerformanceSettingsUpdate(BaseModel):
+    default_controller_type: ControllerType | None = None
+    default_control_mode: ControlMode | None = None
+    allow_actor_reuse: bool | None = None
+    allow_character_recasting: bool | None = None
+
+
+class PerformanceSettingsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    project_id: uuid.UUID
+    default_controller_type: ControllerType
+    default_control_mode: ControlMode
+    allow_actor_reuse: bool
+    allow_character_recasting: bool
+    updated_by_user_id: uuid.UUID
+    updated_at: datetime
+
+
+class CastingAssignmentCreate(BaseModel):
+    actor_id: uuid.UUID
+    character_id: uuid.UUID
+    role_label: str = Field(default="Cast", min_length=1, max_length=100)
+    controller_type: ControllerType | None = None
+    controller_user_id: uuid.UUID | None = None
+    control_mode: ControlMode | None = None
+    control_settings: dict = Field(default_factory=dict)
+
+    @field_validator("role_label")
+    @classmethod
+    def trim_role_label(cls, value: str) -> str:
+        return value.strip()
+
+
+class CastingAssignmentUpdate(BaseModel):
+    role_label: str | None = Field(default=None, min_length=1, max_length=100)
+    status: CastingStatus | None = None
+    controller_type: ControllerType | None = None
+    controller_user_id: uuid.UUID | None = None
+    control_mode: ControlMode | None = None
+    control_settings: dict | None = None
+
+
+class CastingAssignmentRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    actor_id: uuid.UUID
+    actor_name: str
+    character_id: uuid.UUID
+    character_name: str
+    role_label: str
+    status: CastingStatus
+    controller_type: ControllerType
+    controller_user_id: uuid.UUID | None
+    control_mode: ControlMode
+    control_settings: dict
+    assigned_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime

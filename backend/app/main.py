@@ -8,9 +8,10 @@ from .approval import router as approval_router
 from .storyboard import router as storyboard_router
 from .documentary import router as documentary_router
 from .documentary_media import router as documentary_media_router
+from .actors import router as actors_router
 from .projects import CurrentUser
 
-app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.12.0")
+app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.13.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -26,6 +27,7 @@ app.include_router(approval_router)
 app.include_router(storyboard_router)
 app.include_router(documentary_router)
 app.include_router(documentary_media_router)
+app.include_router(actors_router)
 
 
 @app.get("/api/me", tags=["users"])
