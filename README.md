@@ -116,6 +116,12 @@ docs/           Product and technical decisions
 - **M1.1:** approved-narrative storyboard initialization, ordered scenes, character/location story-bible records, exact narrative passage links, and append-only per-scene script revisions are implemented on `feature/m1-1-storyboard-foundation`. Local migration and end-to-end verification are pending.
 - **M1.2:** structured screenplay revisions with ordered action, dialogue, parenthetical, transition, and production-note blocks; scene-bound speaker attribution; readable rendering; and legacy text compatibility are implemented on `feature/m1-2-structured-screenplay`. Local migration and end-to-end verification are pending.
 
+- **M1.3:** independent movie/TV-series formats and fiction/documentary categories, with seasons, episodes and episode-owned scene ordering, are merged into the downstream screenplay branch.
+- **M1.4:** documentary source registers, discrete claims, exact evidence excerpts and append-only human fact-check reviews are merged into the downstream screenplay branch.
+- **M1.5:** reusable character/location story-bible profile editing and archive/restore controls are implemented on `feature/m1-5-story-bible-management` (draft PR #12; depends on the preceding milestone chain).
+- **M1.6:** documentary interview subjects and sessions, consent/release records, private file uploads with SHA-256 metadata, versioned media rights and supported-claim production references are implemented on `feature/m1-6-documentary-interviews-rights` (draft PR #13; depends on M1.5). Local migration, security and end-to-end verification remain pending.
+
+
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
 
 See [docs/ROADMAP.md](docs/ROADMAP.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md).
