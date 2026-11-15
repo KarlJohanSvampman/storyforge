@@ -307,7 +307,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
               {Object.entries(controllerLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
             </select></label>
             {draft.controller_type === "user" && <label>Member<select disabled={!writable} value={draft.controller_user_id} onChange={event => setControllerDrafts(current => ({ ...current, [instance.id]: { ...draft, controller_user_id: event.target.value } }))}>
-              <option value="">Choose member</option>{members.filter(member => member.status === "active").map(member => <option key={member.id} value={member.id}>{member.display_name || member.email || "Member"}</option>)}
+              <option value="">Choose member</option>{members.filter(member => member.status === "active" && member.user_id).map(member => <option key={member.id} value={member.user_id || ""}>{member.display_name || member.email || "Member"}</option>)}
             </select></label>}
             <label>Control mode<select disabled={!writable} value={draft.control_mode} onChange={event => setControllerDrafts(current => ({ ...current, [instance.id]: { ...draft, control_mode: event.target.value as ControlMode } }))}>
               {Object.entries(modeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
