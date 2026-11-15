@@ -62,6 +62,14 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add append-only, optimistic-concurrency-protected working script revisions per scene.
 - [ ] Local migration, API, permissions, passage-link, script revision, ordering, and persistence verification.
 
+### M1.2 — Structured screenplay
+- [x] Represent each scene script revision as ordered action, dialogue, parenthetical, transition, and production-note elements.
+- [x] Attribute dialogue to an active story character assigned to the scene, preserving the character-name snapshot in each immutable revision.
+- [x] Render structured blocks into a readable screenplay while preserving the typed element records.
+- [x] Edit, add, remove, and reorder screenplay blocks in the browser.
+- [x] Keep M1.1 plain-text script revisions readable and support converting them into a new structured revision without changing the original.
+- [ ] Local migration, screenplay validation, speaker assignment, revision concurrency, and persistence verification.
+
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.
 - [ ] Provide virtual cameras and basic character performance recording.
