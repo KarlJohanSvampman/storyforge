@@ -35,11 +35,12 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, API, permission, and UI verification.
 
 ### M0.5 — Draft compilation and AI seam
-- [ ] Create a combined narrative draft from selected contributions.
-- [ ] Record which contributions informed the draft.
-- [ ] Provide an AI provider interface, initially with a deterministic/mock implementation.
-- [ ] Store AI output as an unapproved proposal.
-- [ ] Allow a participant to edit and submit a revised proposal.
+- [x] Create a combined narrative draft from selected contributions.
+- [x] Record exact contribution revisions and optional accepted suggestions used by each draft version.
+- [x] Provide a provider-independent compiler interface with a deterministic source-assembly implementation.
+- [x] Store compiled output as an unapproved proposal with provider/model/template metadata.
+- [x] Allow a participant to edit and submit a new immutable proposal version while carrying forward provenance.
+- [ ] Local migration, API, permission, concurrency, and UI verification.
 
 ### M0.6 — Approval and phase progression
 - [ ] Configure a simple project approval rule.
