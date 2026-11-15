@@ -578,3 +578,21 @@ a { color: inherit; text-decoration: none; }
   .documentary-form-row { grid-template-columns: 1fr; }
   .documentary-card-heading { align-items: flex-start; }
 }
+
+
+/* M1.5 story-bible profile editing and archive management */
+.storyboard-asset-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.storyboard-asset-heading > span { color: #a6b28e; font-size: 7px; letter-spacing: .8px; }
+.story-bible-edit { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+.story-bible-edit > summary, .story-bible-archive-list > summary {
+  color: #c4d58a; cursor: pointer; font-size: 9px; padding: 3px 0;
+}
+.story-bible-edit .storyboard-mini-form { margin-top: 8px; padding: 10px; background: #191d18; }
+.story-bible-edit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.story-bible-archive-list {
+  display: grid; gap: 8px; margin-top: 7px; padding: 10px;
+  border: 1px solid #4a503e; border-radius: 6px; background: #191d18;
+}
+.story-bible-archive-list > .storyboard-asset { margin: 0; }
+.story-bible-archive-list > summary { list-style-position: inside; }
+.storyboard-asset .danger-button { margin-top: 8px; }
