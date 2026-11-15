@@ -911,6 +911,7 @@ class DocumentaryClaimEvidenceRead(BaseModel):
     source_title: str
     source_type: DocumentarySourceType
     source_url: str | None
+    source_status: str
     evidence_relation: DocumentaryEvidenceRelation
     excerpt: str
     locator: str
