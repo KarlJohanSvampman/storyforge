@@ -10,7 +10,6 @@ from .models import (
     DocumentaryClaimReview,
     DocumentaryResearchSource,
     Project,
-    ProjectMembership,
     User,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
@@ -101,6 +100,7 @@ def _documentary_detail(db: Session, project_id: uuid.UUID) -> DocumentaryResear
                 source_title=source.title,
                 source_type=source.source_type,
                 source_url=source.url,
+                source_status=source.status,
                 evidence_relation=item.evidence_relation,
                 excerpt=item.excerpt,
                 locator=item.locator,
@@ -311,6 +311,7 @@ def review_documentary_claim(
             "source_id": str(source.id),
             "source_title": source.title,
             "source_type": source.source_type,
+            "source_status": source.status,
             "creator": source.creator,
             "publisher": source.publisher,
             "publication_date": source.publication_date,
