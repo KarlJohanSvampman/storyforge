@@ -45,6 +45,7 @@ Work in small, demonstrable increments. Each milestone should produce something 
 ### M0.6 — Approval and phase progression
 - [x] Configure an owner-only or majority approval rule (default: owner-only).
 - [x] Record append-only approve/reject vote events; the latest vote per eligible member determines the current tally.
+- [x] Freeze the rule, eligible voter list, and threshold when voting first opens for a specific version.
 - [x] Finalize one immutable approval or rejection decision for the exact current narrative version.
 - [x] Move the project to the storyboard phase only when the owner finalizes an approval that meets the configured threshold.
 - [x] Preserve vote history, decision-time tally snapshots, and project phase transition history.
