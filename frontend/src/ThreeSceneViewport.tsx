@@ -62,7 +62,8 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPres
     scene.fog = new THREE.Fog(0x161c18, 18, 48);
     const camera = new THREE.PerspectiveCamera(44, 1, .1, 100);
     const cameraPositions = { wide: [8, 7, 11], close: [4, 3, 6], overhead: [0, 15, .1], reverse: [-8, 6, -10] } as const;
-    camera.position.set(...cameraPositions[cameraPreset]);
+    const cameraPosition = cameraPositions[cameraPreset];
+    camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
