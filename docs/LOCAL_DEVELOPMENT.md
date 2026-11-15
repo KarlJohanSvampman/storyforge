@@ -118,6 +118,45 @@ The local development identity is one fixed project owner. You can exercise owne
 8. Attempt to compile, manually revise, vote, or change the rule after approval. Confirm the API rejects these operations.
 9. Restart Docker Compose and confirm votes, decisions, rule, and phase history persist.
 
+## M1.1 storyboard and creative assets
+
+After a narrative is approved and the project reaches the **storyboard** phase, open the project again. The Storyboard section offers an **Initialize storyboard** action. Initialization is anchored to the exact narrative version recorded by the approved phase transition; it does not use whichever draft happens to be newest.
+
+The storyboard workspace supports:
+
+- A project character directory with story description, visual description, personality notes, and active/archived status.
+- A project location directory with environment type, time period, description, visual notes, and active/archived status.
+- Ordered scenes with summary, production requirements, estimated duration in seconds, one primary location, and participating characters.
+- Moving scenes up and down. The reorder API requires the complete current scene ID list exactly once.
+- Exact links from a scene to a passage in the approved narrative. Copy the exact passage from the expandable approved-narrative panel and paste it into the scene's link form. If the same text occurs more than once, set the 1-based occurrence number. The API resolves and stores the exact excerpt plus source offsets; it rejects text not present in the approved version.
+- Working script material per scene. Saving always creates a new immutable script revision. When editing an existing script, the client includes the version it started from; a stale save returns HTTP 409 rather than overwriting a newer revision.
+
+Character and location records are story-bible entries, not actor profiles, casting records, built 3D sets, or props. Script revisions are working production material and do not alter the approved story. Owners, editors, and contributors may edit the storyboard while the project is in the storyboard phase; viewers can read it. The API blocks writes after the project advances to another phase.
+
+### M1.1 API endpoints
+
+- `GET /api/projects/{project_id}/storyboard` — get the storyboard and its approved narrative source, or `null` when it has not been initialized.
+- `POST /api/projects/{project_id}/storyboard` — initialize the storyboard from the approved narrative transition; repeat calls return the existing storyboard.
+- `POST /api/projects/{project_id}/storyboard/characters` and `PATCH .../characters/{character_id}` — create/update project character records.
+- `POST /api/projects/{project_id}/storyboard/locations` and `PATCH .../locations/{location_id}` — create/update project location records.
+- `POST /api/projects/{project_id}/storyboard/scenes` and `PATCH .../scenes/{scene_id}` — create/update scene breakdown and assignments.
+- `PUT /api/projects/{project_id}/storyboard/scenes/reorder` — set the complete scene order; body: `{"scene_ids":["..."]}`.
+- `POST /api/projects/{project_id}/storyboard/scenes/{scene_id}/passages` — link exact source text; body: `{"passage_text":"exact copied passage","occurrence":1}`.
+- `POST /api/projects/{project_id}/storyboard/scenes/{scene_id}/script` — append a script revision; body: `{"base_version_id":null,"content":"..."}` for the first revision, then send the current revision ID on subsequent saves.
+
+### M1.1 verification checklist
+
+1. Complete M0.6 approval and confirm the project is in the storyboard phase.
+2. Initialize the storyboard. Confirm its narrative title/version and complete source text match the exact approved version recorded in phase history.
+3. Repeat initialization. Confirm the same storyboard is returned rather than creating a second one.
+4. Create several characters and locations; archive one of each through the API and confirm their existing scene relationships remain readable.
+5. Create at least three scenes with different summaries, requirements, durations, locations, and character assignments.
+6. Reorder scenes several times. Confirm positions are contiguous and stable after refreshing the project.
+7. Copy an exact paragraph from the approved narrative and link it to a scene. Confirm the stored excerpt and offsets are correct. Try text that is not present and confirm HTTP 422. Try a repeated excerpt with occurrence 2 and confirm the second occurrence is selected.
+8. Save a first script revision, then save a second revision. Confirm both remain in history and the second references the first as its parent. Submit a stale base version and confirm HTTP 409.
+9. Confirm a viewer cannot create/update storyboard data. Confirm a write attempt after the project leaves the storyboard phase returns HTTP 409.
+10. Restart Docker Compose and confirm scenes, assets, source references, and script revisions persist.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
