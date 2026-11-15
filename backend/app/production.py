@@ -9,7 +9,7 @@ from .models import (
     Actor, CastMemberInstance, CastingAssignment, ControllerAssignmentEvent,
     EditExport, EditSequence, EditSequenceItem, PerformanceTake, PerformanceTakeEvent,
     PossessionLease, Project, ProjectCharacter, ProjectLocation, ProjectMembership,
-    SceneCharacterAssignment, ScenePassageReference, SceneRun, SceneScriptVersion,
+    ProjectPhaseTransition, SceneCharacterAssignment, ScenePassageReference, SceneRun, SceneScriptVersion,
     Storyboard, StoryboardScene, User,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
@@ -18,12 +18,57 @@ from .schemas import (
     EditExportRead, EditSequenceCreate, EditSequenceItemCreate, EditSequenceItemRead,
     EditSequenceItemUpdate, EditSequenceRead, EditSequenceReorder,
     PerformanceEventBatchCreate, PerformanceTakeCreate, PerformanceTakeEventRead,
-    PerformanceTakeRead, PerformanceTakeStatusUpdate, PossessionLeaseCreate,
+    PerformanceTakeRead, PerformanceTakeStatusUpdate, PossessionLeaseCreate, ProductionPhaseActivate,
     PossessionLeaseRead, PossessionLeaseRelease, SceneRunCreate, SceneRunRead,
     SceneRunStatusUpdate,
 )
 
 router = APIRouter(prefix="/api/projects/{project_id}/production", tags=["production"])
+
+
+@router.post("/activate", response_model=dict)
+def activate_production_phase(project_id: uuid.UUID, payload: ProductionPhaseActivate, db: DbSession, user: CurrentUser):
+    project = _project_or_404(db, project_id)
+    membership = _membership(db, project_id, user.id)
+    if membership.role != "owner":
+        raise HTTPException(status_code=403, detail="Only the project owner can move the project into production.")
+    project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
+    if project.current_phase != "storyboard":
+        raise HTTPException(status_code=409, detail="Only a storyboard-phase project can enter production.")
+    storyboard = db.scalar(select(Storyboard).where(
+        Storyboard.project_id == project_id,
+    ).order_by(Storyboard.created_at.desc(), Storyboard.id.desc()).limit(1))
+    if storyboard is None:
+        raise HTTPException(status_code=409, detail="Initialize the storyboard before entering production.")
+    scenes = db.scalars(select(StoryboardScene).where(
+        StoryboardScene.storyboard_id == storyboard.id,
+    )).all()
+    if not scenes:
+        raise HTTPException(status_code=409, detail="Add at least one scene before entering production.")
+    scene_ids = [scene.id for scene in scenes]
+    participant_rows = db.execute(select(
+        SceneCharacterAssignment.scene_id, ProjectCharacter.id, ProjectCharacter.name,
+    ).join(ProjectCharacter, ProjectCharacter.id == SceneCharacterAssignment.character_id).where(
+        SceneCharacterAssignment.scene_id.in_(scene_ids),
+        ProjectCharacter.status == "active",
+    )).all()
+    active_cast = db.scalars(select(CastingAssignment.character_id).where(
+        CastingAssignment.project_id == project_id, CastingAssignment.status == "active",
+    )).all()
+    active_cast_ids = set(active_cast)
+    missing = sorted({name for _, character_id, name in participant_rows if character_id not in active_cast_ids})
+    if missing:
+        raise HTTPException(status_code=409, detail="Cast every active character used by the storyboard before entering production: " + ", ".join(missing))
+    previous_phase = project.current_phase
+    project.current_phase = "production"
+    db.add(ProjectPhaseTransition(
+        project_id=project.id, from_phase=previous_phase, to_phase="production",
+        actor_user_id=user.id, narrative_version_id=storyboard.narrative_version_id,
+        reason=payload.reason,
+    ))
+    db.commit()
+    db.refresh(project)
+    return {"project_id": str(project.id), "current_phase": project.current_phase}
 
 
 def _project_access(db: Session, project_id: uuid.UUID, user_id: uuid.UUID, *, write: bool = False) -> Project:
