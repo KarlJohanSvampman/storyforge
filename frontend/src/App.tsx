@@ -20,7 +20,7 @@ type ProjectDetail = Project & { members: Member[] };
 type ProjectForm = { title: string; logline: string; genre: string; description: string; visibility: string };
 type Contribution = {
   id: string; project_id: string; author_user_id: string; author_display_name: string;
-  title: string; status: string; current_revision_number: number; current_body: string;
+  title: string; status: string; current_revision_number: number; current_revision_id: string; current_body: string;
   created_at: string; updated_at: string;
 };
 type ContributionRevision = {
@@ -31,6 +31,23 @@ type ContributionDetail = Contribution & { revisions: ContributionRevision[] };
 type Comment = { id: string; contribution_id: string; revision_id: string | null; parent_comment_id: string | null; author_user_id: string; author_display_name: string; body: string; created_at: string };
 type SuggestionDecision = { id: string; actor_user_id: string; actor_display_name: string; previous_status: string | null; new_status: string; note: string; created_at: string };
 type Suggestion = { id: string; contribution_id: string; target_revision_id: string; author_user_id: string; author_display_name: string; title: string; rationale: string; proposed_text: string; status: string; created_at: string; updated_at: string; decisions: SuggestionDecision[] };
+
+
+type DraftSource = {
+  id: string; source_order: number; source_kind: string; contribution_id: string;
+  contribution_revision_id: string; suggestion_id: string | null;
+  source_title: string; source_text_snapshot: string;
+};
+type DraftVersion = {
+  id: string; version_number: number; title: string; content: string; status: string;
+  origin: string; provider_name: string | null; model_name: string | null;
+  prompt_version: string | null; author_user_id: string; author_display_name: string;
+  parent_version_id: string | null; created_at: string; sources: DraftSource[];
+};
+type NarrativeDraft = {
+  id: string; project_id: string; title: string; current_version_number: number;
+  created_by_user_id: string; created_at: string; updated_at: string; versions: DraftVersion[];
+};
 
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
@@ -64,6 +81,13 @@ function App() {
   const [selectedContribution, setSelectedContribution] = useState<ContributionDetail | null>(null);
   const [comments, setComments] = useState<Comment[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [draft, setDraft] = useState<NarrativeDraft | null>(null);
+  const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [editingDraft, setEditingDraft] = useState(false);
+  const [draftEditTitle, setDraftEditTitle] = useState("");
+  const [draftEditContent, setDraftEditContent] = useState("");
+  const [selectedDraftVersionId, setSelectedDraftVersionId] = useState<string | null>(null);
   const [commentBody, setCommentBody] = useState("");
   const [suggestionTitle, setSuggestionTitle] = useState("");
   const [suggestionRationale, setSuggestionRationale] = useState("");
@@ -97,12 +121,18 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [detail, items] = await Promise.all([
+      const [detail, items, currentDraft] = await Promise.all([
         api<ProjectDetail>(`/api/projects/${projectId}`),
         api<Contribution[]>(`/api/projects/${projectId}/contributions`),
+        api<NarrativeDraft | null>(`/api/projects/${projectId}/draft`),
       ]);
       setSelectedProject(detail);
       setContributions(items);
+      setDraft(currentDraft);
+      setDraftTitle(currentDraft?.title || detail.title);
+      setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
+      setSelectedDraftVersionId(currentDraft?.versions[currentDraft.versions.length - 1]?.id || null);
+      setEditingDraft(false);
       setSelectedContribution(null);
       setContributionTitle("");
       setContributionBody("");
@@ -244,6 +274,66 @@ function App() {
     } catch (err) { setError(err instanceof Error ? err.message : "Could not update suggestion."); }
   }
 
+
+  async function compileNarrativeDraft(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || draftSourceIds.length === 0) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<NarrativeDraft>(`/api/projects/${selectedProject.id}/draft/compile`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: draftTitle.trim() || selectedProject.title,
+          sources: draftSourceIds.map(revision_id => ({ revision_id, accepted_suggestion_ids: [] })),
+        }),
+      });
+      setDraft(created);
+      setDraftTitle(created.title);
+      setSelectedDraftVersionId(created.versions[created.versions.length - 1]?.id || null);
+      setEditingDraft(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not compile the narrative draft.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startDraftRevision() {
+    const latest = draft?.versions[draft.versions.length - 1];
+    if (!latest) return;
+    setDraftEditTitle(latest.title);
+    setDraftEditContent(latest.content);
+    setSelectedDraftVersionId(latest.id);
+    setEditingDraft(true);
+  }
+
+  async function saveDraftRevision(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !draft) return;
+    const latest = draft.versions[draft.versions.length - 1];
+    if (!latest) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<NarrativeDraft>(`/api/projects/${selectedProject.id}/draft/${draft.id}/versions`, {
+        method: "POST",
+        body: JSON.stringify({
+          base_version_id: latest.id,
+          title: draftEditTitle,
+          content: draftEditContent,
+        }),
+      });
+      setDraft(updated);
+      setSelectedDraftVersionId(updated.versions[updated.versions.length - 1]?.id || null);
+      setEditingDraft(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the revised draft.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function startRevision() {
     if (!selectedContribution) return;
     setContributionTitle(selectedContribution.title);
@@ -277,6 +367,9 @@ function App() {
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
+  const latestDraftVersion = draft?.versions[draft.versions.length - 1] || null;
+  const selectedDraftVersion = draft?.versions.find(version => version.id === selectedDraftVersionId) || latestDraftVersion;
+
 
   return (
     <main className="app-shell">
@@ -402,6 +495,85 @@ function App() {
                   <form className="invite-form" onSubmit={inviteMember}><div className="section-kicker">INVITE A COLLABORATOR</div><input type="email" required placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} /><div className="invite-controls"><select value={inviteRole} onChange={e => setInviteRole(e.target.value)}><option value="contributor">Contributor</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button className="primary-button" type="submit"><Plus size={15} /> Invite</button></div>{inviteMessage && <p className="success-message">{inviteMessage}</p>}</form>
                 </div>
               </div>
+
+
+              <section className="drafts-section">
+                <div className="section-heading contribution-heading">
+                  <div><div className="section-kicker">NARRATIVE DEVELOPMENT</div><h2>Combined story draft</h2></div>
+                  <span className="step-count">{draft ? `Version ${draft.current_version_number} · proposal` : "Not compiled yet"}</span>
+                </div>
+                <p className="muted-note">This first compiler assembles selected text without rewriting it. Every generated version is an unapproved proposal with exact source references; original contributions remain untouched. A real AI provider can replace the mock compiler later.</p>
+                {canContribute && (
+                  <form className="draft-compile-form" onSubmit={compileNarrativeDraft}>
+                    <label>Draft title<input maxLength={160} value={draftTitle} onChange={event => setDraftTitle(event.target.value)} placeholder={selectedProject.title} /></label>
+                    <div className="draft-source-picker">
+                      <div className="section-kicker">SELECT ACTIVE CONTRIBUTIONS</div>
+                      {contributions.filter(item => item.status === "active").map(item => (
+                        <label className="draft-source-option" key={item.id}>
+                          <input
+                            type="checkbox"
+                            checked={draftSourceIds.includes(item.current_revision_id)}
+                            onChange={event => setDraftSourceIds(current => event.target.checked
+                              ? [...current, item.current_revision_id]
+                              : current.filter(id => id !== item.current_revision_id))}
+                          />
+                          <span><strong>{item.title}</strong><small>{item.author_display_name} · revision {item.current_revision_number}</small></span>
+                        </label>
+                      ))}
+                      {contributions.every(item => item.status !== "active") && <p className="muted-note">Add an active contribution before compiling a draft.</p>}
+                    </div>
+                    <div className="form-actions">
+                      <span>{draftSourceIds.length} source revision{draftSourceIds.length === 1 ? "" : "s"} selected. Withdrawn contributions are excluded.</span>
+                      <button className="primary-button" type="submit" disabled={loading || draftSourceIds.length === 0}>
+                        <Sparkles size={15} /> Assemble draft proposal
+                      </button>
+                    </div>
+                  </form>
+                )}
+                {!canContribute && !draft && <p className="muted-note">A project contributor can compile the first narrative proposal.</p>}
+                {draft && latestDraftVersion && (
+                  <div className="draft-workspace">
+                    <div className="draft-version-bar">
+                      <div><div className="section-kicker">CURRENT PROPOSAL</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
+                        <p>Version {selectedDraftVersion?.version_number || latestDraftVersion.version_number} · {selectedDraftVersion?.origin === "manual" ? "Manually revised" : "Compiled proposal"} · {selectedDraftVersion?.author_display_name}</p>
+                      </div>
+                      {canContribute && !editingDraft && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
+                    </div>
+                    {editingDraft ? (
+                      <form className="draft-editor" onSubmit={saveDraftRevision}>
+                        <label>Proposal title<input required maxLength={160} value={draftEditTitle} onChange={event => setDraftEditTitle(event.target.value)} /></label>
+                        <label>Revised narrative<textarea required rows={18} maxLength={100000} value={draftEditContent} onChange={event => setDraftEditContent(event.target.value)} /></label>
+                        <div className="form-actions"><span>Saving creates a new immutable version and carries forward its source map.</span>
+                          <button className="quiet-button" type="button" onClick={() => setEditingDraft(false)}>Cancel</button>
+                          <button className="primary-button" type="submit" disabled={loading || !draftEditTitle.trim() || !draftEditContent.trim()}>Save new version</button>
+                        </div>
+                      </form>
+                    ) : (
+                      <pre className="draft-preview">{selectedDraftVersion?.content || latestDraftVersion.content}</pre>
+                    )}
+                    <div className="draft-provenance">
+                      <div className="section-kicker">SOURCE PROVENANCE · {selectedDraftVersion?.sources.length || 0} REFERENCES</div>
+                      {(selectedDraftVersion?.sources || []).map(source => (
+                        <div className="draft-provenance-row" key={source.id}>
+                          <span>{source.source_order.toString().padStart(2, "0")}</span>
+                          <strong>{source.source_title}</strong>
+                          <small>{source.source_kind === "accepted_suggestion" ? "Accepted suggestion" : "Contribution revision"}</small>
+                        </div>
+                      ))}
+                      <p className="muted-note">Each reference stores the exact source text snapshot as well as its contribution and revision identifiers.</p>
+                    </div>
+                    <div className="draft-history">
+                      <div className="section-kicker">PROPOSAL HISTORY</div>
+                      <div className="draft-history-list">{[...draft.versions].reverse().map(version => (
+                        <button type="button" key={version.id} className={selectedDraftVersion?.id === version.id ? "draft-history-item selected" : "draft-history-item"} onClick={() => { setSelectedDraftVersionId(version.id); setEditingDraft(false); }}>
+                          <strong>Version {version.version_number}</strong><span>{version.origin === "manual" ? "Manual revision" : "Compiled"} · {version.author_display_name}</span><small>{new Date(version.created_at).toLocaleString()}</small>
+                        </button>
+                      ))}</div>
+                    </div>
+                    <p className="draft-disclaimer">Proposal only · No approval, voting, or storyboard transition occurs in M0.5.</p>
+                  </div>
+                )}
+              </section>
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
