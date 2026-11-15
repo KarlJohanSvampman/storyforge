@@ -1146,6 +1146,7 @@ function App() {
   const myMembership = selectedProject?.members.find(member => member.email === currentUser?.email);
   const canContribute = !!myMembership && myMembership.status === "active" && myMembership.role !== "viewer";
   const canEditStoryboard = canContribute && selectedProject?.current_phase === "storyboard";
+  const canEditDocumentaryResearch = canContribute && selectedProject?.current_phase !== "published";
   const canReviseSelected = !!selectedContribution && !!currentUser && (
     selectedContribution.author_user_id === currentUser.id || myMembership?.role === "owner" || myMembership?.role === "editor"
   );
