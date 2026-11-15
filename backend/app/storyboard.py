@@ -32,7 +32,13 @@ def _require_project(db: Session, project_id: uuid.UUID, user_id: uuid.UUID, *, 
 
 
 def _storyboard_or_404(db: Session, project_id: uuid.UUID) -> Storyboard:
-    storyboard = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id))
+    # Return the latest storyboard interpretation for the project. Older versions
+    # remain available in storage and retain their own scenes and source links.
+    storyboard = db.scalar(
+        select(Storyboard).where(Storyboard.project_id == project_id)
+        .order_by(Storyboard.created_at.desc(), Storyboard.id.desc())
+        .limit(1)
+    )
     if storyboard is None:
         raise HTTPException(status_code=404, detail="Storyboard has not been initialized for this project.")
     return storyboard
@@ -152,7 +158,11 @@ def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
 @router.get("", response_model=StoryboardDetail | None)
 def get_storyboard(project_id: uuid.UUID, db: DbSession, user: CurrentUser):
     _require_project(db, project_id, user.id)
-    storyboard = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id))
+    storyboard = db.scalar(
+        select(Storyboard).where(Storyboard.project_id == project_id)
+        .order_by(Storyboard.created_at.desc(), Storyboard.id.desc())
+        .limit(1)
+    )
     return _storyboard_detail(db, storyboard) if storyboard else None
 
 
@@ -165,17 +175,13 @@ def initialize_storyboard(project_id: uuid.UUID, db: DbSession, user: CurrentUse
         raise HTTPException(status_code=404, detail="Project not found.")
     if project.current_phase != "storyboard":
         raise HTTPException(status_code=409, detail="Storyboard initialization requires the project to be in the storyboard phase.")
-    existing = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id))
-    if existing:
-        return _storyboard_detail(db, existing)
-
     transition = db.scalar(
         select(ProjectPhaseTransition)
         .where(
             ProjectPhaseTransition.project_id == project_id,
             ProjectPhaseTransition.to_phase == "storyboard",
         )
-        .order_by(ProjectPhaseTransition.created_at.desc())
+        .order_by(ProjectPhaseTransition.created_at.desc(), ProjectPhaseTransition.id.desc())
         .limit(1)
     )
     if transition is None or transition.narrative_version_id is None:
@@ -187,6 +193,13 @@ def initialize_storyboard(project_id: uuid.UUID, db: DbSession, user: CurrentUse
     narrative = db.get(NarrativeDraftVersion, transition.narrative_version_id)
     if decision is None or narrative is None:
         raise HTTPException(status_code=409, detail="The storyboard can only be initialized from the approved narrative version.")
+
+    existing = db.scalar(select(Storyboard).where(
+        Storyboard.project_id == project_id,
+        Storyboard.narrative_version_id == narrative.id,
+    ))
+    if existing:
+        return _storyboard_detail(db, existing)
     storyboard = Storyboard(
         project_id=project_id, narrative_version_id=narrative.id,
         title=narrative.title, created_by_user_id=user.id,
