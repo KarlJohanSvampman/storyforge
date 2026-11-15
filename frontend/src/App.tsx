@@ -113,6 +113,10 @@ type Storyboard = {
   created_by_user_id: string; created_at: string;
   scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
 };
+type SceneEditDraft = {
+  title: string; summary: string; requirements: string;
+  estimated_duration_seconds: string; location_id: string; character_ids: string[];
+};
 
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
@@ -166,6 +170,7 @@ function App() {
   const [sceneDuration, setSceneDuration] = useState("");
   const [sceneLocationId, setSceneLocationId] = useState("");
   const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
+  const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
   const [scriptDrafts, setScriptDrafts] = useState<Record<string, string>>({});
   const [passageDrafts, setPassageDrafts] = useState<Record<string, string>>({});
   const [passageOccurrences, setPassageOccurrences] = useState<Record<string, string>>({});
@@ -603,6 +608,45 @@ function App() {
       setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create scene.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function sceneEditDraft(scene: StoryboardScene): SceneEditDraft {
+    return sceneEdits[scene.id] || {
+      title: scene.title,
+      summary: scene.summary,
+      requirements: scene.requirements,
+      estimated_duration_seconds: scene.estimated_duration_seconds?.toString() || "",
+      location_id: scene.location_id || "",
+      character_ids: scene.characters.map(character => character.id),
+    };
+  }
+
+  async function saveSceneDetails(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const edit = sceneEditDraft(scene);
+    if (!edit.title.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title: edit.title, summary: edit.summary, requirements: edit.requirements,
+          estimated_duration_seconds: edit.estimated_duration_seconds.trim() ? Number(edit.estimated_duration_seconds) : null,
+          location_id: edit.location_id || null, character_ids: edit.character_ids,
+        }),
+      });
+      setStoryboard(updated);
+      setSceneEdits(current => {
+        const next = { ...current };
+        delete next[scene.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update scene details.");
     } finally {
       setLoading(false);
     }
