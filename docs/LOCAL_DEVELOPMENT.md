@@ -159,6 +159,54 @@ Character and location records are story-bible entries, not actor profiles, cast
 9. Confirm a viewer cannot create/update storyboard data. Confirm a write attempt after the project leaves the storyboard phase returns HTTP 409.
 10. Restart Docker Compose and confirm scenes, assets, source references, and script revisions persist.
 
+## M1.2 structured screenplay authoring
+
+Open a scene in the storyboard and select **Write screenplay** or **Edit as structured screenplay**. The editor supports ordered blocks:
+
+- **Action:** visible action and scene description.
+- **Dialogue:** spoken words attributed to a story character.
+- **Parenthetical:** delivery or performance note, optionally associated with a character.
+- **Transition:** a screenplay transition such as `CUT TO:`.
+- **Production note:** a non-dialogue instruction for production planning.
+
+Add blocks, change their type, move them up/down, or remove them. Saving creates a new immutable script revision; it does not modify the previous revision. The generated screenplay preview is a deterministic rendering of the saved blocks. Dialogue must use a character already assigned to the scene. A speaker's name is snapshotted in the script element, so later character renaming does not silently rewrite old script versions.
+
+M1.1 plain-text script revisions remain readable. Opening a legacy text revision in the structured editor imports it as one initial **Action** block. Saving creates a new structured revision and leaves the legacy revision intact.
+
+### M1.2 API contract
+
+The existing script endpoint accepts either legacy text or a structured list, but not both:
+
+- Legacy payload: `{"base_version_id":null,"content":"Plain-text script"}`.
+- Structured payload:
+```json
+{
+  "base_version_id": null,
+  "elements": [
+    {"element_type": "action", "content": "A door opens.", "character_id": null},
+    {"element_type": "dialogue", "content": "You're late.", "character_id": "SCENE_CHARACTER_UUID"},
+    {"element_type": "parenthetical", "content": "quietly", "character_id": "SCENE_CHARACTER_UUID"},
+    {"element_type": "transition", "content": "CUT TO:", "character_id": null},
+    {"element_type": "production_note", "content": "A practical light flickers.", "character_id": null}
+  ]
+}
+```
+
+Supported element types are `action`, `dialogue`, `parenthetical`, `transition`, and `production_note`. Each element stores its order and text. Dialogue requires a character. Any selected character must be active and already assigned to the scene; a character from another project, an archived character, or an unassigned character returns HTTP 422. A character may speak multiple times in one script. The API response includes both the generated `content` and the structured `elements` for each script version.
+
+A non-null `base_version_id` must match the latest script version. Stale updates return HTTP 409. The first revision uses `base_version_id: null`.
+
+### M1.2 verification checklist
+
+1. Create a scene and assign at least two active story characters to it.
+2. Add action, dialogue, parenthetical, transition, and production-note blocks. Use the same character for multiple dialogue lines.
+3. Move blocks into a different order, edit content, and save. Confirm the rendered script follows the block order and the API response contains the same ordered typed blocks.
+4. Confirm dialogue requires a speaker. Try an unassigned character, an archived character, and a character from another project; confirm the API returns HTTP 422.
+5. Create a second revision. Confirm the first remains unchanged and the second points to it as parent. Attempt a stale base version and confirm HTTP 409.
+6. Open a scene whose latest script is a legacy plain-text M1.1 revision. Confirm it appears as one Action block. Save it and confirm the new version has structured elements while the legacy version remains unchanged.
+7. Confirm a viewer cannot create script revisions and a script cannot be written after the project leaves the storyboard phase.
+8. Restart Docker Compose and confirm structured elements, character name snapshots, and script revision history persist.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
