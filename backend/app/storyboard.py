@@ -7,14 +7,17 @@ from sqlalchemy.orm import Session
 from .models import (
     NarrativeApprovalDecision, NarrativeDraftVersion, Project, ProjectCharacter,
     ProjectLocation, ProjectPhaseTransition, SceneCharacterAssignment,
-    ScenePassageReference, SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardScene, User,
+    ScenePassageReference, SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode,
+    StoryboardSeason, StoryboardScene, User,
 )
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
     CharacterCreate, CharacterRead, CharacterUpdate, LocationCreate, LocationRead,
     LocationUpdate, SceneCharacterRead, ScenePassageCreate, ScenePassageRead,
     SceneReorder, SceneScriptElementRead, SceneScriptVersionCreate, SceneScriptVersionRead,
-    StoryboardDetail, StoryboardSceneCreate, StoryboardSceneRead, StoryboardSceneUpdate,
+    StoryboardDetail, StoryboardEpisodeCreate, StoryboardEpisodeRead, StoryboardEpisodeUpdate,
+    StoryboardSeasonCreate, StoryboardSeasonRead, StoryboardSeasonUpdate,
+    StoryboardSceneCreate, StoryboardSceneRead, StoryboardSceneUpdate,
 )
 
 router = APIRouter(prefix="/api/projects/{project_id}/storyboard", tags=["storyboard"])
@@ -150,15 +153,39 @@ def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
                 created_at=script.created_at, elements=element_reads,
             ))
         location = db.get(ProjectLocation, scene.location_id) if scene.location_id else None
+        episode = db.get(StoryboardEpisode, scene.episode_id) if scene.episode_id else None
+        season = db.get(StoryboardSeason, episode.season_id) if episode else None
         scenes.append(StoryboardSceneRead(
             id=scene.id, scene_order=scene.scene_order, title=scene.title,
             summary=scene.summary, requirements=scene.requirements,
             estimated_duration_seconds=scene.estimated_duration_seconds,
             location_id=scene.location_id, location_name=location.name if location else None,
+            episode_id=scene.episode_id, episode_title=episode.title if episode else None,
+            season_number=season.season_number if season else None,
+            episode_number=episode.episode_number if episode else None,
             characters=scene_characters,
             passages=[ScenePassageRead.model_validate(item, from_attributes=True) for item in passages],
             script_versions=script_reads, created_by_user_id=scene.created_by_user_id,
             created_at=scene.created_at, updated_at=scene.updated_at,
+        ))
+
+    season_rows = db.scalars(
+        select(StoryboardSeason).where(StoryboardSeason.storyboard_id == storyboard.id)
+        .order_by(StoryboardSeason.season_number)
+    ).all()
+    season_reads = []
+    for season in season_rows:
+        episode_rows = db.scalars(
+            select(StoryboardEpisode).where(StoryboardEpisode.season_id == season.id)
+            .order_by(StoryboardEpisode.episode_number)
+        ).all()
+        season_reads.append(StoryboardSeasonRead(
+            id=season.id, storyboard_id=season.storyboard_id,
+            season_number=season.season_number, title=season.title,
+            description=season.description, story_arc=season.story_arc,
+            status=season.status, created_by_user_id=season.created_by_user_id,
+            created_at=season.created_at, updated_at=season.updated_at,
+            episodes=[StoryboardEpisodeRead.model_validate(item, from_attributes=True) for item in episode_rows],
         ))
 
     return StoryboardDetail(
@@ -166,7 +193,7 @@ def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
         narrative_version_id=narrative.id, narrative_version_number=narrative.version_number,
         narrative_title=narrative.title, narrative_content=narrative.content,
         created_by_user_id=storyboard.created_by_user_id, created_at=storyboard.created_at,
-        scenes=scenes,
+        scenes=scenes, seasons=season_reads,
         characters=[CharacterRead.model_validate(item, from_attributes=True) for item in character_rows],
         locations=[LocationRead.model_validate(item, from_attributes=True) for item in location_rows],
     )
@@ -291,19 +318,160 @@ def update_location(project_id: uuid.UUID, location_id: uuid.UUID, payload: Loca
     return LocationRead.model_validate(location, from_attributes=True)
 
 
+def _episode_or_404(db: Session, storyboard_id: uuid.UUID, episode_id: uuid.UUID) -> StoryboardEpisode:
+    episode = db.scalar(
+        select(StoryboardEpisode)
+        .join(StoryboardSeason, StoryboardSeason.id == StoryboardEpisode.season_id)
+        .where(
+            StoryboardEpisode.id == episode_id,
+            StoryboardSeason.storyboard_id == storyboard_id,
+        )
+    )
+    if episode is None:
+        raise HTTPException(status_code=404, detail="Episode not found in this storyboard.")
+    return episode
+
+
+def _validate_scene_episode(
+    db: Session,
+    project: Project,
+    storyboard: Storyboard,
+    episode_id: uuid.UUID | None,
+    *,
+    require_active: bool = True,
+) -> StoryboardEpisode | None:
+    if project.format == "movie":
+        if episode_id is not None:
+            raise HTTPException(status_code=422, detail="Movie scenes cannot be assigned to a TV episode.")
+        return None
+    if episode_id is None:
+        raise HTTPException(status_code=422, detail="Every TV-series scene must belong to an episode.")
+    episode = _episode_or_404(db, storyboard.id, episode_id)
+    season = db.get(StoryboardSeason, episode.season_id)
+    if require_active and (episode.status != "active" or season is None or season.status != "active"):
+        raise HTTPException(status_code=422, detail="New scenes can only be assigned to an active episode in an active season.")
+    return episode
+
+
+@router.post("/seasons", response_model=StoryboardDetail, status_code=status.HTTP_201_CREATED)
+def create_season(project_id: uuid.UUID, payload: StoryboardSeasonCreate, db: DbSession, user: CurrentUser):
+    project = _require_project(db, project_id, user.id, write=True)
+    if project.format != "tv_series":
+        raise HTTPException(status_code=409, detail="Seasons are only available for TV-series projects.")
+    storyboard = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id)
+                            .order_by(Storyboard.created_at.desc()).limit(1).with_for_update())
+    if storyboard is None:
+        raise HTTPException(status_code=409, detail="Initialize the storyboard before creating seasons.")
+    if db.scalar(select(StoryboardSeason.id).where(
+        StoryboardSeason.storyboard_id == storyboard.id,
+        StoryboardSeason.season_number == payload.season_number,
+    )):
+        raise HTTPException(status_code=409, detail="That season number already exists in this series.")
+    season = StoryboardSeason(
+        storyboard_id=storyboard.id, season_number=payload.season_number,
+        title=payload.title, description=payload.description, story_arc=payload.story_arc,
+        created_by_user_id=user.id,
+    )
+    db.add(season)
+    db.commit()
+    return _storyboard_detail(db, storyboard)
+
+
+@router.patch("/seasons/{season_id}", response_model=StoryboardDetail)
+def update_season(project_id: uuid.UUID, season_id: uuid.UUID, payload: StoryboardSeasonUpdate, db: DbSession, user: CurrentUser):
+    project = _require_project(db, project_id, user.id, write=True)
+    if project.format != "tv_series":
+        raise HTTPException(status_code=409, detail="Seasons are only available for TV-series projects.")
+    storyboard = _storyboard_or_404(db, project_id)
+    season = db.scalar(select(StoryboardSeason).where(
+        StoryboardSeason.id == season_id, StoryboardSeason.storyboard_id == storyboard.id,
+    ).with_for_update())
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found in this storyboard.")
+    values = payload.model_dump(exclude_unset=True)
+    if "season_number" in values and values["season_number"] != season.season_number:
+        if db.scalar(select(StoryboardSeason.id).where(
+            StoryboardSeason.storyboard_id == storyboard.id,
+            StoryboardSeason.season_number == values["season_number"],
+            StoryboardSeason.id != season.id,
+        )):
+            raise HTTPException(status_code=409, detail="That season number already exists in this series.")
+    for key, value in values.items():
+        if value is not None:
+            setattr(season, key, value)
+    db.commit()
+    return _storyboard_detail(db, storyboard)
+
+
+@router.post("/seasons/{season_id}/episodes", response_model=StoryboardDetail, status_code=status.HTTP_201_CREATED)
+def create_episode(project_id: uuid.UUID, season_id: uuid.UUID, payload: StoryboardEpisodeCreate, db: DbSession, user: CurrentUser):
+    project = _require_project(db, project_id, user.id, write=True)
+    if project.format != "tv_series":
+        raise HTTPException(status_code=409, detail="Episodes are only available for TV-series projects.")
+    storyboard = _storyboard_or_404(db, project_id)
+    season = db.scalar(select(StoryboardSeason).where(
+        StoryboardSeason.id == season_id, StoryboardSeason.storyboard_id == storyboard.id,
+    ).with_for_update())
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found in this storyboard.")
+    if season.status != "active":
+        raise HTTPException(status_code=409, detail="Episodes cannot be added to an archived season.")
+    if db.scalar(select(StoryboardEpisode.id).where(
+        StoryboardEpisode.season_id == season.id,
+        StoryboardEpisode.episode_number == payload.episode_number,
+    )):
+        raise HTTPException(status_code=409, detail="That episode number already exists in this season.")
+    episode = StoryboardEpisode(
+        season_id=season.id, episode_number=payload.episode_number,
+        title=payload.title, logline=payload.logline, synopsis=payload.synopsis,
+        estimated_duration_seconds=payload.estimated_duration_seconds,
+        created_by_user_id=user.id,
+    )
+    db.add(episode)
+    db.commit()
+    return _storyboard_detail(db, storyboard)
+
+
+@router.patch("/episodes/{episode_id}", response_model=StoryboardDetail)
+def update_episode(project_id: uuid.UUID, episode_id: uuid.UUID, payload: StoryboardEpisodeUpdate, db: DbSession, user: CurrentUser):
+    project = _require_project(db, project_id, user.id, write=True)
+    if project.format != "tv_series":
+        raise HTTPException(status_code=409, detail="Episodes are only available for TV-series projects.")
+    storyboard = _storyboard_or_404(db, project_id)
+    episode = _episode_or_404(db, storyboard.id, episode_id)
+    values = payload.model_dump(exclude_unset=True)
+    if "episode_number" in values and values["episode_number"] != episode.episode_number:
+        if db.scalar(select(StoryboardEpisode.id).where(
+            StoryboardEpisode.season_id == episode.season_id,
+            StoryboardEpisode.episode_number == values["episode_number"],
+            StoryboardEpisode.id != episode.id,
+        )):
+            raise HTTPException(status_code=409, detail="That episode number already exists in this season.")
+    for key, value in values.items():
+        if value is not None:
+            setattr(episode, key, value)
+    db.commit()
+    return _storyboard_detail(db, storyboard)
+
+
 @router.post("/scenes", response_model=StoryboardDetail, status_code=status.HTTP_201_CREATED)
 def create_scene(project_id: uuid.UUID, payload: StoryboardSceneCreate, db: DbSession, user: CurrentUser):
-    _require_project(db, project_id, user.id, write=True)
-    storyboard = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id).with_for_update())
-    if storyboard is None:
-        raise HTTPException(status_code=409, detail="Initialize the storyboard before adding scenes.")
+    project = _require_project(db, project_id, user.id, write=True)
+    storyboard = _storyboard_or_404(db, project_id)
     _validate_location(db, project_id, payload.location_id)
+    episode = _validate_scene_episode(db, project, storyboard, payload.episode_id)
     characters = _validate_characters(db, project_id, payload.character_ids)
-    next_order = (db.scalar(select(func.max(StoryboardScene.scene_order)).where(
+    order_query = select(func.max(StoryboardScene.scene_order)).where(
         StoryboardScene.storyboard_id == storyboard.id,
-    )) or 0) + 1
+    )
+    if episode is None:
+        order_query = order_query.where(StoryboardScene.episode_id.is_(None))
+    else:
+        order_query = order_query.where(StoryboardScene.episode_id == episode.id)
+    next_order = (db.scalar(order_query) or 0) + 1
     scene = StoryboardScene(
-        storyboard_id=storyboard.id, scene_order=next_order, title=payload.title,
+        storyboard_id=storyboard.id, episode_id=episode.id if episode else None,
+        scene_order=next_order, title=payload.title,
         summary=payload.summary, requirements=payload.requirements,
         estimated_duration_seconds=payload.estimated_duration_seconds,
         location_id=payload.location_id, created_by_user_id=user.id,
@@ -320,7 +488,7 @@ def create_scene(project_id: uuid.UUID, payload: StoryboardSceneCreate, db: DbSe
 
 @router.patch("/scenes/{scene_id}", response_model=StoryboardDetail)
 def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: StoryboardSceneUpdate, db: DbSession, user: CurrentUser):
-    _require_project(db, project_id, user.id, write=True)
+    project = _require_project(db, project_id, user.id, write=True)
     storyboard = _storyboard_or_404(db, project_id)
     scene = db.scalar(select(StoryboardScene).where(
         StoryboardScene.id == scene_id,
@@ -333,6 +501,11 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
     character_ids = values.pop("character_ids", None)
     if "location_id" in values:
         _validate_location(db, project_id, values["location_id"])
+    if "episode_id" in values:
+        requested_episode_id = values["episode_id"]
+        if requested_episode_id != scene.episode_id:
+            episode = _validate_scene_episode(db, project, storyboard, requested_episode_id)
+            values["episode_id"] = episode.id if episode else None
     if character_ids is not None:
         characters = _validate_characters(db, project_id, character_ids)
         db.query(SceneCharacterAssignment).filter(
@@ -350,16 +523,20 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
 
 @router.put("/scenes/reorder", response_model=StoryboardDetail)
 def reorder_scenes(project_id: uuid.UUID, payload: SceneReorder, db: DbSession, user: CurrentUser):
-    _require_project(db, project_id, user.id, write=True)
-    storyboard = db.scalar(select(Storyboard).where(Storyboard.project_id == project_id).with_for_update())
-    if storyboard is None:
-        raise HTTPException(status_code=404, detail="Storyboard not found.")
-    scenes = db.scalars(select(StoryboardScene).where(
-        StoryboardScene.storyboard_id == storyboard.id,
-    ).with_for_update()).all()
+    project = _require_project(db, project_id, user.id, write=True)
+    storyboard = _storyboard_or_404(db, project_id)
+    episode = _validate_scene_episode(
+        db, project, storyboard, payload.episode_id, require_active=False,
+    )
+    scenes_query = select(StoryboardScene).where(StoryboardScene.storyboard_id == storyboard.id)
+    if episode is None:
+        scenes_query = scenes_query.where(StoryboardScene.episode_id.is_(None))
+    else:
+        scenes_query = scenes_query.where(StoryboardScene.episode_id == episode.id)
+    scenes = db.scalars(scenes_query.with_for_update()).all()
     by_id = {scene.id: scene for scene in scenes}
     if len(payload.scene_ids) != len(scenes) or set(payload.scene_ids) != set(by_id):
-        raise HTTPException(status_code=422, detail="Reorder must include every storyboard scene exactly once.")
+        raise HTTPException(status_code=422, detail="Reorder must include every scene in the selected movie sequence or episode exactly once.")
     offset = max((scene.scene_order for scene in scenes), default=0) + len(scenes) + 1
     for scene in scenes:
         scene.scene_order += offset
