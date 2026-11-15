@@ -1,5 +1,4 @@
 import uuid
-from collections.abc import Iterable
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import select
@@ -71,8 +70,7 @@ def _decision_read(db: Session, decision: NarrativeApprovalDecision | None) -> A
 def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> ApprovalOverview:
     rule_read = _rule_read(db, project.id)
     eligible_ids = _eligible_voter_ids(db, project, rule_read.mode)
-    rule_row = db.scalar(select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id))
-    mode = rule_row.mode if rule_row else "owner_only"
+    mode = rule_read.mode
     draft = db.scalar(select(NarrativeDraft).where(NarrativeDraft.project_id == project.id))
     versions = []
     if draft:
@@ -101,15 +99,24 @@ def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> App
                 select(NarrativeApprovalDecision)
                 .where(NarrativeApprovalDecision.version_id == version.id)
             )
+            # After a final decision, display the exact tally snapshot that was
+            # recorded at decision time, rather than recalculating against later membership changes.
+            eligible_voter_count = decision.eligible_voter_count if decision else len(eligible_ids)
+            required_votes = decision.required_votes if decision else required_votes
+            approve_count = decision.approve_count if decision else approve_count
+            reject_count = decision.reject_count if decision else reject_count
             vote_reads = []
+            user_cache: dict[uuid.UUID, User | None] = {}
             for vote in vote_events:
                 latest = latest_by_user.get(vote.voter_user_id) == vote
+                if vote.voter_user_id not in user_cache:
+                    user_cache[vote.voter_user_id] = db.get(User, vote.voter_user_id)
+                voter = user_cache[vote.voter_user_id]
                 vote_reads.append(ApprovalVoteRead(
                     id=vote.id,
                     version_id=vote.version_id,
                     voter_user_id=vote.voter_user_id,
-                    voter_display_name=(db.get(User, vote.voter_user_id).display_name
-                                        if db.get(User, vote.voter_user_id) else "Unknown participant"),
+                    voter_display_name=voter.display_name if voter else "Unknown participant",
                     choice=vote.choice,
                     note=vote.note,
                     created_at=vote.created_at,
@@ -134,7 +141,7 @@ def _approval_overview(db: Session, project: Project, user_id: uuid.UUID) -> App
                 version_id=version.id,
                 version_number=version.version_number,
                 is_current_version=version.version_number == draft.current_version_number,
-                eligible_voter_count=len(eligible_ids),
+                eligible_voter_count=eligible_voter_count,
                 required_votes=required_votes,
                 approve_count=approve_count,
                 reject_count=reject_count,
@@ -275,7 +282,7 @@ def cast_approval_vote(
     user: CurrentUser,
 ):
     project = _locked_project(db, project_id)
-    membership = _membership(db, project.id, user.id)
+    _membership(db, project.id, user.id)
     _, version = _current_version(db, project, draft_id, version_id)
     rule = db.scalar(select(ProjectApprovalRule).where(ProjectApprovalRule.project_id == project.id))
     mode = rule.mode if rule else "owner_only"
