@@ -122,7 +122,9 @@ def activate_production(project_id: uuid.UUID, payload: ProductionPhaseActivate,
 def update_scene_run_status(project_id: uuid.UUID, run_id: uuid.UUID, payload: SceneRunStatusUpdate,
                             db: DbSession, user: CurrentUser):
     _runtime_editor(db, project_id, user.id)
-    run = _run_or_404(db, project_id, run_id)
+    run = db.scalar(select(SceneRun).where(SceneRun.id == run_id, SceneRun.project_id == project_id).with_for_update())
+    if run is None:
+        raise HTTPException(status_code=404, detail="Scene run not found.")
     transitions = {
         "prepared": {"running", "aborted"},
         "running": {"paused", "completed", "aborted"},
