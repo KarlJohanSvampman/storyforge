@@ -178,6 +178,64 @@ type DocumentaryResearch = {
   project_id: string; sources: DocumentaryResearchSource[]; claims: DocumentaryClaim[];
 };
 
+type DocumentaryConsentUse = "research" | "storyboard" | "script" | "narration" | "lower_third" | "caption" | "promotion" | "publication" | "trailer" | "social";
+type DocumentaryIdentityMode = "named" | "pseudonym" | "anonymous";
+type DocumentaryInterviewSubject = {
+  id: string; project_id: string; name_or_pseudonym: string; identity_mode: DocumentaryIdentityMode;
+  role_or_relationship: string; background_notes: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+};
+type DocumentaryInterviewSession = {
+  id: string; project_id: string; subject_id: string; subject_label: string; session_date: string;
+  interviewer_name: string; session_format: string; location_or_platform: string; transcript_notes: string;
+  status: string; media_asset_ids: string[]; created_by_user_id: string; created_at: string; updated_at: string;
+};
+type DocumentaryReleaseEvent = {
+  id: string; actor_user_id: string; previous_status: string | null; new_status: string; reason: string; created_at: string;
+};
+type DocumentaryRelease = {
+  id: string; project_id: string; subject_id: string; subject_label: string; interview_session_id: string | null;
+  scope_type: "project" | "production" | "release"; scope_label: string; consent_scope: string; withdrawal_terms: string;
+  permitted_uses: DocumentaryConsentUse[]; status: "draft" | "signed" | "withdrawn" | "expired";
+  signed_at: string | null; expires_at: string | null; release_document_asset_id: string | null;
+  created_by_user_id: string; created_at: string; updated_at: string; events: DocumentaryReleaseEvent[];
+};
+type DocumentaryMediaRights = {
+  id: string; media_asset_id: string; version_number: number; supersedes_rights_id: string | null;
+  rights_holder: string; rights_basis: string; license_name: string; license_url: string; territory: string;
+  valid_from: string | null; valid_until: string | null; permitted_uses: DocumentaryConsentUse[];
+  attribution_required: boolean; attribution_text: string; restrictions: string; status: string;
+  created_by_user_id: string; created_at: string;
+};
+type DocumentaryMediaAsset = {
+  id: string; project_id: string; source_id: string | null; interview_session_id: string | null;
+  title: string; asset_type: string; original_filename: string; content_type: string; size_bytes: number;
+  sha256: string; duration_seconds: number | null; status: string; download_url: string;
+  latest_rights: DocumentaryMediaRights | null; created_by_user_id: string; created_at: string; updated_at: string;
+};
+type DocumentaryClaimUsage = {
+  id: string; claim_id: string; claim_statement: string; claim_review_status: string; usage_type: string;
+  scene_id: string | null; scene_title: string | null; script_version_id: string | null;
+  script_revision_number: number | null; reference_text: string; created_by_user_id: string; created_at: string;
+};
+type DocumentaryProduction = {
+  project_id: string; subjects: DocumentaryInterviewSubject[]; sessions: DocumentaryInterviewSession[];
+  releases: DocumentaryRelease[]; media_assets: DocumentaryMediaAsset[]; claim_usages: DocumentaryClaimUsage[];
+};
+type DocumentaryMediaRightsDraft = {
+  rights_holder: string; rights_basis: string; license_name: string; license_url: string; territory: string;
+  valid_until: string; permitted_uses: DocumentaryConsentUse[]; attribution_required: boolean; attribution_text: string; restrictions: string;
+};
+type DocumentaryClaimUsageDraft = { usage_type: string; scene_id: string; script_version_id: string; reference_text: string };
+const documentaryUseOptions: { value: DocumentaryConsentUse; label: string }[] = [
+  { value: "research", label: "Research" }, { value: "storyboard", label: "Storyboard" },
+  { value: "script", label: "Script" }, { value: "narration", label: "Narration" },
+  { value: "lower_third", label: "Lower thirds" }, { value: "caption", label: "Captions" },
+  { value: "promotion", label: "Promotion" }, { value: "publication", label: "Publication" },
+  { value: "trailer", label: "Trailer" }, { value: "social", label: "Social media" },
+];
+
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -186,6 +244,15 @@ const phases = [
 ];
 
 const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", format: "movie", category: "fiction", visibility: "private" };
+
+async function apiUpload<T>(path: string, body: FormData): Promise<T> {
+  const response = await fetch(path, { method: "POST", body });
+  if (!response.ok) {
+    const result = await response.json().catch(() => null);
+    throw new Error(result?.detail || `Upload failed (${response.status})`);
+  }
+  return response.json() as Promise<T>;
+}
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -216,6 +283,36 @@ function App() {
   const [approval, setApproval] = useState<ApprovalOverview | null>(null);
   const [storyboard, setStoryboard] = useState<Storyboard | null>(null);
   const [documentaryResearch, setDocumentaryResearch] = useState<DocumentaryResearch | null>(null);
+  const [documentaryProduction, setDocumentaryProduction] = useState<DocumentaryProduction | null>(null);
+  const [interviewSubjectLabel, setInterviewSubjectLabel] = useState("");
+  const [interviewSubjectMode, setInterviewSubjectMode] = useState<DocumentaryIdentityMode>("named");
+  const [interviewSubjectRole, setInterviewSubjectRole] = useState("");
+  const [interviewSubjectNotes, setInterviewSubjectNotes] = useState("");
+  const [interviewSessionSubjectId, setInterviewSessionSubjectId] = useState("");
+  const [interviewSessionDate, setInterviewSessionDate] = useState("");
+  const [interviewSessionInterviewer, setInterviewSessionInterviewer] = useState("");
+  const [interviewSessionFormat, setInterviewSessionFormat] = useState("in_person");
+  const [interviewSessionLocation, setInterviewSessionLocation] = useState("");
+  const [interviewSessionNotes, setInterviewSessionNotes] = useState("");
+  const [releaseSubjectId, setReleaseSubjectId] = useState("");
+  const [releaseSessionId, setReleaseSessionId] = useState("");
+  const [releaseScopeType, setReleaseScopeType] = useState<"project" | "production" | "release">("project");
+  const [releaseScopeLabel, setReleaseScopeLabel] = useState("");
+  const [releaseConsentScope, setReleaseConsentScope] = useState("");
+  const [releaseWithdrawalTerms, setReleaseWithdrawalTerms] = useState("");
+  const [releaseStatus, setReleaseStatus] = useState<"draft" | "signed">("draft");
+  const [releaseSignedAt, setReleaseSignedAt] = useState("");
+  const [releaseExpiresAt, setReleaseExpiresAt] = useState("");
+  const [releaseDocumentAssetId, setReleaseDocumentAssetId] = useState("");
+  const [releasePermittedUses, setReleasePermittedUses] = useState<DocumentaryConsentUse[]>(["research", "storyboard"]);
+  const [documentaryUploadTitle, setDocumentaryUploadTitle] = useState("");
+  const [documentaryUploadType, setDocumentaryUploadType] = useState("document");
+  const [documentaryUploadSourceId, setDocumentaryUploadSourceId] = useState("");
+  const [documentaryUploadSessionId, setDocumentaryUploadSessionId] = useState("");
+  const [documentaryUploadDuration, setDocumentaryUploadDuration] = useState("");
+  const [documentaryUploadFile, setDocumentaryUploadFile] = useState<File | null>(null);
+  const [mediaRightsDrafts, setMediaRightsDrafts] = useState<Record<string, DocumentaryMediaRightsDraft>>({});
+  const [claimUsageDrafts, setClaimUsageDrafts] = useState<Record<string, DocumentaryClaimUsageDraft>>({});
   const [researchSourceTitle, setResearchSourceTitle] = useState("");
   const [researchSourceType, setResearchSourceType] = useState<DocumentarySourceType>("article");
   const [researchSourceCreator, setResearchSourceCreator] = useState("");
