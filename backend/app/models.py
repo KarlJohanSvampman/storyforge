@@ -225,6 +225,39 @@ class ProjectApprovalRule(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+
+
+
+class NarrativeApprovalRound(Base):
+    """Frozen eligibility and threshold snapshot created when voting first opens."""
+    __tablename__ = "narrative_approval_rounds"
+    __table_args__ = (
+        UniqueConstraint("version_id", name="uq_narrative_approval_rounds_version"),
+        CheckConstraint("rule_mode IN ('owner_only', 'majority')", name="ck_narrative_approval_rounds_rule_mode"),
+        CheckConstraint("eligible_voter_count >= 1", name="ck_narrative_approval_rounds_eligible_count"),
+        CheckConstraint("required_votes >= 1", name="ck_narrative_approval_rounds_required_votes"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="CASCADE"), nullable=False)
+    rule_mode: Mapped[str] = mapped_column(String(20), nullable=False)
+    eligible_voter_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    required_votes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NarrativeApprovalVoter(Base):
+    """Eligible voter frozen into a specific version's approval round."""
+    __tablename__ = "narrative_approval_voters"
+    __table_args__ = (
+        UniqueConstraint("round_id", "voter_user_id", name="uq_narrative_approval_voters_round_user"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    round_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_approval_rounds.id", ondelete="CASCADE"), nullable=False, index=True)
+    voter_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    role_snapshot: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class NarrativeApprovalVote(Base):
     """Append-only vote event. The latest vote from each eligible member is counted."""
     __tablename__ = "narrative_approval_votes"
