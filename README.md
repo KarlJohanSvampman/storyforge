@@ -64,10 +64,14 @@ Not every project must use every phase. Projects should be able to skip or revis
 
 ### M1 — Storyboard and creative assets
 
+- Create projects as movies or TV series, independently classified as fiction or documentary.
+- For TV series, organise work into seasons and episodes, with each episode owning its own scenes and screenplay.
 - Convert an approved story into ordered scenes.
 - Define scene summaries, participants, requirements, and estimated duration.
 - Create basic character and location records.
 - Connect scenes to relevant story passages and script material.
+
+Documentary is a first-class category for either a movie or a series. Dedicated research, source attribution, interview, rights, and fact-checking tools are planned as a later milestone.
 
 ### M2 — Basic virtual production
 
