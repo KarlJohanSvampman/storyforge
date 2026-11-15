@@ -634,6 +634,82 @@ function App() {
     }
   }
 
+  async function submitSeason(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !seasonTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons`, {
+        method: "POST",
+        body: JSON.stringify({
+          season_number: Number(seasonNumber), title: seasonTitle,
+          description: seasonDescription, story_arc: seasonStoryArc,
+        }),
+      });
+      setStoryboard(updated);
+      const createdSeason = updated.seasons.find(item => item.season_number === Number(seasonNumber));
+      if (createdSeason) setEpisodeSeasonId(createdSeason.id);
+      setSeasonNumber(String(Math.max(0, ...updated.seasons.map(item => item.season_number)) + 1));
+      setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create season.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitEpisode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !episodeSeasonId || !episodeTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${episodeSeasonId}/episodes`, {
+        method: "POST",
+        body: JSON.stringify({
+          episode_number: Number(episodeNumber), title: episodeTitle,
+          logline: episodeLogline, synopsis: episodeSynopsis,
+          estimated_duration_seconds: episodeDuration.trim() ? Number(episodeDuration) : null,
+        }),
+      });
+      setStoryboard(updated);
+      const selectedSeason = updated.seasons.find(item => item.id === episodeSeasonId);
+      setEpisodeNumber(String(Math.max(0, ...(selectedSeason?.episodes || []).map(item => item.episode_number)) + 1));
+      setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create episode.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateSeasonStatus(season: StoryboardSeason, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} Season ${season.season_number}? Existing episodes, scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${season.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update season.");
+    }
+  }
+
+  async function updateEpisodeStatus(episode: StoryboardEpisode, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} this episode? Its scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/episodes/${episode.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update episode.");
+    }
+  }
+
   async function submitScene(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject || !sceneTitle.trim()) return;
@@ -645,12 +721,14 @@ function App() {
         body: JSON.stringify({
           title: sceneTitle, summary: sceneSummary, requirements: sceneRequirements,
           estimated_duration_seconds: sceneDuration.trim() ? Number(sceneDuration) : null,
-          location_id: sceneLocationId || null, character_ids: sceneCharacterIds,
+          location_id: sceneLocationId || null,
+          episode_id: selectedProject.format === "tv_series" ? (sceneEpisodeId || null) : null,
+          character_ids: sceneCharacterIds,
         }),
       });
       setStoryboard(updated);
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create scene.");
     } finally {
@@ -665,6 +743,7 @@ function App() {
       requirements: scene.requirements,
       estimated_duration_seconds: scene.estimated_duration_seconds?.toString() || "",
       location_id: scene.location_id || "",
+      episode_id: scene.episode_id || "",
       character_ids: scene.characters.map(character => character.id),
     };
   }
@@ -681,7 +760,9 @@ function App() {
         body: JSON.stringify({
           title: edit.title, summary: edit.summary, requirements: edit.requirements,
           estimated_duration_seconds: edit.estimated_duration_seconds.trim() ? Number(edit.estimated_duration_seconds) : null,
-          location_id: edit.location_id || null, character_ids: edit.character_ids,
+          location_id: edit.location_id || null,
+          episode_id: selectedProject.format === "tv_series" ? (edit.episode_id || null) : null,
+          character_ids: edit.character_ids,
         }),
       });
       setStoryboard(updated);
@@ -822,7 +903,9 @@ function App() {
 
   async function moveScene(scene: StoryboardScene, direction: -1 | 1) {
     if (!selectedProject || !storyboard) return;
-    const ordered = [...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order);
+    const ordered = [...storyboard.scenes]
+      .filter(item => item.episode_id === scene.episode_id)
+      .sort((a, b) => a.scene_order - b.scene_order);
     const index = ordered.findIndex(item => item.id === scene.id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= ordered.length) return;
@@ -831,7 +914,7 @@ function App() {
     setError("");
     try {
       const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/reorder`, {
-        method: "PUT", body: JSON.stringify({ scene_ids: ordered.map(item => item.id) }),
+        method: "PUT", body: JSON.stringify({ episode_id: scene.episode_id, scene_ids: ordered.map(item => item.id) }),
       });
       setStoryboard(updated);
     } catch (err) {
