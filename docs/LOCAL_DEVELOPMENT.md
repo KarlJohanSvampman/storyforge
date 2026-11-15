@@ -247,7 +247,56 @@ The API prevents changing a project's production format after its first storyboa
 11. Confirm viewers cannot write seasons, episodes or scenes, and all write actions are blocked after the project leaves the storyboard phase.
 12. Restart Docker Compose and confirm formats, categories, seasons, episodes, scene assignments, and screenplay revisions persist.
 
-Documentary research/source attribution, interview records, media rights, and fact-checking are intentionally not implemented in M1.3. They are planned as a dedicated documentary workflow milestone. Documentary content must not be treated as fact-checked merely because it was generated or edited by AI.
+## M1.4 documentary research and claim-level fact-checking
+
+The documentary workspace appears on a project detail page when the project's category is **Documentary**. It is project-level, so researchers can begin before a storyboard exists. Both movie-documentaries and documentary series use the same register.
+
+The source register captures source type, title, creator/author, publisher/institution, publication date, URL, citation text, notes, and a server-recorded access timestamp. It is a bibliographic register, not a document downloader: source content must currently be reviewed externally and excerpts entered manually.
+
+Claims are discrete factual statements with an origin of **Human-authored** or **AI-assisted**. Both begin unreviewed. Each claim can be linked to a source using an evidence relationship:
+- **Supports:** the source provides evidence in favour of the statement.
+- **Challenges:** the source provides evidence against the statement.
+- **Context:** the source provides relevant context without being marked as direct support or contradiction.
+
+Each evidence link stores an exact excerpt, a page/section/table/timecode locator, and researcher notes. A single source can currently be linked once to a given claim. Evidence links are append-only. Claims are not edited in place in this slice; archive a claim and create a replacement if its wording needs to materially change.
+
+A human project member records a fact-check result and rationale. The API enforces:
+- **Supported:** at least one active linked source must be marked Supports.
+- **Contested:** active evidence must include both Supports and Challenges.
+- **Not supported:** at least one active linked source must be marked Challenges.
+- **Insufficient evidence:** can be recorded even when no suitable source is yet linked.
+
+Every review stores the reviewer, result, rationale, and a snapshot of the active source metadata and evidence excerpts available at that moment. Adding evidence or changing/archiving a cited source changes a previously reviewed claim to **Needs review**; prior review history remains intact. An AI-assisted claim cannot mark itself supported. Only a signed-in project member can submit a human review.
+
+### M1.4 API endpoints
+
+- `GET /api/projects/{project_id}/documentary` — retrieve the complete source register, claim ledger, evidence links, and review history.
+- `POST /api/projects/{project_id}/documentary/sources` — add a source.
+- `PATCH /api/projects/{project_id}/documentary/sources/{source_id}` — update source metadata or archive/restore it. This invalidates any current claim review that relied on the source.
+- `POST /api/projects/{project_id}/documentary/claims` — create a human-authored or AI-assisted factual claim.
+- `PATCH /api/projects/{project_id}/documentary/claims/{claim_id}` — archive/restore a claim; claim statement text is immutable in this slice.
+- `POST /api/projects/{project_id}/documentary/claims/{claim_id}/evidence` — link an active source, evidence relationship, exact excerpt, locator, and notes. A source can be linked once per claim.
+- `POST /api/projects/{project_id}/documentary/claims/{claim_id}/reviews` — append a human fact-check result and evidence snapshot.
+
+All active project members can read. Owners, editors, and contributors can write. Viewers are read-only. Published projects are read-only. The API returns HTTP 409 when a non-documentary project accesses this workflow. Source URLs must use http:// or https://.
+
+### M1.4 verification checklist
+
+1. Create a documentary movie and a documentary TV series. Confirm the research workspace appears in both without requiring storyboard initialization.
+2. Confirm fiction projects do not expose or access the documentary API (HTTP 409).
+3. Add sources of several types, including an article, an academic paper, an official record, an interview, and an archival record. Confirm metadata, URL, citation, notes, creation time, and accessed time persist.
+4. Submit a URL without http:// or https:// and confirm the API rejects it.
+5. Create human-authored and AI-assisted claims. Confirm both begin with Unreviewed status and the origin label remains visible.
+6. Try Supported without a supporting source; confirm HTTP 422. Link a source marked Supports and record the decision.
+7. Try Contested with only supporting evidence; confirm HTTP 422. Add a Challenges source and confirm the result can now be recorded.
+8. Try Not supported without a Challenges source; confirm HTTP 422. Confirm Insufficient evidence can be recorded with a rationale even when no evidence exists.
+9. Confirm each review stores the reviewer, rationale, and evidence snapshot. Add more evidence and confirm the claim changes to Needs review while its earlier decision and snapshot remain in history.
+10. Change or archive a cited source and confirm every claim that used it moves to Needs review. Confirm archived sources cannot be added as new evidence until restored.
+11. Archive a claim and confirm it cannot receive evidence or a review; restore it and confirm its prior evidence and review history are still present.
+12. Confirm viewers can read but cannot create sources/claims/evidence/reviews. Confirm writes are blocked after publication.
+13. Restart Docker Compose and confirm sources, claims, evidence links, review results, and JSON evidence snapshots persist.
+
+Interview releases/subject consent, archival-media rights and licensing, file uploads, automated source retrieval, and claim links into scenes/scripts are not implemented in this slice. These are tracked separately in M1.5. A source record or human fact-check decision is not a legal rights clearance and does not guarantee that a source is accurate; reviewers should document limitations and uncertainty.
 
 ## Stop and reset
 
