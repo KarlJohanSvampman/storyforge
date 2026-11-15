@@ -108,7 +108,9 @@ function App() {
   }
 
   async function loadContributions(projectId: string) {
-    setContributions(await api<Contribution[]>(`/api/projects/${projectId}/contributions`));
+    const items = await api<Contribution[]>(`/api/projects/${projectId}/contributions`);
+    setContributions(items);
+    setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
   }
 
   useEffect(() => {
