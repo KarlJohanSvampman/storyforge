@@ -46,7 +46,6 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **NarrativeDraft:** one project-level proposal stream, with a current version counter.
 - **NarrativeDraftVersion:** immutable title/content snapshot, author, parent version, proposal status, origin, and optional provider/model/template metadata.
 - **DraftSourceReference:** ordered provenance link to an exact contribution revision or accepted suggestion, plus a snapshot of the source title and text.
-- **NarrativeDraft:** project, version, body or structured content, origin, status.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
 - **Vote:** voter, decision target, choice, timestamp.
