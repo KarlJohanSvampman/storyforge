@@ -25,18 +25,18 @@ def _scene_with_casting(title: str):
         )
         db.add(character)
         db.flush()
-        narrative = db.scalar(select(__import__("app.models", fromlist=["NarrativeDraftVersion"]).NarrativeDraftVersion).limit(1))
-        if narrative is None:
-            from app.models import NarrativeDraft, NarrativeDraftVersion
-            draft = NarrativeDraft(project_id=project_id, current_version_number=1)
-            db.add(draft)
-            db.flush()
-            narrative = NarrativeDraftVersion(
-                draft_id=draft.id, version_number=1, title="Approved", content="Story",
-                author_user_id=project.owner_user_id, parent_version_id=None,
-                proposal_status="approved", origin="manual", source_references=[],
-            )
-            db.add(narrative)
+        from app.models import NarrativeDraft, NarrativeDraftVersion
+        draft = NarrativeDraft(
+            project_id=project_id, title="Approved narrative",
+            current_version_number=1, created_by_user_id=project.owner_user_id,
+        )
+        db.add(draft)
+        db.flush()
+        narrative = NarrativeDraftVersion(
+            draft_id=draft.id, version_number=1, title="Approved", content="Story",
+            author_user_id=project.owner_user_id, parent_version_id=None, origin="manual",
+        )
+        db.add(narrative)
         storyboard = Storyboard(
             project_id=project_id, narrative_version_id=narrative.id,
             title="Storyboard", created_by_user_id=project.owner_user_id,
