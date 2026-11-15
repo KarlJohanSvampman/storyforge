@@ -1890,15 +1890,63 @@ function App() {
                             </form>
                           )}
                           <div className="storyboard-asset-list">
-                            {storyboard.characters.map(character => (
-                              <article className={character.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={character.id}>
-                                <strong>{character.name}</strong><span>{character.status}</span>
-                                {character.description && <p>{character.description}</p>}
-                                {character.visual_description && <small>Visual: {character.visual_description}</small>}
-                                {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
-                              </article>
-                            ))}
-                            {storyboard.characters.length === 0 && <p className="muted-note">No characters yet.</p>}
+                            {storyboard.characters.filter(item => item.status === "active").map(character => {
+                              const edit = characterEditDraft(character);
+                              return (
+                                <article className="storyboard-asset" key={character.id}>
+                                  <div className="storyboard-asset-heading"><strong>{character.name}</strong><span>ACTIVE</span></div>
+                                  {character.description && <p>{character.description}</p>}
+                                  {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                  {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                                  {canEditStoryboard && (
+                                    <details className="story-bible-edit">
+                                      <summary>Edit character profile</summary>
+                                      <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveCharacterDetails(character); }}>
+                                        <label>Name<input required maxLength={160} value={edit.name} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, name: event.target.value } }))} /></label>
+                                        <label>Story description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, description: event.target.value } }))} /></label>
+                                        <label>Visual description<textarea rows={3} maxLength={10000} value={edit.visual_description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, visual_description: event.target.value } }))} /></label>
+                                        <label>Personality notes<textarea rows={3} maxLength={10000} value={edit.personality_notes} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, personality_notes: event.target.value } }))} /></label>
+                                        <div className="story-bible-edit-actions">
+                                          <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          <button className="quiet-button" type="button" onClick={() => setCharacterEdits(current => { const next = { ...current }; delete next[character.id]; return next; })}>Reset draft</button>
+                                        </div>
+                                      </form>
+                                    </details>
+                                  )}
+                                  {canEditStoryboard && <button type="button" className="quiet-button danger-button" disabled={loading} onClick={() => updateCharacterStatus(character, "archived")}>Archive character</button>}
+                                </article>
+                              );
+                            })}
+                            {storyboard.characters.filter(item => item.status === "active").length === 0 && <p className="muted-note">No active characters yet.</p>}
+                            {storyboard.characters.some(item => item.status === "archived") && (
+                              <details className="story-bible-archive-list" open={showArchivedCharacters} onToggle={event => setShowArchivedCharacters(event.currentTarget.open)}>
+                                <summary>Archived characters · {storyboard.characters.filter(item => item.status === "archived").length}</summary>
+                                {storyboard.characters.filter(item => item.status === "archived").map(character => {
+                                  const edit = characterEditDraft(character);
+                                  return (
+                                    <article className="storyboard-asset archived" key={character.id}>
+                                      <div className="storyboard-asset-heading"><strong>{character.name}</strong><span>ARCHIVED</span></div>
+                                      {character.description && <p>{character.description}</p>}
+                                      {character.visual_description && <small>Visual: {character.visual_description}</small>}
+                                      {character.personality_notes && <small>Personality: {character.personality_notes}</small>}
+                                      {canEditStoryboard && (
+                                        <details className="story-bible-edit">
+                                          <summary>Edit archived profile</summary>
+                                          <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveCharacterDetails(character); }}>
+                                            <label>Name<input required maxLength={160} value={edit.name} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, name: event.target.value } }))} /></label>
+                                            <label>Story description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, description: event.target.value } }))} /></label>
+                                            <label>Visual description<textarea rows={3} maxLength={10000} value={edit.visual_description} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, visual_description: event.target.value } }))} /></label>
+                                            <label>Personality notes<textarea rows={3} maxLength={10000} value={edit.personality_notes} onChange={event => setCharacterEdits(current => ({ ...current, [character.id]: { ...edit, personality_notes: event.target.value } }))} /></label>
+                                            <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          </form>
+                                        </details>
+                                      )}
+                                      {canEditStoryboard && <button type="button" className="secondary-button" disabled={loading} onClick={() => updateCharacterStatus(character, "active")}>Restore character</button>}
+                                    </article>
+                                  );
+                                })}
+                              </details>
+                            )}
                           </div>
                         </section>
 
@@ -1922,15 +1970,69 @@ function App() {
                             </form>
                           )}
                           <div className="storyboard-asset-list">
-                            {storyboard.locations.map(location => (
-                              <article className={location.status === "archived" ? "storyboard-asset archived" : "storyboard-asset"} key={location.id}>
-                                <strong>{location.name}</strong><span>{location.environment_type} · {location.status}</span>
-                                {location.time_period && <small>{location.time_period}</small>}
-                                {location.description && <p>{location.description}</p>}
-                                {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
-                              </article>
-                            ))}
-                            {storyboard.locations.length === 0 && <p className="muted-note">No locations yet.</p>}
+                            {storyboard.locations.filter(item => item.status === "active").map(location => {
+                              const edit = locationEditDraft(location);
+                              return (
+                                <article className="storyboard-asset" key={location.id}>
+                                  <div className="storyboard-asset-heading"><strong>{location.name}</strong><span>{location.environment_type} · ACTIVE</span></div>
+                                  {location.time_period && <small>{location.time_period}</small>}
+                                  {location.description && <p>{location.description}</p>}
+                                  {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                                  {canEditStoryboard && (
+                                    <details className="story-bible-edit">
+                                      <summary>Edit location profile</summary>
+                                      <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveLocationDetails(location); }}>
+                                        <label>Name<input required maxLength={160} value={edit.name} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, name: event.target.value } }))} /></label>
+                                        <label>Environment<select value={edit.environment_type} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, environment_type: event.target.value } }))}>
+                                          <option value="interior">Interior</option><option value="exterior">Exterior</option><option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option><option value="unspecified">Unspecified</option>
+                                        </select></label>
+                                        <label>Time period<input maxLength={120} value={edit.time_period} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, time_period: event.target.value } }))} /></label>
+                                        <label>Description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, description: event.target.value } }))} /></label>
+                                        <label>Visual notes<textarea rows={3} maxLength={10000} value={edit.visual_notes} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, visual_notes: event.target.value } }))} /></label>
+                                        <div className="story-bible-edit-actions">
+                                          <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          <button className="quiet-button" type="button" onClick={() => setLocationEdits(current => { const next = { ...current }; delete next[location.id]; return next; })}>Reset draft</button>
+                                        </div>
+                                      </form>
+                                    </details>
+                                  )}
+                                  {canEditStoryboard && <button type="button" className="quiet-button danger-button" disabled={loading} onClick={() => updateLocationStatus(location, "archived")}>Archive location</button>}
+                                </article>
+                              );
+                            })}
+                            {storyboard.locations.filter(item => item.status === "active").length === 0 && <p className="muted-note">No active locations yet.</p>}
+                            {storyboard.locations.some(item => item.status === "archived") && (
+                              <details className="story-bible-archive-list" open={showArchivedLocations} onToggle={event => setShowArchivedLocations(event.currentTarget.open)}>
+                                <summary>Archived locations · {storyboard.locations.filter(item => item.status === "archived").length}</summary>
+                                {storyboard.locations.filter(item => item.status === "archived").map(location => {
+                                  const edit = locationEditDraft(location);
+                                  return (
+                                    <article className="storyboard-asset archived" key={location.id}>
+                                      <div className="storyboard-asset-heading"><strong>{location.name}</strong><span>{location.environment_type} · ARCHIVED</span></div>
+                                      {location.time_period && <small>{location.time_period}</small>}
+                                      {location.description && <p>{location.description}</p>}
+                                      {location.visual_notes && <small>Visual: {location.visual_notes}</small>}
+                                      {canEditStoryboard && (
+                                        <details className="story-bible-edit">
+                                          <summary>Edit archived profile</summary>
+                                          <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveLocationDetails(location); }}>
+                                            <label>Name<input required maxLength={160} value={edit.name} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, name: event.target.value } }))} /></label>
+                                            <label>Environment<select value={edit.environment_type} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, environment_type: event.target.value } }))}>
+                                              <option value="interior">Interior</option><option value="exterior">Exterior</option><option value="vehicle">Vehicle</option><option value="virtual">Virtual / imagined</option><option value="unspecified">Unspecified</option>
+                                            </select></label>
+                                            <label>Time period<input maxLength={120} value={edit.time_period} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, time_period: event.target.value } }))} /></label>
+                                            <label>Description<textarea rows={3} maxLength={10000} value={edit.description} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, description: event.target.value } }))} /></label>
+                                            <label>Visual notes<textarea rows={3} maxLength={10000} value={edit.visual_notes} onChange={event => setLocationEdits(current => ({ ...current, [location.id]: { ...edit, visual_notes: event.target.value } }))} /></label>
+                                            <button className="secondary-button" type="submit" disabled={loading || !edit.name.trim()}>Save profile</button>
+                                          </form>
+                                        </details>
+                                      )}
+                                      {canEditStoryboard && <button type="button" className="secondary-button" disabled={loading} onClick={() => updateLocationStatus(location, "active")}>Restore location</button>}
+                                    </article>
+                                  );
+                                })}
+                              </details>
+                            )}
                           </div>
                         </section>
                       </div>
