@@ -90,6 +90,33 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # Collapse episode-owned scenes back to one movie-style sequence per
+    # storyboard before removing the series hierarchy. First move all scene
+    # numbers above the current range so the positive-number and unique
+    # constraints remain valid while the new sequence is assigned.
+    op.execute("""
+        UPDATE storyboard_scenes
+        SET scene_order = scene_order + (
+            SELECT COALESCE(MAX(scene_order), 0) + COUNT(*) + 1
+            FROM storyboard_scenes
+        )
+    """)
+    op.execute("""
+        WITH ranked_scenes AS (
+            SELECT id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY storyboard_id
+                       ORDER BY episode_id NULLS FIRST, scene_order, id
+                   ) AS new_order
+            FROM storyboard_scenes
+        )
+        UPDATE storyboard_scenes AS scenes
+        SET scene_order = ranked_scenes.new_order,
+            episode_id = NULL
+        FROM ranked_scenes
+        WHERE scenes.id = ranked_scenes.id
+    """)
+
     op.drop_index("uq_storyboard_scenes_movie_order", table_name="storyboard_scenes")
     op.drop_constraint("uq_storyboard_scenes_episode_order", "storyboard_scenes", type_="unique")
     op.drop_index("ix_storyboard_scenes_episode_id", table_name="storyboard_scenes")
