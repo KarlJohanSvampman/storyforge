@@ -17,7 +17,7 @@ type Project = {
   created_at: string; updated_at: string; member_count: number;
 };
 type Member = {
-  id: string; display_name: string | null; email: string | null;
+  id: string; user_id: string | null; display_name: string | null; email: string | null;
   invited_email: string | null; role: string; status: string; created_at: string;
 };
 type ProjectDetail = Project & { members: Member[] };
