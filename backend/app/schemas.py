@@ -372,6 +372,13 @@ class CharacterCreate(BaseModel):
     def clean_character_fields(cls, value: str) -> str:
         return value.strip()
 
+    @field_validator("name")
+    @classmethod
+    def require_character_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Character name cannot be blank.")
+        return value.strip()
+
 
 class CharacterUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
@@ -383,6 +390,13 @@ class CharacterUpdate(BaseModel):
     @field_validator("name", "description", "visual_description", "personality_notes")
     @classmethod
     def clean_character_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("name")
+    @classmethod
+    def require_character_name_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Character name cannot be blank.")
         return value.strip() if value is not None else None
 
 
@@ -411,6 +425,13 @@ class LocationCreate(BaseModel):
     def clean_location_fields(cls, value: str) -> str:
         return value.strip()
 
+    @field_validator("name")
+    @classmethod
+    def require_location_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Location name cannot be blank.")
+        return value.strip()
+
 
 class LocationUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
@@ -423,6 +444,13 @@ class LocationUpdate(BaseModel):
     @field_validator("name", "description", "environment_type", "time_period", "visual_notes")
     @classmethod
     def clean_location_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("name")
+    @classmethod
+    def require_location_name_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Location name cannot be blank.")
         return value.strip() if value is not None else None
 
 
@@ -453,6 +481,13 @@ class StoryboardSceneCreate(BaseModel):
     def clean_scene_fields(cls, value: str) -> str:
         return value.strip()
 
+    @field_validator("title")
+    @classmethod
+    def require_scene_title(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Scene title cannot be blank.")
+        return value.strip()
+
 
 class StoryboardSceneUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=160)
@@ -467,6 +502,13 @@ class StoryboardSceneUpdate(BaseModel):
     def clean_scene_fields(cls, value: str | None) -> str | None:
         return value.strip() if value is not None else None
 
+    @field_validator("title")
+    @classmethod
+    def require_scene_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Scene title cannot be blank.")
+        return value.strip() if value is not None else None
+
 
 class SceneReorder(BaseModel):
     scene_ids: list[uuid.UUID] = Field(max_length=200)
@@ -478,8 +520,11 @@ class ScenePassageCreate(BaseModel):
 
     @field_validator("passage_text")
     @classmethod
-    def clean_passage_text(cls, value: str) -> str:
-        return value.strip()
+    def validate_passage_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Passage text cannot be blank.")
+        # Preserve all whitespace: the route searches for an exact source excerpt.
+        return value
 
 
 class ScenePassageRead(BaseModel):
