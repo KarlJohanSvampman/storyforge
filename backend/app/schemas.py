@@ -473,8 +473,13 @@ class SceneReorder(BaseModel):
 
 
 class ScenePassageCreate(BaseModel):
-    start_offset: int = Field(ge=0)
-    end_offset: int = Field(gt=0)
+    passage_text: str = Field(min_length=1, max_length=10000)
+    occurrence: int = Field(default=1, ge=1, le=100)
+
+    @field_validator("passage_text")
+    @classmethod
+    def clean_passage_text(cls, value: str) -> str:
+        return value.strip()
 
 
 class ScenePassageRead(BaseModel):
