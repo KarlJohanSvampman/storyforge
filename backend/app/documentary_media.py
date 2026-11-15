@@ -300,12 +300,31 @@ def _validate_source_media_clearance(
     ).all()
     if not evidence_source_ids:
         return
+    evidence_sources = db.scalars(
+        select(DocumentaryResearchSource).where(
+            DocumentaryResearchSource.project_id == project_id,
+            DocumentaryResearchSource.id.in_(set(evidence_source_ids)),
+        )
+    ).all()
     assets = db.scalars(
         select(DocumentaryMediaAsset).where(
             DocumentaryMediaAsset.project_id == project_id,
             DocumentaryMediaAsset.source_id.in_(set(evidence_source_ids)),
         )
     ).all()
+    assets_by_source: dict[uuid.UUID, list[DocumentaryMediaAsset]] = {}
+    for asset in assets:
+        if asset.source_id:
+            assets_by_source.setdefault(asset.source_id, []).append(asset)
+    for source in evidence_sources:
+        if source.source_type == "interview":
+            linked_assets = assets_by_source.get(source.id, [])
+            linked_sessions = {asset.interview_session_id for asset in linked_assets}
+            if not linked_assets or None in linked_sessions or len(linked_sessions) != 1:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f'Interview source "{source.title}" must be linked to exactly one interview session through an uploaded transcript or media asset before production use.',
+                )
     permission = _claim_usage_permission(usage_type)
     now = datetime.now(timezone.utc)
 
