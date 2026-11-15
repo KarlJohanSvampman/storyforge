@@ -4,6 +4,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 Visibility = Literal["private", "unlisted", "public"]
+ProjectFormat = Literal["movie", "tv_series"]
+ProjectCategory = Literal["fiction", "documentary"]
 MemberRole = Literal["editor", "contributor", "viewer"]
 
 
@@ -12,6 +14,8 @@ class ProjectCreate(BaseModel):
     description: str = Field(default="", max_length=10000)
     logline: str = Field(default="", max_length=500)
     genre: str = Field(default="", max_length=80)
+    format: ProjectFormat = "movie"
+    category: ProjectCategory = "fiction"
     visibility: Visibility = "private"
 
     @field_validator("title")
@@ -25,6 +29,8 @@ class ProjectUpdate(BaseModel):
     description: str | None = Field(default=None, max_length=10000)
     logline: str | None = Field(default=None, max_length=500)
     genre: str | None = Field(default=None, max_length=80)
+    format: ProjectFormat | None = None
+    category: ProjectCategory | None = None
     visibility: Visibility | None = None
 
     @field_validator("title")
@@ -40,6 +46,8 @@ class ProjectRead(BaseModel):
     description: str
     logline: str
     genre: str
+    format: ProjectFormat
+    category: ProjectCategory
     visibility: str
     current_phase: str
     owner_user_id: uuid.UUID
@@ -474,6 +482,7 @@ class StoryboardSceneCreate(BaseModel):
     requirements: str = Field(default="", max_length=10000)
     estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     location_id: uuid.UUID | None = None
+    episode_id: uuid.UUID | None = None
     character_ids: list[uuid.UUID] = Field(default_factory=list, max_length=50)
 
     @field_validator("title", "summary", "requirements")
@@ -495,6 +504,7 @@ class StoryboardSceneUpdate(BaseModel):
     requirements: str | None = Field(default=None, max_length=10000)
     estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     location_id: uuid.UUID | None = None
+    episode_id: uuid.UUID | None = None
     character_ids: list[uuid.UUID] | None = Field(default=None, max_length=50)
 
     @field_validator("title", "summary", "requirements")
@@ -511,6 +521,7 @@ class StoryboardSceneUpdate(BaseModel):
 
 
 class SceneReorder(BaseModel):
+    episode_id: uuid.UUID | None = None
     scene_ids: list[uuid.UUID] = Field(max_length=200)
 
 
@@ -612,6 +623,114 @@ class SceneCharacterRead(BaseModel):
     notes: str
 
 
+class StoryboardEpisodeCreate(BaseModel):
+    episode_number: int = Field(ge=1, le=1000)
+    title: str = Field(min_length=1, max_length=160)
+    logline: str = Field(default="", max_length=500)
+    synopsis: str = Field(default="", max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+
+    @field_validator("title", "logline", "synopsis")
+    @classmethod
+    def clean_episode_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_episode_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
+
+
+class StoryboardEpisodeUpdate(BaseModel):
+    episode_number: int | None = Field(default=None, ge=1, le=1000)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    logline: str | None = Field(default=None, max_length=500)
+    synopsis: str | None = Field(default=None, max_length=10000)
+    estimated_duration_seconds: int | None = Field(default=None, gt=0, le=86400)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "logline", "synopsis")
+    @classmethod
+    def clean_episode_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_episode_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Episode title cannot be blank.")
+        return value
+
+
+class StoryboardEpisodeRead(BaseModel):
+    id: uuid.UUID
+    season_id: uuid.UUID
+    episode_number: int
+    title: str
+    logline: str
+    synopsis: str
+    estimated_duration_seconds: int | None
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class StoryboardSeasonCreate(BaseModel):
+    season_number: int = Field(ge=1, le=100)
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=10000)
+    story_arc: str = Field(default="", max_length=10000)
+
+    @field_validator("title", "description", "story_arc")
+    @classmethod
+    def clean_season_fields(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("title")
+    @classmethod
+    def require_season_title(cls, value: str) -> str:
+        if not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
+
+
+class StoryboardSeasonUpdate(BaseModel):
+    season_number: int | None = Field(default=None, ge=1, le=100)
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    description: str | None = Field(default=None, max_length=10000)
+    story_arc: str | None = Field(default=None, max_length=10000)
+    status: Literal["active", "archived"] | None = None
+
+    @field_validator("title", "description", "story_arc")
+    @classmethod
+    def clean_season_update_fields(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+    @field_validator("title")
+    @classmethod
+    def require_season_title_when_set(cls, value: str | None) -> str | None:
+        if value is not None and not value:
+            raise ValueError("Season title cannot be blank.")
+        return value
+
+
+class StoryboardSeasonRead(BaseModel):
+    id: uuid.UUID
+    storyboard_id: uuid.UUID
+    season_number: int
+    title: str
+    description: str
+    story_arc: str
+    status: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    episodes: list[StoryboardEpisodeRead] = Field(default_factory=list)
+
+
 class StoryboardSceneRead(BaseModel):
     id: uuid.UUID
     scene_order: int
@@ -621,6 +740,10 @@ class StoryboardSceneRead(BaseModel):
     estimated_duration_seconds: int | None
     location_id: uuid.UUID | None
     location_name: str | None
+    episode_id: uuid.UUID | None
+    episode_title: str | None
+    season_number: int | None
+    episode_number: int | None
     characters: list[SceneCharacterRead] = Field(default_factory=list)
     passages: list[ScenePassageRead] = Field(default_factory=list)
     script_versions: list[SceneScriptVersionRead] = Field(default_factory=list)
@@ -640,5 +763,6 @@ class StoryboardDetail(BaseModel):
     created_by_user_id: uuid.UUID
     created_at: datetime
     scenes: list[StoryboardSceneRead] = Field(default_factory=list)
+    seasons: list[StoryboardSeasonRead] = Field(default_factory=list)
     characters: list[CharacterRead] = Field(default_factory=list)
     locations: list[LocationRead] = Field(default_factory=list)

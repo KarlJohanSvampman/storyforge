@@ -207,6 +207,48 @@ A non-null `base_version_id` must match the latest script version. Stale updates
 7. Confirm a viewer cannot create script revisions and a script cannot be written after the project leaves the storyboard phase.
 8. Restart Docker Compose and confirm structured elements, character name snapshots, and script revision history persist.
 
+## M1.3 project formats and TV-series authoring
+
+New projects can be created with two independent selectors:
+
+- **Production format:** Movie or TV series.
+- **Content category:** Fiction or Documentary.
+
+Genre / subject remains free-form descriptive metadata. Examples include drama, fantasy, history, nature, crime, or science. It does not determine whether a project is a movie, series, fiction, or documentary. Existing database projects migrate with Movie + Fiction defaults.
+
+For a movie, scenes remain directly under the storyboard and use one project-level scene sequence. For a TV series, create seasons and then episodes. Each episode owns its own ordered scenes and screenplay revisions. Scenes cannot be created for a series without selecting an active episode.
+
+Seasons have a title, description, and overarching story arc. Episodes have a title, logline, synopsis, and optional estimated runtime in seconds. Seasons and episodes can be archived and restored; archiving does not delete episodes, scenes, script revisions, or their history. New scenes cannot be attached to archived episodes or episodes in archived seasons.
+
+The API prevents changing a project's production format after its first storyboard has been initialized. This avoids changing a movie's flat scene structure into a series hierarchy (or vice versa) after scene data exists. Content category remains an editable project classification.
+
+### M1.3 API endpoints
+
+- Project create/read/update payloads now include format (movie or tv_series) and category (fiction or documentary).
+- `POST /api/projects/{project_id}/storyboard/seasons` — create a season with season_number, title, description, and story_arc.
+- `PATCH /api/projects/{project_id}/storyboard/seasons/{season_id}` — update a season or archive/restore it with status active/archived.
+- `POST /api/projects/{project_id}/storyboard/seasons/{season_id}/episodes` — create an episode with episode_number, title, logline, synopsis, and optional estimated_duration_seconds.
+- `PATCH /api/projects/{project_id}/storyboard/episodes/{episode_id}` — update or archive/restore an episode.
+- `POST /api/projects/{project_id}/storyboard/scenes` and `PATCH .../scenes/{scene_id}` accept episode_id. Movie scenes use null; TV-series scenes require an episode in the same storyboard.
+- `PUT /api/projects/{project_id}/storyboard/scenes/reorder` accepts episode_id plus the complete ordered scene_ids list. For a series, reorder one episode at a time. For a movie, episode_id is null. Every scene in the selected sequence must be included exactly once.
+
+### M1.3 verification checklist
+
+1. Create a movie-fiction project and a movie-documentary project. Confirm each displays both selected dimensions independently.
+2. Create a TV-series-fiction project and a TV-series-documentary project. Confirm either category can use the series format.
+3. Confirm projects created before this migration are returned as movie + fiction.
+4. Approve a narrative and initialize a TV-series storyboard. Create two seasons and multiple episodes per season, including their descriptions, arcs, loglines, synopses, and runtimes.
+5. Create scenes in two different episodes. Confirm each episode's scene order begins at 1 and ordering/reordering in one episode does not affect another episode.
+6. Move a scene to a different active episode. Confirm it receives the next scene order in the destination episode and its screenplay history remains attached.
+7. Try creating a series scene without an episode, with an episode from another storyboard, or under an archived episode/season. Confirm validation rejects each request.
+8. Archive and restore a season and episode. Confirm scene/script records remain visible and preserved, and new scenes are blocked while the containing season/episode is archived.
+9. Confirm movie scene creation/reordering still works with a null episode_id, and that a movie cannot be assigned a TV episode.
+10. Attempt to change format after storyboard initialization; confirm HTTP 409. Confirm category can still be changed.
+11. Confirm viewers cannot write seasons, episodes or scenes, and all write actions are blocked after the project leaves the storyboard phase.
+12. Restart Docker Compose and confirm formats, categories, seasons, episodes, scene assignments, and screenplay revisions persist.
+
+Documentary research/source attribution, interview records, media rights, and fact-checking are intentionally not implemented in M1.3. They are planned as a dedicated documentary workflow milestone. Documentary content must not be treated as fact-checked merely because it was generated or edited by AI.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:

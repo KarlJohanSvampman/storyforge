@@ -70,6 +70,21 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Keep M1.1 plain-text script revisions readable and support converting them into a new structured revision without changing the original.
 - [ ] Local migration, screenplay validation, speaker assignment, revision concurrency, and persistence verification.
 
+### M1.3 — Project formats and TV-series structure
+- [x] Add independent project format (movie, tv_series) and content category (fiction, documentary) fields with backward-compatible defaults.
+- [x] Add TV-series seasons and episodes within each storyboard interpretation.
+- [x] Attach each TV-series scene to an episode and scope scene ordering to that episode.
+- [x] Preserve existing movie scenes as project-level scenes with no episode assignment.
+- [x] Add browser workflows to create seasons/episodes and archive/restore them without deleting scene or script history.
+- [ ] Local migration, API permissions, movie compatibility, series hierarchy, scene assignment, ordering, and persistence verification.
+
+### M1.4 — Documentary research and verification (planned)
+- [ ] Add research-source records with bibliographic metadata, URLs, source files, and access timestamps.
+- [ ] Link factual claims in documentary outlines, scripts, and scene notes to one or more sources.
+- [ ] Track interview subjects, interview records, releases, and consent/usage restrictions.
+- [ ] Record archival media provenance, ownership, licensing, and permitted uses.
+- [ ] Add explicit fact-check states and reviewer notes; AI-generated claims remain unverified until reviewed by a person.
+
 ## M2 — Basic virtual production
 - [ ] Render a simple 3D set and rigged characters.
 - [ ] Provide virtual cameras and basic character performance recording.

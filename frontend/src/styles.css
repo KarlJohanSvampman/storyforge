@@ -464,3 +464,36 @@ a { color: inherit; text-decoration: none; }
   .script-add-blocks { gap: 5px; }
   .script-add-blocks button { padding: 6px 8px; }
 }
+
+
+/* M1.3 TV-series season and episode structure */
+.series-structure-panel {
+  margin: 22px 0; padding: 19px; border: 1px solid #4b5740;
+  border-radius: 9px; background: #191d18;
+}
+.series-structure-panel > .section-heading { margin-bottom: 15px; }
+.series-structure-panel .section-heading h2 {
+  font: 500 22px "Playfair Display", serif; margin: 7px 0 0;
+}
+.series-forms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 15px 0 19px; }
+.series-forms-grid > form { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 7px; background: #20251e; }
+.series-forms-grid h3 { margin: 0 0 10px; color: #d7dfc8; font: 500 17px "Playfair Display", serif; }
+.series-season-list { display: grid; gap: 10px; }
+.series-season-card { padding: 13px; border: 1px solid #414b37; border-radius: 7px; background: #20251e; }
+.series-season-card.archived, .series-episode-card.archived { opacity: .55; }
+.series-season-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.series-season-heading > div, .series-episode-card > div { display: grid; gap: 4px; }
+.series-season-heading span, .series-episode-card span { color: #9da88a; font-size: 7px; letter-spacing: 1px; }
+.series-season-heading strong, .series-episode-card strong { color: #e0e3d6; font-size: 12px; }
+.series-season-card > p { color: #aeb5a0; font-size: 9px; line-height: 1.7; white-space: pre-wrap; }
+.series-story-arc { padding: 9px 10px; border-left: 2px solid #65754e; background: #191d18; }
+.series-story-arc strong { color: #c4d58a; font-size: 7px; letter-spacing: .8px; }
+.series-story-arc p, .series-episode-card p { color: #aeb5a0; font-size: 9px; line-height: 1.6; margin: 5px 0 0; }
+.series-episode-list { display: grid; gap: 7px; margin-top: 12px; }
+.series-episode-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: #191d18; }
+.series-episode-card p { margin: 0 auto 0 0; flex: 1; }
+@media (max-width: 760px) { .series-forms-grid { grid-template-columns: 1fr; } }
+@media (max-width: 520px) {
+  .series-structure-panel { padding: 14px; }
+  .series-season-heading, .series-episode-card { align-items: flex-start; flex-direction: column; }
+}

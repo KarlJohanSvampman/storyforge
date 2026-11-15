@@ -7,8 +7,11 @@ import {
 
 type ApiHealth = { status: string; service: string; version: string };
 type CurrentUser = { id: string; display_name: string; email: string };
+type ProjectFormat = "movie" | "tv_series";
+type ProjectCategory = "fiction" | "documentary";
 type Project = {
   id: string; title: string; description: string; logline: string; genre: string;
+  format: ProjectFormat; category: ProjectCategory;
   visibility: string; current_phase: string; owner_user_id: string;
   created_at: string; updated_at: string; member_count: number;
 };
@@ -17,7 +20,7 @@ type Member = {
   invited_email: string | null; role: string; status: string; created_at: string;
 };
 type ProjectDetail = Project & { members: Member[] };
-type ProjectForm = { title: string; logline: string; genre: string; description: string; visibility: string };
+type ProjectForm = { title: string; logline: string; genre: string; description: string; format: ProjectFormat; category: ProjectCategory; visibility: string };
 type Contribution = {
   id: string; project_id: string; author_user_id: string; author_display_name: string;
   title: string; status: string; current_revision_number: number; current_revision_id: string; current_body: string;
@@ -92,6 +95,17 @@ type ProjectLocation = {
   environment_type: string; time_period: string; visual_notes: string; status: string;
   created_by_user_id: string; created_at: string; updated_at: string;
 };
+type StoryboardEpisode = {
+  id: string; season_id: string; episode_number: number; title: string;
+  logline: string; synopsis: string; estimated_duration_seconds: number | null;
+  status: string; created_by_user_id: string; created_at: string; updated_at: string;
+};
+type StoryboardSeason = {
+  id: string; storyboard_id: string; season_number: number; title: string;
+  description: string; story_arc: string; status: string;
+  created_by_user_id: string; created_at: string; updated_at: string;
+  episodes: StoryboardEpisode[];
+};
 type ScenePassage = {
   id: string; reference_order: number; start_offset: number; end_offset: number;
   passage_snapshot: string; created_by_user_id: string; created_at: string;
@@ -113,6 +127,7 @@ type SceneCharacter = { id: string; name: string; role_label: string; notes: str
 type StoryboardScene = {
   id: string; scene_order: number; title: string; summary: string; requirements: string;
   estimated_duration_seconds: number | null; location_id: string | null; location_name: string | null;
+  episode_id: string | null; episode_title: string | null; season_number: number | null; episode_number: number | null;
   characters: SceneCharacter[]; passages: ScenePassage[]; script_versions: SceneScriptVersion[];
   created_by_user_id: string; created_at: string; updated_at: string;
 };
@@ -120,11 +135,11 @@ type Storyboard = {
   id: string; project_id: string; title: string; narrative_version_id: string;
   narrative_version_number: number; narrative_title: string; narrative_content: string;
   created_by_user_id: string; created_at: string;
-  scenes: StoryboardScene[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
+  scenes: StoryboardScene[]; seasons: StoryboardSeason[]; characters: ProjectCharacter[]; locations: ProjectLocation[];
 };
 type SceneEditDraft = {
   title: string; summary: string; requirements: string;
-  estimated_duration_seconds: string; location_id: string; character_ids: string[];
+  estimated_duration_seconds: string; location_id: string; episode_id: string; character_ids: string[];
 };
 
 const phases = [
@@ -134,7 +149,7 @@ const phases = [
   { number: "04", title: "Bring it to life", detail: "Cast, perform, direct and edit.", icon: Film, state: "upcoming" },
 ];
 
-const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", visibility: "private" };
+const emptyForm: ProjectForm = { title: "", logline: "", genre: "", description: "", format: "movie", category: "fiction", visibility: "private" };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -178,6 +193,17 @@ function App() {
   const [sceneRequirements, setSceneRequirements] = useState("");
   const [sceneDuration, setSceneDuration] = useState("");
   const [sceneLocationId, setSceneLocationId] = useState("");
+  const [sceneEpisodeId, setSceneEpisodeId] = useState("");
+  const [seasonNumber, setSeasonNumber] = useState("1");
+  const [seasonTitle, setSeasonTitle] = useState("");
+  const [seasonDescription, setSeasonDescription] = useState("");
+  const [seasonStoryArc, setSeasonStoryArc] = useState("");
+  const [episodeSeasonId, setEpisodeSeasonId] = useState("");
+  const [episodeNumber, setEpisodeNumber] = useState("1");
+  const [episodeTitle, setEpisodeTitle] = useState("");
+  const [episodeLogline, setEpisodeLogline] = useState("");
+  const [episodeSynopsis, setEpisodeSynopsis] = useState("");
+  const [episodeDuration, setEpisodeDuration] = useState("");
   const [sceneCharacterIds, setSceneCharacterIds] = useState<string[]>([]);
   const [sceneEdits, setSceneEdits] = useState<Record<string, SceneEditDraft>>({});
   const [scriptElementDrafts, setScriptElementDrafts] = useState<Record<string, SceneScriptElementDraft[]>>({});
@@ -264,7 +290,9 @@ function App() {
       setPassageDrafts({});
       setPassageOccurrences({});
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
+      setSeasonNumber("1"); setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+      setEpisodeSeasonId(""); setEpisodeNumber("1"); setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -606,6 +634,82 @@ function App() {
     }
   }
 
+  async function submitSeason(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !seasonTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons`, {
+        method: "POST",
+        body: JSON.stringify({
+          season_number: Number(seasonNumber), title: seasonTitle,
+          description: seasonDescription, story_arc: seasonStoryArc,
+        }),
+      });
+      setStoryboard(updated);
+      const createdSeason = updated.seasons.find(item => item.season_number === Number(seasonNumber));
+      if (createdSeason) setEpisodeSeasonId(createdSeason.id);
+      setSeasonNumber(String(Math.max(0, ...updated.seasons.map(item => item.season_number)) + 1));
+      setSeasonTitle(""); setSeasonDescription(""); setSeasonStoryArc("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create season.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitEpisode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !storyboard || !episodeSeasonId || !episodeTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${episodeSeasonId}/episodes`, {
+        method: "POST",
+        body: JSON.stringify({
+          episode_number: Number(episodeNumber), title: episodeTitle,
+          logline: episodeLogline, synopsis: episodeSynopsis,
+          estimated_duration_seconds: episodeDuration.trim() ? Number(episodeDuration) : null,
+        }),
+      });
+      setStoryboard(updated);
+      const selectedSeason = updated.seasons.find(item => item.id === episodeSeasonId);
+      setEpisodeNumber(String(Math.max(0, ...(selectedSeason?.episodes || []).map(item => item.episode_number)) + 1));
+      setEpisodeTitle(""); setEpisodeLogline(""); setEpisodeSynopsis(""); setEpisodeDuration("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create episode.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateSeasonStatus(season: StoryboardSeason, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} Season ${season.season_number}? Existing episodes, scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/seasons/${season.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update season.");
+    }
+  }
+
+  async function updateEpisodeStatus(episode: StoryboardEpisode, status: "active" | "archived") {
+    if (!selectedProject || !window.confirm(`${status === "archived" ? "Archive" : "Restore"} this episode? Its scenes and scripts will be preserved.`)) return;
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/episodes/${episode.id}`, {
+        method: "PATCH", body: JSON.stringify({ status }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update episode.");
+    }
+  }
+
   async function submitScene(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedProject || !sceneTitle.trim()) return;
@@ -617,12 +721,14 @@ function App() {
         body: JSON.stringify({
           title: sceneTitle, summary: sceneSummary, requirements: sceneRequirements,
           estimated_duration_seconds: sceneDuration.trim() ? Number(sceneDuration) : null,
-          location_id: sceneLocationId || null, character_ids: sceneCharacterIds,
+          location_id: sceneLocationId || null,
+          episode_id: selectedProject.format === "tv_series" ? (sceneEpisodeId || null) : null,
+          character_ids: sceneCharacterIds,
         }),
       });
       setStoryboard(updated);
       setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
-      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+      setSceneDuration(""); setSceneLocationId(""); setSceneEpisodeId(""); setSceneCharacterIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create scene.");
     } finally {
@@ -637,6 +743,7 @@ function App() {
       requirements: scene.requirements,
       estimated_duration_seconds: scene.estimated_duration_seconds?.toString() || "",
       location_id: scene.location_id || "",
+      episode_id: scene.episode_id || "",
       character_ids: scene.characters.map(character => character.id),
     };
   }
@@ -653,7 +760,9 @@ function App() {
         body: JSON.stringify({
           title: edit.title, summary: edit.summary, requirements: edit.requirements,
           estimated_duration_seconds: edit.estimated_duration_seconds.trim() ? Number(edit.estimated_duration_seconds) : null,
-          location_id: edit.location_id || null, character_ids: edit.character_ids,
+          location_id: edit.location_id || null,
+          episode_id: selectedProject.format === "tv_series" ? (edit.episode_id || null) : null,
+          character_ids: edit.character_ids,
         }),
       });
       setStoryboard(updated);
@@ -794,7 +903,9 @@ function App() {
 
   async function moveScene(scene: StoryboardScene, direction: -1 | 1) {
     if (!selectedProject || !storyboard) return;
-    const ordered = [...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order);
+    const ordered = [...storyboard.scenes]
+      .filter(item => item.episode_id === scene.episode_id)
+      .sort((a, b) => a.scene_order - b.scene_order);
     const index = ordered.findIndex(item => item.id === scene.id);
     const target = index + direction;
     if (index < 0 || target < 0 || target >= ordered.length) return;
@@ -803,7 +914,7 @@ function App() {
     setError("");
     try {
       const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/reorder`, {
-        method: "PUT", body: JSON.stringify({ scene_ids: ordered.map(item => item.id) }),
+        method: "PUT", body: JSON.stringify({ episode_id: scene.episode_id, scene_ids: ordered.map(item => item.id) }),
       });
       setStoryboard(updated);
     } catch (err) {
@@ -940,10 +1051,15 @@ function App() {
                   <label>Project title<input autoFocus required maxLength={160} placeholder="Give your story a working title" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} /></label>
                   <label>Logline <span className="field-hint">A one-sentence hook (optional)</span><input maxLength={500} placeholder="What's the story about?" value={form.logline} onChange={e => setForm({ ...form, logline: e.target.value })} /></label>
                   <div className="form-row">
-                    <label>Genre<input maxLength={80} placeholder="e.g. Sci-fi, drama, fantasy" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
+                    <label>Production format<select value={form.format} onChange={e => setForm({ ...form, format: e.target.value as ProjectFormat })}><option value="movie">Movie</option><option value="tv_series">TV series</option></select></label>
+                    <label>Content category<select value={form.category} onChange={e => setForm({ ...form, category: e.target.value as ProjectCategory })}><option value="fiction">Fiction</option><option value="documentary">Documentary</option></select></label>
+                  </div>
+                  <div className="form-row">
+                    <label>Genre / subject<input maxLength={80} placeholder="e.g. Drama, history, nature, science" value={form.genre} onChange={e => setForm({ ...form, genre: e.target.value })} /></label>
                     <label>Visibility<select value={form.visibility} onChange={e => setForm({ ...form, visibility: e.target.value })}><option value="private">Private · members only</option><option value="unlisted">Unlisted · link access later</option><option value="public">Public · discoverable later</option></select></label>
                   </div>
                   <label>Project description<textarea rows={3} maxLength={10000} placeholder="Set the scene. What do you want to make together?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+                  {form.category === "documentary" && <p className="field-hint">The documentary category is available for both movies and series. Research sources, interview records, rights tracking and fact-checking are planned for a dedicated later workflow.</p>}
                   <div className="form-actions"><span>You'll be the project owner. You can invite collaborators next.</span><button className="primary-button" disabled={loading} type="submit">{loading ? <LoaderCircle className="spin" size={16} /> : <Plus size={16} />} Create project</button></div>
                 </form>
               )}
@@ -952,7 +1068,7 @@ function App() {
               )}
               {projects.length > 0 && <div className="project-grid">{projects.map(project => (
                 <button className="project-card" key={project.id} onClick={() => openProject(project.id)}>
-                  <div className="project-card-top"><span className="project-genre">{project.genre || "Untitled genre"}</span><span className="project-visibility">{project.visibility}</span></div>
+                  <div className="project-card-top"><span className="project-genre">{project.genre || (project.category === "documentary" ? "Documentary" : "Untitled genre")}</span><span className="project-visibility">{project.format === "tv_series" ? "TV series" : "Movie"} · {project.category}</span></div>
                   <h2>{project.title}</h2><p>{project.logline || project.description || "A new story is waiting to be told."}</p>
                   <div className="project-card-bottom"><span><Users size={14} /> {project.member_count} {project.member_count === 1 ? "member" : "members"}</span><span>{project.current_phase} <ArrowUpRight size={14} /></span></div>
                 </button>
@@ -966,7 +1082,7 @@ function App() {
               {error && <div className="error-banner">{error}</div>}
               <div className="detail-hero">
                 <div className="eyebrow"><span className="eyebrow-line" /> PROJECT WORKSPACE</div>
-                <div className="detail-meta"><span>{selectedProject.genre || "Story project"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
+                <div className="detail-meta"><span>{selectedProject.format === "tv_series" ? "TV series" : "Movie"}</span><span>{selectedProject.category === "documentary" ? "Documentary" : "Fiction"}</span><span>{selectedProject.genre || "No genre / subject"}</span><span>{selectedProject.visibility}</span><span>Created {new Date(selectedProject.created_at).toLocaleDateString()}</span></div>
                 <h1>{selectedProject.title}</h1>
                 {selectedProject.logline && <p className="detail-logline">{selectedProject.logline}</p>}
                 {selectedProject.description && <p className="detail-description">{selectedProject.description}</p>}
@@ -1181,7 +1297,7 @@ function App() {
               {(selectedProject.current_phase === "storyboard" || storyboard !== null) && (
                 <section className="storyboard-section">
                   <div className="section-heading contribution-heading">
-                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
+                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>{selectedProject.format === "tv_series" ? "Build the series, episode by episode." : selectedProject.category === "documentary" ? "Shape the documentary, scene by scene." : "Build the film, scene by scene."}</h2></div>
                     <span className="step-count">{storyboard ? `${storyboard.scenes.length} scenes` : "Ready to initialize"}</span>
                   </div>
                   {!storyboard ? (
@@ -1204,6 +1320,71 @@ function App() {
                         <pre>{storyboard.narrative_content}</pre>
                         <small>To connect a scene to its source, copy an exact passage from here and paste it into that scene's passage-link form.</small>
                       </details>
+
+                      {selectedProject.format === "tv_series" && (
+                        <section className="series-structure-panel">
+                          <div className="section-heading">
+                            <div><div className="section-kicker">SERIES STRUCTURE</div><h2>Seasons & episodes <span className="contribution-count">{storyboard.seasons.length}</span></h2></div>
+                            <span className="step-count">Each episode has its own scene sequence and screenplay.</span>
+                          </div>
+                          {canEditStoryboard && (
+                            <div className="series-forms-grid">
+                              <form className="storyboard-mini-form" onSubmit={submitSeason}>
+                                <h3>Create a season</h3>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Season number<input type="number" min="1" max="100" required value={seasonNumber} onChange={event => setSeasonNumber(event.target.value)} /></label>
+                                  <label>Season title<input required maxLength={160} value={seasonTitle} onChange={event => setSeasonTitle(event.target.value)} placeholder="e.g. The Beginning" /></label>
+                                </div>
+                                <label>Description<textarea rows={2} maxLength={10000} value={seasonDescription} onChange={event => setSeasonDescription(event.target.value)} placeholder="What defines this season?" /></label>
+                                <label>Season story arc<textarea rows={3} maxLength={10000} value={seasonStoryArc} onChange={event => setSeasonStoryArc(event.target.value)} placeholder="The larger narrative movement across the season…" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !seasonTitle.trim()}><Plus size={13} /> Add season</button>
+                              </form>
+                              <form className="storyboard-mini-form" onSubmit={submitEpisode}>
+                                <h3>Create an episode</h3>
+                                <label>Season<select required value={episodeSeasonId} onChange={event => setEpisodeSeasonId(event.target.value)}>
+                                  <option value="">Select a season</option>
+                                  {storyboard.seasons.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>Season {item.season_number} · {item.title}</option>)}
+                                </select></label>
+                                <div className="storyboard-scene-form-row">
+                                  <label>Episode number<input type="number" min="1" max="1000" required value={episodeNumber} onChange={event => setEpisodeNumber(event.target.value)} /></label>
+                                  <label>Episode title<input required maxLength={160} value={episodeTitle} onChange={event => setEpisodeTitle(event.target.value)} placeholder="Episode title" /></label>
+                                </div>
+                                <label>Logline<input maxLength={500} value={episodeLogline} onChange={event => setEpisodeLogline(event.target.value)} placeholder="A one-sentence episode hook" /></label>
+                                <label>Synopsis<textarea rows={2} maxLength={10000} value={episodeSynopsis} onChange={event => setEpisodeSynopsis(event.target.value)} placeholder="What happens in this episode?" /></label>
+                                <label>Estimated runtime (seconds)<input type="number" min="1" max="86400" value={episodeDuration} onChange={event => setEpisodeDuration(event.target.value)} placeholder="e.g. 2700" /></label>
+                                <button className="secondary-button" type="submit" disabled={loading || !episodeSeasonId || !episodeTitle.trim()}><Plus size={13} /> Add episode</button>
+                              </form>
+                            </div>
+                          )}
+                          <div className="series-season-list">
+                            {storyboard.seasons.map(season => (
+                              <article className={season.status === "archived" ? "series-season-card archived" : "series-season-card"} key={season.id}>
+                                <div className="series-season-heading">
+                                  <div><span>SEASON {season.season_number} · {season.status.toUpperCase()}</span><strong>{season.title}</strong></div>
+                                  {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateSeasonStatus(season, season.status === "active" ? "archived" : "active")}>{season.status === "active" ? "Archive season" : "Restore season"}</button>}
+                                </div>
+                                {season.description && <p>{season.description}</p>}
+                                {season.story_arc && <div className="series-story-arc"><strong>SEASON ARC</strong><p>{season.story_arc}</p></div>}
+                                <div className="series-episode-list">
+                                  {season.episodes.map(episode => (
+                                    <article className={episode.status === "archived" ? "series-episode-card archived" : "series-episode-card"} key={episode.id}>
+                                      <div>
+                                        <span>EPISODE {episode.episode_number} · {episode.status.toUpperCase()}{episode.estimated_duration_seconds ? ` · EST. ${Math.round(episode.estimated_duration_seconds / 60)} MIN` : ""}</span>
+                                        <strong>{episode.title}</strong>
+                                        {episode.logline && <small>{episode.logline}</small>}
+                                        {episode.synopsis && <p>{episode.synopsis}</p>}
+                                      </div>
+                                      {canEditStoryboard && <button type="button" className="quiet-button" onClick={() => updateEpisodeStatus(episode, episode.status === "active" ? "archived" : "active")}>{episode.status === "active" ? "Archive" : "Restore"}</button>}
+                                    </article>
+                                  ))}
+                                  {season.episodes.length === 0 && <p className="muted-note">No episodes in this season yet.</p>}
+                                </div>
+                              </article>
+                            ))}
+                            {storyboard.seasons.length === 0 && <p className="muted-note">Start by creating Season 1, then add its episodes. Scenes are attached to an episode rather than a project-wide sequence.</p>}
+                          </div>
+                        </section>
+                      )}
 
                       <div className="storyboard-assets-grid">
                         <section className="storyboard-asset-panel">
@@ -1267,6 +1448,10 @@ function App() {
                       {canEditStoryboard && (
                         <form className="storyboard-scene-form" onSubmit={submitScene}>
                           <div className="section-kicker">ADD TO THE STORYBOARD</div><h3>Create a scene</h3>
+                          {selectedProject.format === "tv_series" && <label>Episode<select required value={sceneEpisodeId} onChange={event => setSceneEpisodeId(event.target.value)}>
+                            <option value="">Select an active episode</option>
+                            {storyboard.seasons.filter(season => season.status === "active").flatMap(season => season.episodes.filter(episode => episode.status === "active").map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                          </select><small className="field-hint">Create a season and episode above before adding scenes to a series.</small></label>}
                           <label>Scene title<input required maxLength={160} value={sceneTitle} onChange={event => setSceneTitle(event.target.value)} placeholder="INT. APARTMENT — NIGHT" /></label>
                           <label>Summary<textarea rows={3} maxLength={10000} value={sceneSummary} onChange={event => setSceneSummary(event.target.value)} placeholder="What happens in this scene?" /></label>
                           <label>Requirements<textarea rows={2} maxLength={10000} value={sceneRequirements} onChange={event => setSceneRequirements(event.target.value)} placeholder="Props, visual effects, stunts, special conditions, continuity…" /></label>
@@ -1275,22 +1460,28 @@ function App() {
                             <label>Primary location<select value={sceneLocationId} onChange={event => setSceneLocationId(event.target.value)}><option value="">No location assigned</option>{storyboard.locations.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                           </div>
                           <label>Characters in this scene <select multiple size={Math.min(5, Math.max(2, storyboard.characters.filter(item => item.status === "active").length))} value={sceneCharacterIds} onChange={event => setSceneCharacterIds(Array.from(event.target.selectedOptions, option => option.value))}>{storyboard.characters.filter(item => item.status === "active").map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small className="field-hint">Use Ctrl / Cmd to select more than one character.</small></label>
-                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim()}><Plus size={15} /> Add scene</button></div>
+                          <div className="form-actions"><span>New scenes are added to the end of the sequence.</span><button className="primary-button" type="submit" disabled={loading || !sceneTitle.trim() || (selectedProject.format === "tv_series" && !sceneEpisodeId)}><Plus size={15} /> Add scene</button></div>
                         </form>
                       )}
 
                       <div className="storyboard-scene-list">
-                        <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
+                        <div className="section-kicker">{selectedProject.format === "tv_series" ? "EPISODE SCENES" : "SCENE SEQUENCE"} · {storyboard.scenes.length} SCENES</div>
                         {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
-                        {[...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order).map((scene, index) => {
+                        {[...storyboard.scenes].sort((a, b) =>
+                          (a.season_number || 0) - (b.season_number || 0) ||
+                          (a.episode_number || 0) - (b.episode_number || 0) ||
+                          a.scene_order - b.scene_order
+                        ).map(scene => {
                           const latestScript = scene.script_versions[scene.script_versions.length - 1] || null;
+                          const siblingScenes = storyboard.scenes.filter(item => item.episode_id === scene.episode_id).sort((a, b) => a.scene_order - b.scene_order);
+                          const siblingIndex = siblingScenes.findIndex(item => item.id === scene.id);
                           const edit = sceneEditDraft(scene);
                           return (
                             <article className="storyboard-scene-card" key={scene.id}>
                               <div className="storyboard-scene-heading">
                                 <div className="scene-number">{scene.scene_order.toString().padStart(2, "0")}</div>
-                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
-                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || index === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || index === storyboard.scenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
+                                <div className="storyboard-scene-title"><div className="section-kicker">SCENE {scene.scene_order}</div><h3>{scene.title}</h3><span>{scene.episode_id ? `S${scene.season_number} · E${scene.episode_number} — ${scene.episode_title} · ` : ""}{scene.estimated_duration_seconds ? `Estimated ${scene.estimated_duration_seconds}s` : "Duration not estimated"}{scene.location_name ? ` · ${scene.location_name}` : ""}</span></div>
+                                {canEditStoryboard && <div className="scene-order-actions"><button type="button" className="quiet-button" disabled={loading || siblingIndex === 0} onClick={() => moveScene(scene, -1)} aria-label="Move scene up">↑</button><button type="button" className="quiet-button" disabled={loading || siblingIndex === siblingScenes.length - 1} onClick={() => moveScene(scene, 1)} aria-label="Move scene down">↓</button></div>}
                               </div>
                               {scene.summary && <p className="storyboard-scene-summary">{scene.summary}</p>}
                               {scene.requirements && <div className="scene-requirements"><strong>Requirements</strong><p>{scene.requirements}</p></div>}
@@ -1300,6 +1491,9 @@ function App() {
                                 <details className="scene-edit-panel">
                                   <summary>Edit scene details</summary>
                                   <form className="storyboard-mini-form" onSubmit={event => { event.preventDefault(); saveSceneDetails(scene); }}>
+                                    {selectedProject.format === "tv_series" && <label>Episode<select required value={edit.episode_id} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, episode_id: event.target.value } }))}>
+                                      {storyboard.seasons.flatMap(season => season.episodes.filter(episode => (season.status === "active" && episode.status === "active") || episode.id === scene.episode_id).map(episode => <option key={episode.id} value={episode.id}>S{season.season_number} · E{episode.episode_number} — {episode.title}</option>))}
+                                    </select></label>}
                                     <label>Scene title<input required maxLength={160} value={edit.title} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, title: event.target.value } }))} /></label>
                                     <label>Summary<textarea rows={3} maxLength={10000} value={edit.summary} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, summary: event.target.value } }))} /></label>
                                     <label>Production requirements<textarea rows={2} maxLength={10000} value={edit.requirements} onChange={event => setSceneEdits(current => ({ ...current, [scene.id]: { ...edit, requirements: event.target.value } }))} /></label>
