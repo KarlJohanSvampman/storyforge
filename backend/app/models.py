@@ -889,6 +889,7 @@ class PerformanceTake(Base):
     __table_args__ = (
         CheckConstraint("status IN ('recording', 'finalized', 'discarded')", name="ck_performance_takes_status"),
         CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_performance_takes_duration"),
+        UniqueConstraint("scene_run_id", "take_number", name="uq_performance_takes_run_number"),
         Index("ix_performance_takes_scene_run_created", "scene_run_id", "created_at"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
