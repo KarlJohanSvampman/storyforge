@@ -84,6 +84,34 @@ def _validate_characters(db: Session, project_id: uuid.UUID, character_ids: list
         raise HTTPException(status_code=422, detail="One or more selected characters are missing, archived, or belong to another project.")
     return [by_id[item_id] for item_id in character_ids]
 
+def _validate_scene_character_update(
+    db: Session,
+    project_id: uuid.UUID,
+    scene_id: uuid.UUID,
+    character_ids: list[uuid.UUID],
+) -> list[ProjectCharacter]:
+    """Retain existing archived participants, but never add an archived one."""
+    if len(set(character_ids)) != len(character_ids):
+        raise HTTPException(status_code=422, detail="A character can only be assigned to a scene once.")
+    existing_ids = set(db.scalars(
+        select(SceneCharacterAssignment.character_id)
+        .where(SceneCharacterAssignment.scene_id == scene_id)
+    ).all())
+    if not character_ids:
+        return []
+    characters = db.scalars(select(ProjectCharacter).where(
+        ProjectCharacter.id.in_(character_ids),
+        ProjectCharacter.project_id == project_id,
+    )).all()
+    by_id = {item.id: item for item in characters}
+    if len(by_id) != len(character_ids):
+        raise HTTPException(status_code=422, detail="One or more selected characters are missing or belong to another project.")
+    for item_id in character_ids:
+        character = by_id[item_id]
+        if character.status != "active" and item_id not in existing_ids:
+            raise HTTPException(status_code=422, detail="Archived characters cannot be newly assigned to a scene.")
+    return [by_id[item_id] for item_id in character_ids]
+
 
 def _storyboard_detail(db: Session, storyboard: Storyboard) -> StoryboardDetail:
     narrative = db.get(NarrativeDraftVersion, storyboard.narrative_version_id)
@@ -510,8 +538,14 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
 
     values = payload.model_dump(exclude_unset=True)
     character_ids = values.pop("character_ids", None)
-    if "location_id" in values:
+    if "location_id" in values and values["location_id"] != scene.location_id:
         _validate_location(db, project_id, values["location_id"])
+    elif "location_id" in values and values["location_id"] is not None:
+        # Keep an existing archived location reference intact while editing
+        # other scene fields; only new assignments require an active location.
+        existing_location = db.get(ProjectLocation, values["location_id"])
+        if existing_location is None or existing_location.project_id != project_id:
+            raise HTTPException(status_code=422, detail="The selected location does not belong to this project.")
     if "episode_id" in values:
         requested_episode_id = values["episode_id"]
         if requested_episode_id != scene.episode_id:
@@ -526,7 +560,7 @@ def update_scene(project_id: uuid.UUID, scene_id: uuid.UUID, payload: Storyboard
                 destination_order = destination_order.where(StoryboardScene.episode_id == episode.id)
             values["scene_order"] = (db.scalar(destination_order) or 0) + 1
     if character_ids is not None:
-        characters = _validate_characters(db, project_id, character_ids)
+        characters = _validate_scene_character_update(db, project_id, scene.id, character_ids)
         db.query(SceneCharacterAssignment).filter(
             SceneCharacterAssignment.scene_id == scene.id,
         ).delete(synchronize_session=False)
