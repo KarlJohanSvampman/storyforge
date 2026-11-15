@@ -83,6 +83,40 @@ The mock compiler only combines the selected contribution and accepted-suggestio
 
 The current fixed development identity makes multi-user role testing limited. API authorization still checks project membership and denies write operations to viewers, but a separate authenticated test account is not available yet.
 
+
+## M0.6 approval and phase progression
+
+The project approval panel appears below the combined narrative draft. A project defaults to **Owner approval** until the owner saves a different rule.
+
+- **Owner approval:** only the owner votes; one approve or reject vote meets the threshold.
+- **Majority:** active owners, editors, and contributors vote. More than half must agree. Viewers and pending invitations do not count.
+- A vote may be changed before a final decision. Every vote event is retained; only the latest vote by each eligible member counts.
+- The owner finalizes the decision after the approve or reject threshold is reached. The decision is attached to the exact draft version.
+- Rejection leaves the project in its current phase. The group can create another draft version and vote on it.
+- Approval moves the project to **storyboard** and adds a phase-history record. Further narrative compilation, draft editing, voting, and approval-rule changes are then locked.
+
+The local development identity is one fixed project owner. You can exercise owner-only approval and the majority rule with that single active creative member (the required majority is one). Real multi-person tally verification requires authentication and accepted invitations, which are not implemented yet.
+
+### M0.6 API endpoints
+
+- `GET /api/projects/{project_id}/approval` — approval rule, per-version vote tallies/history, decisions, and project phase history.
+- `PUT /api/projects/{project_id}/approval-rule` — owner-only rule configuration; body: `{"mode":"owner_only"}` or `{"mode":"majority"}`. Locked after voting starts.
+- `POST /api/projects/{project_id}/draft/{draft_id}/versions/{version_id}/votes` — cast or change the current user's vote; body: `{"choice":"approve","note":""}` or `{"choice":"reject","note":""}`.
+- `POST /api/projects/{project_id}/draft/{draft_id}/versions/{version_id}/decision` — owner finalizes the threshold result; body: `{"note":""}`. Returns HTTP 409 if neither side has met the threshold.
+- A successful approval changes `Project.current_phase` to `storyboard` and creates a project phase transition in the same database transaction.
+
+### M0.6 verification checklist
+
+1. Open a project with a draft and confirm the default is owner approval.
+2. As owner, switch the rule to majority before any votes. Confirm a non-owner cannot change the rule.
+3. Cast an approve vote, then change it to reject. Confirm both events remain in history and only the latest vote is counted.
+4. Attempt to finalize with no threshold reached; confirm HTTP 409 and no phase change.
+5. Reach the reject threshold and finalize. Confirm the version is marked rejected in approval history and the project phase is unchanged.
+6. Create a new immutable proposal version, vote to approve it, and finalize approval as owner.
+7. Confirm the project moves to `storyboard`, the approved version and decision are identified, and the phase-history panel records the transition.
+8. Attempt to compile, manually revise, vote, or change the rule after approval. Confirm the API rejects these operations.
+9. Restart Docker Compose and confirm votes, decisions, rule, and phase history persist.
+
 ## Stop and reset
 
 Stop the stack with `Ctrl+C`, then:
