@@ -4,9 +4,10 @@ from .projects import router as projects_router
 from .contributions import router as contributions_router
 from .discussion import router as discussion_router
 from .narrative import router as narrative_router
+from .approval import router as approval_router
 from .projects import CurrentUser
 
-app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.5.0")
+app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.6.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -18,6 +19,7 @@ app.include_router(projects_router)
 app.include_router(contributions_router)
 app.include_router(discussion_router)
 app.include_router(narrative_router)
+app.include_router(approval_router)
 
 
 @app.get("/api/me", tags=["users"])

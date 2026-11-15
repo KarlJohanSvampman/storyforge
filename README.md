@@ -107,7 +107,8 @@ docs/           Product and technical decisions
 - **M0.2:** project creation, listing, detail views, PostgreSQL persistence, membership roles, and pending invitation records are implemented on `feature/m0-2-project-foundation`.
 - **M0.3:** individual story contributions, append-only revisions, authorship, withdrawal, and a contribution workspace are implemented on `feature/m0-3-story-contributions`.
 - **M0.4:** contribution comments, revision-anchored suggestions, owner/editor decisions, and decision history are implemented on `feature/m0-4-discussion-suggestions`.
-- **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`. Local migration and end-to-end verification are the next step.
+- **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`.
+- **M0.6:** owner-only or majority approval rules, append-only vote history, immutable version decisions, and approval-gated storyboard phase progression are implemented on `feature/m0-6-approval-and-phase-progression`. Local migration and end-to-end verification are the next step.
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
 

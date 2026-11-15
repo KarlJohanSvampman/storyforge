@@ -43,11 +43,13 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, API, permission, concurrency, and UI verification.
 
 ### M0.6 — Approval and phase progression
-- [ ] Configure a simple project approval rule.
-- [ ] Record votes and approval decisions.
-- [ ] Approve a specific immutable narrative version.
-- [ ] Move the project to the storyboard phase only after approval.
-- [ ] Show phase and decision history.
+- [x] Configure an owner-only or majority approval rule (default: owner-only).
+- [x] Record append-only approve/reject vote events; the latest vote per eligible member determines the current tally.
+- [x] Freeze the rule, eligible voter list, and threshold when voting first opens for a specific version.
+- [x] Finalize one immutable approval or rejection decision for the exact current narrative version.
+- [x] Move the project to the storyboard phase only when the owner finalizes an approval that meets the configured threshold.
+- [x] Preserve vote history, decision-time tally snapshots, and project phase transition history.
+- [ ] Local migration, permission, voting, rejection, approval, phase-lock, and persistence verification.
 
 ## M1 — Storyboard and creative assets
 - [ ] Convert an approved narrative into ordered scenes.

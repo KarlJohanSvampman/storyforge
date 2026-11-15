@@ -258,3 +258,103 @@ class NarrativeDraftDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     versions: list[NarrativeDraftVersionRead] = Field(default_factory=list)
+
+
+
+ApprovalMode = Literal["owner_only", "majority"]
+ApprovalChoice = Literal["approve", "reject"]
+ApprovalOutcome = Literal["approved", "rejected"]
+
+
+class ApprovalRuleUpdate(BaseModel):
+    mode: ApprovalMode
+
+
+class ApprovalRuleRead(BaseModel):
+    mode: ApprovalMode
+    configured: bool
+    updated_by_user_id: uuid.UUID | None = None
+    updated_at: datetime | None = None
+
+
+class ApprovalVoteCreate(BaseModel):
+    choice: ApprovalChoice
+    note: str = Field(default="", max_length=3000)
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str) -> str:
+        return value.strip()
+
+
+class ApprovalVoteRead(BaseModel):
+    id: uuid.UUID
+    version_id: uuid.UUID
+    voter_user_id: uuid.UUID
+    voter_display_name: str
+    choice: ApprovalChoice
+    note: str
+    created_at: datetime
+    is_latest: bool
+    counts_toward_result: bool
+
+
+class ApprovalDecisionRead(BaseModel):
+    id: uuid.UUID
+    version_id: uuid.UUID
+    actor_user_id: uuid.UUID
+    actor_display_name: str
+    outcome: ApprovalOutcome
+    rule_mode: ApprovalMode
+    eligible_voter_count: int
+    approve_count: int
+    reject_count: int
+    required_votes: int
+    note: str
+    created_at: datetime
+
+
+class ApprovalVersionStatusRead(BaseModel):
+    version_id: uuid.UUID
+    version_number: int
+    is_current_version: bool
+    rule_mode: ApprovalMode
+    ballot_opened_at: datetime | None = None
+    eligible_voter_count: int
+    required_votes: int
+    approve_count: int
+    reject_count: int
+    current_user_vote: ApprovalChoice | None = None
+    can_vote: bool
+    can_finalize: bool
+    decision_outcome: ApprovalOutcome | None = None
+    votes: list[ApprovalVoteRead] = Field(default_factory=list)
+    decision: ApprovalDecisionRead | None = None
+
+
+class PhaseTransitionRead(BaseModel):
+    id: uuid.UUID
+    from_phase: str
+    to_phase: str
+    actor_user_id: uuid.UUID
+    actor_display_name: str
+    narrative_version_id: uuid.UUID | None
+    reason: str
+    created_at: datetime
+
+
+class ApprovalOverview(BaseModel):
+    project_id: uuid.UUID
+    current_phase: str
+    rule: ApprovalRuleRead
+    versions: list[ApprovalVersionStatusRead] = Field(default_factory=list)
+    phase_history: list[PhaseTransitionRead] = Field(default_factory=list)
+
+
+class ApprovalDecisionCreate(BaseModel):
+    note: str = Field(default="", max_length=3000)
+
+    @field_validator("note")
+    @classmethod
+    def clean_note(cls, value: str) -> str:
+        return value.strip()

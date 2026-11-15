@@ -49,6 +49,39 @@ type NarrativeDraft = {
   created_by_user_id: string; created_at: string; updated_at: string; versions: DraftVersion[];
 };
 
+
+type ApprovalMode = "owner_only" | "majority";
+type ApprovalChoice = "approve" | "reject";
+type ApprovalVote = {
+  id: string; version_id: string; voter_user_id: string; voter_display_name: string;
+  choice: ApprovalChoice; note: string; created_at: string;
+  is_latest: boolean; counts_toward_result: boolean;
+};
+type ApprovalDecision = {
+  id: string; version_id: string; actor_user_id: string; actor_display_name: string;
+  outcome: "approved" | "rejected"; rule_mode: ApprovalMode;
+  eligible_voter_count: number; approve_count: number; reject_count: number;
+  required_votes: number; note: string; created_at: string;
+};
+type ApprovalVersion = {
+  version_id: string; version_number: number; is_current_version: boolean;
+  rule_mode: ApprovalMode; ballot_opened_at: string | null;
+  eligible_voter_count: number; required_votes: number; approve_count: number; reject_count: number;
+  current_user_vote: ApprovalChoice | null; can_vote: boolean; can_finalize: boolean;
+  decision_outcome: "approved" | "rejected" | null;
+  votes: ApprovalVote[]; decision: ApprovalDecision | null;
+};
+type PhaseTransition = {
+  id: string; from_phase: string; to_phase: string; actor_user_id: string;
+  actor_display_name: string; narrative_version_id: string | null;
+  reason: string; created_at: string;
+};
+type ApprovalOverview = {
+  project_id: string; current_phase: string;
+  rule: { mode: ApprovalMode; configured: boolean; updated_by_user_id: string | null; updated_at: string | null };
+  versions: ApprovalVersion[]; phase_history: PhaseTransition[];
+};
+
 const phases = [
   { number: "01", title: "Story contributions", detail: "Bring your first ideas to the table.", icon: BookOpen, state: "active" },
   { number: "02", title: "Develop the story", detail: "Discuss, combine and shape the narrative.", icon: Lightbulb, state: "upcoming" },
@@ -84,6 +117,9 @@ function App() {
   const [acceptedDraftSuggestions, setAcceptedDraftSuggestions] = useState<Suggestion[]>([]);
   const [selectedDraftSuggestionIds, setSelectedDraftSuggestionIds] = useState<string[]>([]);
   const [draft, setDraft] = useState<NarrativeDraft | null>(null);
+  const [approval, setApproval] = useState<ApprovalOverview | null>(null);
+  const [approvalMode, setApprovalMode] = useState<ApprovalMode>("owner_only");
+  const [approvalNote, setApprovalNote] = useState("");
   const [draftSourceIds, setDraftSourceIds] = useState<string[]>([]);
   const [draftTitle, setDraftTitle] = useState("");
   const [editingDraft, setEditingDraft] = useState(false);
@@ -108,6 +144,14 @@ function App() {
   async function loadProjects() {
     setProjects(await api<Project[]>("/api/projects"));
   }
+
+  async function loadApproval(projectId: string) {
+    const result = await api<ApprovalOverview>(`/api/projects/${projectId}/approval`);
+    setApproval(result);
+    setApprovalMode(result.rule.mode);
+    return result;
+  }
+
 
   async function loadAcceptedDraftSuggestions(projectId: string, items: Contribution[]) {
     const active = items.filter(item => item.status === "active");
@@ -139,15 +183,19 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [detail, items, currentDraft] = await Promise.all([
+      const [detail, items, currentDraft, approvalOverview] = await Promise.all([
         api<ProjectDetail>(`/api/projects/${projectId}`),
         api<Contribution[]>(`/api/projects/${projectId}/contributions`),
         api<NarrativeDraft | null>(`/api/projects/${projectId}/draft`),
+        api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
       ]);
       setSelectedProject(detail);
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
+      setApproval(approvalOverview);
+      setApprovalMode(approvalOverview.rule.mode);
+      setApprovalNote("");
       setDraftTitle(currentDraft?.title || detail.title);
       setDraftSourceIds(items.filter(item => item.status === "active").map(item => item.current_revision_id));
       setSelectedDraftVersionId(currentDraft?.versions[currentDraft.versions.length - 1]?.id || null);
@@ -321,6 +369,7 @@ function App() {
       setDraft(created);
       setDraftTitle(created.title);
       setSelectedDraftVersionId(created.versions[created.versions.length - 1]?.id || null);
+      await loadApproval(selectedProject.id);
       setEditingDraft(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not compile the narrative draft.");
@@ -356,9 +405,69 @@ function App() {
       });
       setDraft(updated);
       setSelectedDraftVersionId(updated.versions[updated.versions.length - 1]?.id || null);
+      await loadApproval(selectedProject.id);
       setEditingDraft(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save the revised draft.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+  async function saveApprovalRule(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(`/api/projects/${selectedProject.id}/approval-rule`, {
+        method: "PUT",
+        body: JSON.stringify({ mode: approvalMode }),
+      });
+      setApproval(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the approval rule.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function castApprovalVote(choice: ApprovalChoice) {
+    if (!selectedProject || !draft || !selectedDraftVersion) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(
+        `/api/projects/${selectedProject.id}/draft/${draft.id}/versions/${selectedDraftVersion.id}/votes`,
+        { method: "POST", body: JSON.stringify({ choice, note: approvalNote }) },
+      );
+      setApproval(updated);
+      setApprovalNote("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not record your vote.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function finalizeApprovalDecision() {
+    if (!selectedProject || !draft || !selectedDraftVersion) return;
+    setError("");
+    setLoading(true);
+    try {
+      const updated = await api<ApprovalOverview>(
+        `/api/projects/${selectedProject.id}/draft/${draft.id}/versions/${selectedDraftVersion.id}/decision`,
+        { method: "POST", body: JSON.stringify({ note: approvalNote }) },
+      );
+      setApproval(updated);
+      setApprovalNote("");
+      setEditingDraft(false);
+      const refreshedProject = await api<ProjectDetail>(`/api/projects/${selectedProject.id}`);
+      setSelectedProject(refreshedProject);
+      await loadProjects();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not finalize the approval decision.");
     } finally {
       setLoading(false);
     }
@@ -399,6 +508,9 @@ function App() {
   );
   const latestDraftVersion = draft?.versions[draft.versions.length - 1] || null;
   const selectedDraftVersion = draft?.versions.find(version => version.id === selectedDraftVersionId) || latestDraftVersion;
+  const selectedApproval = approval?.versions.find(item => item.version_id === selectedDraftVersion?.id) || null;
+  const canManageApprovalRule = myMembership?.role === "owner";
+  const approvalRuleLocked = !!approval?.versions.some(item => item.votes.length > 0 || item.decision !== null);
 
 
   return (
@@ -519,7 +631,7 @@ function App() {
               </div>
 
               <div className="detail-columns">
-                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>Story contributions</h2><p>Each participant can contribute an independent idea, scene, character, plot direction or piece of narrative. Contributions remain separate so no one's original work is lost when the group begins developing the story.</p><span className="stage-pill"><span className="status-dot" /> IN PROGRESS</span></div>
+                <div className="detail-panel"><div className="section-kicker">CURRENT STAGE</div><h2>{selectedProject.current_phase === "storyboard" ? "Storyboard" : selectedProject.current_phase === "development" ? "Story development" : selectedProject.current_phase === "production" ? "Production" : selectedProject.current_phase === "published" ? "Published" : "Story contributions"}</h2><p>{selectedProject.current_phase === "storyboard" ? "The narrative has been approved. The project is ready to be broken into scenes and storyboards." : "Contributions remain independent while the group shapes and approves a shared narrative."}</p><span className="stage-pill"><span className="status-dot" /> {selectedProject.current_phase.replace("_", " ").toUpperCase()}</span></div>
                 <div className="detail-panel members-panel"><div className="panel-heading"><div><div className="section-kicker">THE CREATIVE TEAM</div><h2>Members <span>{selectedProject.members.length}</span></h2></div></div>
                   <div className="member-list">{selectedProject.members.map(member => <div className="member-row" key={member.id}><div className="avatar">{(member.display_name || member.invited_email || "?").charAt(0).toUpperCase()}</div><div className="member-copy"><strong>{member.display_name || member.invited_email}</strong><span>{member.email || (member.status === "invited" ? "Invitation pending" : "")}</span></div><span className={member.status === "invited" ? "role-tag pending" : "role-tag"}>{member.role}</span></div>)}</div>
                   <form className="invite-form" onSubmit={inviteMember}><div className="section-kicker">INVITE A COLLABORATOR</div><input type="email" required placeholder="Email address" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} /><div className="invite-controls"><select value={inviteRole} onChange={e => setInviteRole(e.target.value)}><option value="contributor">Contributor</option><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button className="primary-button" type="submit"><Plus size={15} /> Invite</button></div>{inviteMessage && <p className="success-message">{inviteMessage}</p>}</form>
@@ -533,7 +645,29 @@ function App() {
                   <span className="step-count">{draft ? `Version ${draft.current_version_number} · proposal` : "Not compiled yet"}</span>
                 </div>
                 <p className="muted-note">This first compiler assembles selected text without rewriting it. Every generated version is an unapproved proposal with exact source references; original contributions remain untouched. A real AI provider can replace the mock compiler later.</p>
-                {canContribute && (
+
+                <div className="approval-rule-card">
+                  <div className="approval-rule-copy">
+                    <div className="section-kicker">PROJECT APPROVAL RULE</div>
+                    <strong>{approval?.rule.mode === "majority" ? "Majority of active creative members" : "Project owner approval"}</strong>
+                    <p>Owner approval requires the owner's vote. Majority requires more than half of active owners, editors and contributors. Viewers and pending invitations do not count.</p>
+                  </div>
+                  {canManageApprovalRule && (
+                    <form className="approval-rule-form" onSubmit={saveApprovalRule}>
+                      <label>Decision rule
+                        <select value={approvalMode} disabled={approvalRuleLocked || selectedProject.current_phase === "storyboard"} onChange={event => setApprovalMode(event.target.value as ApprovalMode)}>
+                          <option value="owner_only">Owner approval</option>
+                          <option value="majority">Majority of active creative members</option>
+                        </select>
+                      </label>
+                      <button className="secondary-button" type="submit" disabled={loading || approvalRuleLocked || selectedProject.current_phase === "storyboard"}>Save rule</button>
+                      {approvalRuleLocked && <small>Locked because voting has started on a draft version.</small>}
+                      {selectedProject.current_phase === "storyboard" && <small>Locked after the approved narrative moved the project into storyboarding.</small>}
+                    </form>
+                  )}
+                </div>
+
+                {canContribute && selectedProject.current_phase !== "storyboard" && (
                   <form className="draft-compile-form" onSubmit={compileNarrativeDraft}>
                     <label>Draft title<input maxLength={160} value={draftTitle} onChange={event => setDraftTitle(event.target.value)} placeholder={selectedProject.title} /></label>
                     <div className="draft-source-picker">
@@ -575,13 +709,14 @@ function App() {
                   </form>
                 )}
                 {!canContribute && !draft && <p className="muted-note">A project contributor can compile the first narrative proposal.</p>}
+                {selectedProject.current_phase === "storyboard" && <p className="muted-note">Narrative drafting is locked because this project has entered storyboarding.</p>}
                 {draft && latestDraftVersion && (
                   <div className="draft-workspace">
                     <div className="draft-version-bar">
-                      <div><div className="section-kicker">CURRENT PROPOSAL</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
+                      <div><div className="section-kicker">{selectedDraftVersion?.id === latestDraftVersion.id ? "CURRENT PROPOSAL" : "HISTORIC PROPOSAL"}</div><h3>{selectedDraftVersion?.title || latestDraftVersion.title}</h3>
                         <p>Version {selectedDraftVersion?.version_number || latestDraftVersion.version_number} · {selectedDraftVersion?.origin === "manual" ? "Manually revised" : "Compiled proposal"} · {selectedDraftVersion?.author_display_name}</p>
                       </div>
-                      {canContribute && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
+                      {canContribute && selectedProject.current_phase !== "storyboard" && !editingDraft && selectedDraftVersion?.id === latestDraftVersion.id && <button className="secondary-button" type="button" onClick={startDraftRevision}><RotateCcw size={14} /> Revise proposal</button>}
                     </div>
                     {editingDraft ? (
                       <form className="draft-editor" onSubmit={saveDraftRevision}>
@@ -609,6 +744,72 @@ function App() {
                       ))}
                       <p className="muted-note">Each reference stores the exact source text snapshot as well as its contribution and revision identifiers.</p>
                     </div>
+
+                    {selectedApproval && selectedDraftVersion && (
+                      <section className="approval-panel">
+                        <div className="approval-heading">
+                          <div><div className="section-kicker">VERSION-SPECIFIC DECISION</div><h3>Review and approval</h3></div>
+                          <div className="approval-heading-actions">
+                            <span className={selectedApproval.decision_outcome === "approved" ? "approval-status approved" : selectedApproval.decision_outcome === "rejected" ? "approval-status rejected" : "approval-status pending"}>
+                              {selectedApproval.decision_outcome || "Awaiting decision"}
+                            </span>
+                            <button type="button" className="quiet-button" onClick={() => loadApproval(selectedProject.id).catch(err => setError(err instanceof Error ? err.message : "Could not refresh votes."))}>Refresh tally</button>
+                          </div>
+                        </div>
+                        <div className="approval-tally">
+                          <div><strong>{selectedApproval.approve_count}</strong><span>Approve votes</span></div>
+                          <div><strong>{selectedApproval.reject_count}</strong><span>Reject votes</span></div>
+                          <div><strong>{selectedApproval.required_votes}</strong><span>Matching votes required</span></div>
+                          <div><strong>{selectedApproval.eligible_voter_count}</strong><span>Eligible voters</span></div>
+                        </div>
+                        <p className="approval-ballot-note">
+                          Rule: {selectedApproval.rule_mode === "majority" ? "majority" : "owner approval"}
+                          {selectedApproval.ballot_opened_at ? ` · Ballot opened ${new Date(selectedApproval.ballot_opened_at).toLocaleString()} · electorate and threshold are frozen` : " · electorate and threshold are captured when the first vote is cast"}
+                        </p>
+                        {selectedApproval.decision_outcome === null && selectedApproval.can_vote && (
+                          <div className="approval-vote-form">
+                            <label>Optional note<textarea rows={2} maxLength={3000} value={approvalNote} onChange={event => setApprovalNote(event.target.value)} placeholder="Add context for your vote…" /></label>
+                            <div className="approval-actions">
+                              <button type="button" className="secondary-button" disabled={loading || selectedApproval.current_user_vote === "approve"} onClick={() => castApprovalVote("approve")}>Approve this version</button>
+                              <button type="button" className="secondary-button danger-button" disabled={loading || selectedApproval.current_user_vote === "reject"} onClick={() => castApprovalVote("reject")}>Reject this version</button>
+                              {selectedApproval.current_user_vote && <small>Your current vote: {selectedApproval.current_user_vote}. You may change it before a final decision.</small>}
+                            </div>
+                          </div>
+                        )}
+                        {selectedApproval.decision_outcome === null && !selectedApproval.can_vote && !selectedApproval.can_finalize && (
+                          <p className="muted-note">{selectedApproval.is_current_version ? "You cannot vote under the current approval rule, or this project is not accepting votes." : "Only the current draft version can receive votes."}</p>
+                        )}
+                        {selectedApproval.can_finalize && (
+                          <div className="approval-finalize">
+                            <p>{selectedApproval.approve_count >= selectedApproval.required_votes ? "The approval threshold has been reached." : "The rejection threshold has been reached."} The project owner can now record the final decision.</p>
+                            <button className="primary-button" type="button" disabled={loading} onClick={finalizeApprovalDecision}>
+                              {selectedApproval.approve_count >= selectedApproval.required_votes ? "Approve narrative & enter storyboarding" : "Finalize rejection"}
+                            </button>
+                          </div>
+                        )}
+                        {selectedApproval.decision && (
+                          <div className={selectedApproval.decision.outcome === "approved" ? "approval-decision approved" : "approval-decision rejected"}>
+                            <strong>{selectedApproval.decision.outcome === "approved" ? "Narrative version approved" : "Narrative version rejected"}</strong>
+                            <span>Finalized by {selectedApproval.decision.actor_display_name} · {new Date(selectedApproval.decision.created_at).toLocaleString()}</span>
+                            <small>Rule: {selectedApproval.decision.rule_mode === "majority" ? "majority" : "owner approval"} · {selectedApproval.decision.approve_count} approve / {selectedApproval.decision.reject_count} reject · {selectedApproval.decision.required_votes} required</small>
+                            {selectedApproval.decision.note && <p>{selectedApproval.decision.note}</p>}
+                          </div>
+                        )}
+                        <div className="approval-vote-history">
+                          <div className="section-kicker">VOTE HISTORY</div>
+                          {selectedApproval.votes.length === 0 && <p className="muted-note">No votes have been recorded for this version.</p>}
+                          {selectedApproval.votes.map(vote => (
+                            <div className="approval-vote-row" key={vote.id}>
+                              <strong>{vote.voter_display_name}</strong>
+                              <span className={vote.choice === "approve" ? "vote-choice approve" : "vote-choice reject"}>{vote.choice}</span>
+                              <small>{new Date(vote.created_at).toLocaleString()}{vote.is_latest ? " · latest" : " · superseded"}{vote.counts_toward_result ? " · counted" : " · not counted"}</small>
+                              {vote.note && <p>{vote.note}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
                     <div className="draft-history">
                       <div className="section-kicker">PROPOSAL HISTORY</div>
                       <div className="draft-history-list">{[...draft.versions].reverse().map(version => (
@@ -617,10 +818,23 @@ function App() {
                         </button>
                       ))}</div>
                     </div>
-                    <p className="draft-disclaimer">Proposal only · No approval, voting, or storyboard transition occurs in M0.5.</p>
+                    <p className="draft-disclaimer">Votes are attached to this exact immutable version. Approval is a separate recorded decision; only an approved version advances the project to storyboarding.</p>
                   </div>
                 )}
               </section>
+
+                {approval && approval.phase_history.length > 0 && (
+                  <section className="phase-history-panel">
+                    <div className="section-kicker">PROJECT PHASE HISTORY</div>
+                    {approval.phase_history.map(item => (
+                      <div className="phase-history-row" key={item.id}>
+                        <strong>{item.from_phase} → {item.to_phase}</strong>
+                        <span>{item.actor_display_name} · {new Date(item.created_at).toLocaleString()}</span>
+                        <small>{item.reason}</small>
+                      </div>
+                    ))}
+                  </section>
+                )}
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
