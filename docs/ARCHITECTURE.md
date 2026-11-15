@@ -112,7 +112,7 @@ The first compiler is deliberately deterministic and source-preserving. It assem
 ### M1.1 storyboard and creative asset contract
 
 - A storyboard is created only after the project has entered the `storyboard` phase through an approved narrative decision. Initialization resolves the exact `ProjectPhaseTransition.narrative_version_id` and verifies its approval decision.
-- One storyboard exists per project. Its `narrative_version_id` is fixed; the storyboard never silently follows a later narrative proposal.
+- A storyboard interpretation is unique per project and approved narrative version. Its `narrative_version_id` is fixed; it never silently follows a later proposal. The project API exposes the most recently initialized storyboard, while earlier storyboard interpretations and their scene/script histories remain stored.
 - Scenes are ordered within the storyboard. Every scene can carry a summary, production requirements, estimated duration, one primary location, and a set of participating story characters.
 - Scene passage links are exact excerpts from the immutable approved narrative. The API resolves the requested occurrence and stores character offsets plus the exact excerpt snapshot. It rejects text that cannot be found in the approved source. This prevents links from drifting when editable project material changes.
 - Working script text is separate from the approved narrative. Each saved script is an append-only `SceneScriptVersion`; clients submit the version they edited as `base_version_id`, and stale saves receive HTTP 409 rather than overwriting a newer version.
