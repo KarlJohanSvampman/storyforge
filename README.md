@@ -107,19 +107,14 @@ docs/           Product and technical decisions
 
 ## Development status
 
-- **M0.1:** runnable React/Vite, FastAPI, and PostgreSQL Docker Compose scaffold. The stack has been confirmed to start and the frontend successfully reaches the health endpoint.
-- **M0.2:** project creation, listing, detail views, PostgreSQL persistence, membership roles, and pending invitation records are implemented on `feature/m0-2-project-foundation`.
-- **M0.3:** individual story contributions, append-only revisions, authorship, withdrawal, and a contribution workspace are implemented on `feature/m0-3-story-contributions`.
-- **M0.4:** contribution comments, revision-anchored suggestions, owner/editor decisions, and decision history are implemented on `feature/m0-4-discussion-suggestions`.
-- **M0.5:** source-preserving narrative draft compilation, immutable proposal versions, exact source provenance, and a provider-independent mock compiler are implemented on `feature/m0-5-narrative-draft-compilation`.
-- **M0.6:** owner-only or majority approval rules, append-only vote history, immutable version decisions, and approval-gated storyboard phase progression are implemented on `feature/m0-6-approval-and-phase-progression`. Local migration and end-to-end verification are the next step.
-- **M1.1:** approved-narrative storyboard initialization, ordered scenes, character/location story-bible records, exact narrative passage links, and append-only per-scene script revisions are implemented on `feature/m1-1-storyboard-foundation`. Local migration and end-to-end verification are pending.
-- **M1.2:** structured screenplay revisions with ordered action, dialogue, parenthetical, transition, and production-note blocks; scene-bound speaker attribution; readable rendering; and legacy text compatibility are implemented on `feature/m1-2-structured-screenplay`. Local migration and end-to-end verification are pending.
+- **M0.1–M0.6:** the runnable application foundation, project workspace, contributions, discussion, narrative compilation, approval and phase progression are integrated into `main`.
+- **M1.1–M1.2:** storyboard foundation and structured screenplay are integrated into `main`.
+- **M1.3:** movie/TV-series formats, fiction/documentary categories, and season/episode structure are integrated into `main`.
+- **M1.4:** documentary source registers, factual claims, excerpt-level evidence, and append-only human fact-check reviews are integrated into `main`.
+- **M1.5:** reusable character/location story-bible editing and archive/restore are integrated into `main`.
+- **M1.6:** documentary interviews, consent/release records, private media uploads, versioned rights records, and supported-claim production references are integrated into `main`.
 
-- **M1.3:** independent movie/TV-series formats and fiction/documentary categories, with seasons, episodes and episode-owned scene ordering, are merged into the downstream screenplay branch.
-- **M1.4:** documentary source registers, discrete claims, exact evidence excerpts and append-only human fact-check reviews are merged into the downstream screenplay branch.
-- **M1.5:** reusable character/location story-bible profile editing and archive/restore controls are implemented on `feature/m1-5-story-bible-management` (draft PR #12; depends on the preceding milestone chain).
-- **M1.6:** documentary interview subjects and sessions, consent/release records, private file uploads with SHA-256 metadata, versioned media rights and supported-claim production references are implemented on `feature/m1-6-documentary-interviews-rights` (draft PR #13; depends on M1.5). Local migration, security and end-to-end verification remain pending.
+The integration work is in the default branch, but the full migration, permission, persistence, browser, and production-security verification suite is still pending. The repository CI workflow is being added separately and must run successfully before calling the stack verified. Upload storage is local to a dedicated Docker volume; coordinate database and media-volume backups. The fixed development identity is not suitable for public deployment.
 
 
 The current local identity is a fixed development-only user. Authentication, invitation email delivery, and invitation acceptance are intentionally not enabled yet. Do not deploy this development configuration publicly.
