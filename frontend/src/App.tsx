@@ -1390,7 +1390,7 @@ function App() {
                                                 : "Production note"}
                                               <textarea
                                                 rows={element.element_type === "action" ? 4 : 2}
-                                                maxLength={10000}
+                                                maxLength={50000}
                                                 value={element.content}
                                                 onChange={event => updateScriptElement(scene.id, elementIndex, { content: event.target.value })}
                                                 placeholder={element.element_type === "action" ? "Describe what happens on screen…"
