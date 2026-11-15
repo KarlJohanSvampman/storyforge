@@ -1297,7 +1297,7 @@ function App() {
               {(selectedProject.current_phase === "storyboard" || storyboard !== null) && (
                 <section className="storyboard-section">
                   <div className="section-heading contribution-heading">
-                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>Build the film, scene by scene.</h2></div>
+                    <div><div className="section-kicker">M1 · STORYBOARD & CREATIVE ASSETS</div><h2>{selectedProject.format === "tv_series" ? "Build the series, episode by episode." : selectedProject.category === "documentary" ? "Shape the documentary, scene by scene." : "Build the film, scene by scene."}</h2></div>
                     <span className="step-count">{storyboard ? `${storyboard.scenes.length} scenes` : "Ready to initialize"}</span>
                   </div>
                   {!storyboard ? (
@@ -1461,7 +1461,7 @@ function App() {
                       )}
 
                       <div className="storyboard-scene-list">
-                        <div className="section-kicker">SCENE SEQUENCE · {storyboard.scenes.length} SCENES</div>
+                        <div className="section-kicker">{selectedProject.format === "tv_series" ? "EPISODE SCENES" : "SCENE SEQUENCE"} · {storyboard.scenes.length} SCENES</div>
                         {storyboard.scenes.length === 0 && <p className="muted-note">Add the first scene to begin breaking down the approved narrative.</p>}
                         {[...storyboard.scenes].sort((a, b) =>
                           (a.season_number || 0) - (b.season_number || 0) ||
