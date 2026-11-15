@@ -65,6 +65,7 @@ type ApprovalDecision = {
 };
 type ApprovalVersion = {
   version_id: string; version_number: number; is_current_version: boolean;
+  rule_mode: ApprovalMode; ballot_opened_at: string | null;
   eligible_voter_count: number; required_votes: number; approve_count: number; reject_count: number;
   current_user_vote: ApprovalChoice | null; can_vote: boolean; can_finalize: boolean;
   decision_outcome: "approved" | "rejected" | null;
@@ -761,6 +762,10 @@ function App() {
                           <div><strong>{selectedApproval.required_votes}</strong><span>Matching votes required</span></div>
                           <div><strong>{selectedApproval.eligible_voter_count}</strong><span>Eligible voters</span></div>
                         </div>
+                        <p className="approval-ballot-note">
+                          Rule: {selectedApproval.rule_mode === "majority" ? "majority" : "owner approval"}
+                          {selectedApproval.ballot_opened_at ? ` · Ballot opened ${new Date(selectedApproval.ballot_opened_at).toLocaleString()} · electorate and threshold are frozen` : " · electorate and threshold are captured when the first vote is cast"}
+                        </p>
                         {selectedApproval.decision_outcome === null && selectedApproval.can_vote && (
                           <div className="approval-vote-form">
                             <label>Optional note<textarea rows={2} maxLength={3000} value={approvalNote} onChange={event => setApprovalNote(event.target.value)} placeholder="Add context for your vote…" /></label>
