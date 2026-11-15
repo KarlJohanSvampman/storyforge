@@ -1,6 +1,6 @@
 # Production, Actor, and Performance Architecture
 
-> Status: design baseline for the later virtual-production milestones. This document records product and domain decisions; it does not imply that these systems have been implemented.
+> Status: architecture baseline. SceneRun/CastMemberInstance runtime, controller authority and possession leases, structured takes, a Three.js set viewport, and JSON edit-decision-list assembly are now implemented in the M2.1–M3 development slice. See `SCENE_RUNTIME_AND_EDITORIAL_MODEL.md` for the executable contracts and current boundaries.
 
 ## 1. Delivery boundary
 
