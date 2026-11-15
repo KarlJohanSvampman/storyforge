@@ -1540,21 +1540,38 @@ function App() {
   function mediaRightsDraft(assetId: string): DocumentaryMediaRightsDraft {
     return mediaRightsDrafts[assetId] || {
       rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
-      territory: "Worldwide", valid_until: "", permitted_uses: ["research"],
+      territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"],
       attribution_required: false, attribution_text: "", restrictions: "",
     };
   }
 
   function updateMediaRightsDraft(assetId: string, changes: Partial<DocumentaryMediaRightsDraft>) {
-    setMediaRightsDrafts(current => ({ ...current, [assetId]: { ...mediaRightsDraft(assetId), ...changes } }));
+    setMediaRightsDrafts(current => {
+      const existing = current[assetId] || {
+        rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
+        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"] as DocumentaryConsentUse[],
+        attribution_required: false, attribution_text: "", restrictions: "",
+      };
+      return { ...current, [assetId]: { ...existing, ...changes } };
+    });
   }
 
   function toggleMediaRightsUse(assetId: string, use: DocumentaryConsentUse) {
-    const draft = mediaRightsDraft(assetId);
-    updateMediaRightsDraft(assetId, {
-      permitted_uses: draft.permitted_uses.includes(use)
-        ? draft.permitted_uses.filter(item => item !== use)
-        : [...draft.permitted_uses, use],
+    setMediaRightsDrafts(current => {
+      const existing = current[assetId] || {
+        rights_holder: "", rights_basis: "licensed", license_name: "", license_url: "",
+        territory: "Worldwide", valid_from: "", valid_until: "", permitted_uses: ["research"] as DocumentaryConsentUse[],
+        attribution_required: false, attribution_text: "", restrictions: "",
+      };
+      return {
+        ...current,
+        [assetId]: {
+          ...existing,
+          permitted_uses: existing.permitted_uses.includes(use)
+            ? existing.permitted_uses.filter(item => item !== use)
+            : [...existing.permitted_uses, use],
+        },
+      };
     });
   }
 
@@ -1569,6 +1586,7 @@ function App() {
           rights_holder: draft.rights_holder, rights_basis: draft.rights_basis,
           license_name: draft.license_name, license_url: draft.license_url,
           territory: draft.territory,
+          valid_from: draft.valid_from ? new Date(draft.valid_from).toISOString() : null,
           valid_until: draft.valid_until ? new Date(draft.valid_until).toISOString() : null,
           permitted_uses: draft.permitted_uses,
           attribution_required: draft.attribution_required, attribution_text: draft.attribution_text,
@@ -1587,10 +1605,13 @@ function App() {
   }
 
   function updateClaimUsageDraft(claimId: string, changes: Partial<DocumentaryClaimUsageDraft>) {
-    setClaimUsageDrafts(current => ({
-      ...current,
-      [claimId]: { ...claimUsageDraft(claimId), ...changes, ...(changes.scene_id !== undefined ? { script_version_id: "" } : {}) },
-    }));
+    setClaimUsageDrafts(current => {
+      const existing = current[claimId] || { usage_type: "outline", scene_id: "", script_version_id: "", reference_text: "" };
+      return {
+        ...current,
+        [claimId]: { ...existing, ...changes, ...(changes.scene_id !== undefined ? { script_version_id: "" } : {}) },
+      };
+    });
   }
 
   async function saveClaimUsage(claim: DocumentaryClaim) {
@@ -2090,7 +2111,10 @@ function App() {
                                     </div>
                                     {rightsDraft.rights_basis === "licensed" && <label>Licence name<input required maxLength={240} value={rightsDraft.license_name} onChange={event => updateMediaRightsDraft(asset.id, { license_name: event.target.value })} /></label>}
                                     <label>Licence / permission URL<input maxLength={2048} value={rightsDraft.license_url} onChange={event => updateMediaRightsDraft(asset.id, { license_url: event.target.value })} /></label>
-                                    <label>Rights valid until (optional)<input type="datetime-local" value={rightsDraft.valid_until} onChange={event => updateMediaRightsDraft(asset.id, { valid_until: event.target.value })} /></label>
+                                    <div className="documentary-form-row">
+                                      <label>Rights valid from (optional)<input type="datetime-local" value={rightsDraft.valid_from} onChange={event => updateMediaRightsDraft(asset.id, { valid_from: event.target.value })} /></label>
+                                      <label>Rights valid until (optional)<input type="datetime-local" value={rightsDraft.valid_until} onChange={event => updateMediaRightsDraft(asset.id, { valid_until: event.target.value })} /></label>
+                                    </div>
                                     <div className="documentary-use-grid">
                                       {documentaryUseOptions.map(option => <label className="documentary-use-option" key={option.value}><input type="checkbox" checked={rightsDraft.permitted_uses.includes(option.value)} onChange={() => toggleMediaRightsUse(asset.id, option.value)} /> {option.label}</label>)}
                                     </div>
