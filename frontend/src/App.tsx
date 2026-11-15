@@ -234,13 +234,15 @@ function App() {
     setLoading(true);
     setError("");
     try {
-      const [detail, items, currentDraft, approvalOverview] = await Promise.all([
+      const [detail, items, currentDraft, approvalOverview, currentStoryboard] = await Promise.all([
         api<ProjectDetail>(`/api/projects/${projectId}`),
         api<Contribution[]>(`/api/projects/${projectId}/contributions`),
         api<NarrativeDraft | null>(`/api/projects/${projectId}/draft`),
         api<ApprovalOverview>(`/api/projects/${projectId}/approval`),
+        api<Storyboard | null>(`/api/projects/${projectId}/storyboard`),
       ]);
       setSelectedProject(detail);
+      setStoryboard(currentStoryboard);
       setContributions(items);
       await loadAcceptedDraftSuggestions(projectId, items);
       setDraft(currentDraft);
@@ -524,6 +526,151 @@ function App() {
     }
   }
 
+  async function initializeStoryboard() {
+    if (!selectedProject) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard`, { method: "POST" });
+      setStoryboard(created);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not initialize the storyboard.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitCharacter(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !characterName.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<ProjectCharacter>(`/api/projects/${selectedProject.id}/storyboard/characters`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: characterName, description: characterDescription,
+          visual_description: characterVisual, personality_notes: characterPersonality,
+        }),
+      });
+      setStoryboard(current => current ? { ...current, characters: [...current.characters, created].sort((a, b) => a.name.localeCompare(b.name)) } : current);
+      setCharacterName(""); setCharacterDescription(""); setCharacterVisual(""); setCharacterPersonality("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create character.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitLocation(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !locationName.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const created = await api<ProjectLocation>(`/api/projects/${selectedProject.id}/storyboard/locations`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: locationName, description: locationDescription, environment_type: locationType,
+          time_period: locationPeriod, visual_notes: locationVisual,
+        }),
+      });
+      setStoryboard(current => current ? { ...current, locations: [...current.locations, created].sort((a, b) => a.name.localeCompare(b.name)) } : current);
+      setLocationName(""); setLocationDescription(""); setLocationPeriod(""); setLocationVisual("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create location.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitScene(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedProject || !sceneTitle.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: sceneTitle, summary: sceneSummary, requirements: sceneRequirements,
+          estimated_duration_seconds: sceneDuration.trim() ? Number(sceneDuration) : null,
+          location_id: sceneLocationId || null, character_ids: sceneCharacterIds,
+        }),
+      });
+      setStoryboard(updated);
+      setSceneTitle(""); setSceneSummary(""); setSceneRequirements("");
+      setSceneDuration(""); setSceneLocationId(""); setSceneCharacterIds([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create scene.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveSceneScript(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const latest = scene.script_versions[scene.script_versions.length - 1] || null;
+    const content = scriptDrafts[scene.id] ?? latest?.content ?? "";
+    if (!content.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/script`, {
+        method: "POST",
+        body: JSON.stringify({ base_version_id: latest?.id || null, content }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save script revision.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addScenePassage(scene: StoryboardScene) {
+    if (!selectedProject) return;
+    const passageText = passageDrafts[scene.id] || "";
+    if (!passageText.trim()) return;
+    const occurrence = Number(passageOccurrences[scene.id] || "1");
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/${scene.id}/passages`, {
+        method: "POST",
+        body: JSON.stringify({ passage_text: passageText, occurrence }),
+      });
+      setStoryboard(updated);
+      setPassageDrafts(current => ({ ...current, [scene.id]: "" }));
+      setPassageOccurrences(current => ({ ...current, [scene.id]: "1" }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not link the passage.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function moveScene(scene: StoryboardScene, direction: -1 | 1) {
+    if (!selectedProject || !storyboard) return;
+    const ordered = [...storyboard.scenes].sort((a, b) => a.scene_order - b.scene_order);
+    const index = ordered.findIndex(item => item.id === scene.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= ordered.length) return;
+    [ordered[index], ordered[target]] = [ordered[target], ordered[index]];
+    setLoading(true);
+    setError("");
+    try {
+      const updated = await api<Storyboard>(`/api/projects/${selectedProject.id}/storyboard/scenes/reorder`, {
+        method: "PUT", body: JSON.stringify({ scene_ids: ordered.map(item => item.id) }),
+      });
+      setStoryboard(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reorder scenes.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function startRevision() {
     if (!selectedContribution) return;
     setContributionTitle(selectedContribution.title);
@@ -548,6 +695,7 @@ function App() {
     setView("projects");
     setSelectedProject(null);
     setSelectedContribution(null);
+    setStoryboard(null);
     setShowCreate(false);
     setError("");
   }
