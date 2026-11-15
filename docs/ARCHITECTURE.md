@@ -62,6 +62,15 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **DocumentaryClaim:** one discrete factual proposition, with human or AI-assisted origin and a current fact-check state.
 - **DocumentaryClaimEvidence:** a link from one claim to one source, recording whether the source supports, challenges, or contextualises the claim, plus an exact excerpt and page/section/timecode locator.
 - **DocumentaryClaimReview:** append-only human review event recording the result, rationale, reviewer, and snapshot of all active evidence considered at that time.
+
+- **DocumentaryInterviewSubject:** project-level interview identity using named, pseudonymous, or anonymous attribution; archived subjects remain in interview history.
+- **DocumentaryInterviewSession:** dated session linked to one subject, with interviewer, format, location/platform, transcript notes, and associated private media.
+- **DocumentaryRelease:** subject/session-specific or broader project/production consent record with an explicit scope, permitted uses, signed/expiry dates, and withdrawal terms.
+- **DocumentaryReleaseEvent:** append-only event history for creation, signing, and withdrawal state changes.
+- **DocumentaryMediaAsset:** private uploaded file with original filename, content type, byte size, SHA-256 digest, storage key, optional source/session links, and active/archived status.
+- **DocumentaryMediaRights:** versioned media-clearance record with rights holder, basis, licence, territory, validity dates, permitted uses, attribution and restrictions. A new record supersedes the current one rather than rewriting its terms.
+- **DocumentaryClaimUsage:** append-only reference from a currently supported claim into an outline, scene, exact screenplay revision, narration, lower-third, or caption. Scene/script placements retain stable IDs rather than copying a mutable scene or script title.
+
 - **SceneCharacterAssignment:** explicit list of which story characters participate in each scene.
 - **Comment:** author, target type and ID, body, timestamps.
 - **Suggestion:** author, target draft/version or passage, proposed change, status.
@@ -72,6 +81,21 @@ Do not add Redis, object storage, or a message broker until an actual requiremen
 - **ActorCredit (future):** a performer's credited participation in a release or production, forming the actor's public track record.
 - **ProductionBudget / BudgetLedgerEntry (future):** a production's budget configuration and auditable record of estimated, committed, and actual costs.
 - **CastingEngagement (future):** a production-specific booking of an actor, including the quoted and agreed fee captured at booking time.
+
+
+### Documentary consent and media handling
+
+Interview research is project-level and independent of storyboard initialization. Interview identity mode explicitly records whether a subject is named, pseudonymous, or anonymous; the entered name/pseudonym is the only identity label stored in this record. Do not put a confidential legal identity into the pseudonym field or free-text notes.
+
+Uploaded documentary files are stored outside the public frontend tree, using a project-scoped private storage key. The API never returns that key. The read API returns a membership-protected download route instead. Uploads are streamed to a temporary file, size-limited, checked against an extension allowlist, hashed with SHA-256, then atomically moved into private storage before the database record is committed. Docker Compose uses a dedicated named volume at `/app/storage/documentary`; deleting that volume deletes the uploaded bytes. Database backups and media-volume backups must therefore be coordinated.
+
+The initial upload slice allows files up to 100 MiB and common document, text, audio, video, and image formats. It does not perform antivirus scanning, transcoding, content inspection, malware quarantine, external object-store replication, or automatic metadata extraction. Do not treat an allowed extension or declared content type as proof that a file is safe. Production deployment needs malware scanning, retention controls, encrypted backups, and operational access logging.
+
+A release's signed state and timestamp are entered by an authorised project member; the app does not identify the participant, collect a cryptographic signature, or certify legal validity. The optional scanned release document is private and downloadable only by project owners/editors. Withdrawal is an append-only audit event, changes the release state, and blocks future use through the clearance checks; it does not automatically delete already published material or determine legal takedown obligations.
+
+Rights records are versioned. New terms supersede the prior active record, preserving its historical row. Media used as evidence for a claim must have a current non-expired rights record explicitly permitting the destination use. Interview media additionally needs a signed, non-expired project or production release for the same subject and use. This is a workflow guardrail, not legal advice or a determination that an exception such as fair use applies.
+
+A claim can be placed into production only while active and carrying a current `supported` human review. The placement stores the exact scene and script-version IDs where applicable. If the claim later requires review, the placement remains in history but its returned current claim status will reflect that it is no longer currently supported.
 
 ## 5. Realtime behavior
 
