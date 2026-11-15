@@ -273,3 +273,61 @@ a { color: inherit; text-decoration: none; }
 .draft-suggestion-option span { display: grid; gap: 4px; }
 .draft-suggestion-option strong { color: #b9c89a; font-size: 9px; font-weight: 500; }
 .draft-suggestion-option small { color: #858b7e; font-size: 8px; }
+
+
+/* M0.6 approval and controlled phase progression */
+.approval-rule-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .8fr); gap: 20px; align-items: center; margin: 18px 0; padding: 17px; border: 1px solid var(--line); border-radius: 8px; background: #191d18; }
+.approval-rule-copy strong { display: block; color: #d6ddc6; font-size: 12px; margin-top: 7px; }
+.approval-rule-copy p { color: #92988a; font-size: 9px; line-height: 1.7; margin: 7px 0 0; }
+.approval-rule-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.approval-rule-form label, .approval-vote-form label { display: grid; gap: 7px; color: #c4c9b9; font-size: 9px; }
+.approval-rule-form select { min-width: 0; border: 1px solid #3a4035; border-radius: 6px; color: #e9e9e2; background: #171a16; padding: 9px; font: inherit; font-size: 10px; }
+.approval-rule-form > small { grid-column: 1 / -1; color: #d4b27b; font-size: 8px; }
+.approval-panel { margin-top: 20px; padding: 18px; border: 1px solid #4b5740; border-radius: 8px; background: #191d18; }
+.approval-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.approval-heading h3 { color: #e0e3d6; font: 500 20px "Playfair Display", serif; margin: 5px 0 0; }
+.approval-status { padding: 5px 9px; border-radius: 20px; font-size: 8px; text-transform: uppercase; letter-spacing: .6px; }
+.approval-status.pending { color: #d4b27b; background: #3a3021; }
+.approval-status.approved { color: #c4d58a; background: #303a27; }
+.approval-status.rejected { color: #d7a99d; background: #352622; }
+.approval-tally { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 17px 0; }
+.approval-tally > div { display: grid; gap: 5px; padding: 11px; border: 1px solid var(--line); border-radius: 6px; background: #20251e; }
+.approval-tally strong { color: #d6ddc6; font: 500 20px "Playfair Display", serif; }
+.approval-tally span { color: #858b7e; font-size: 8px; }
+.approval-vote-form { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
+.approval-vote-form textarea { width: 100%; border: 1px solid #3a4035; border-radius: 6px; outline: none; color: #e9e9e2; background: #171a16; padding: 10px 11px; font: inherit; font-size: 10px; resize: vertical; }
+.approval-vote-form textarea:focus { border-color: #8a9c65; }
+.approval-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.approval-actions .danger-button { background: #352622; border-color: #63443d; }
+.approval-actions > small { color: #92988a; font-size: 8px; }
+.approval-finalize { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 14px 0; padding: 12px; border: 1px solid #65754e; border-radius: 6px; background: #23291f; }
+.approval-finalize p { color: #c4c9b9; font-size: 9px; line-height: 1.6; margin: 0; }
+.approval-decision { display: grid; gap: 5px; margin: 13px 0; padding: 12px; border-radius: 6px; }
+.approval-decision.approved { border: 1px solid #586d3f; background: #242d1e; }
+.approval-decision.rejected { border: 1px solid #63443d; background: #2b211e; }
+.approval-decision strong { color: #d6ddc6; font-size: 10px; }
+.approval-decision span, .approval-decision small { color: #92988a; font-size: 8px; }
+.approval-decision p { color: #b6bcae; font-size: 9px; margin: 5px 0 0; }
+.approval-vote-history { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 16px; }
+.approval-vote-row { display: grid; grid-template-columns: minmax(90px, .7fr) auto minmax(150px, 1fr); gap: 7px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.approval-vote-row strong { color: #c4c9b9; font-size: 9px; }
+.approval-vote-row > small { color: #858b7e; font-size: 8px; }
+.vote-choice { justify-self: start; border-radius: 20px; padding: 4px 7px; font-size: 8px; text-transform: uppercase; }
+.vote-choice.approve { color: #c4d58a; background: #303a27; }
+.vote-choice.reject { color: #d7a99d; background: #352622; }
+.approval-vote-row p { grid-column: 1 / -1; color: #a8ad9f; font-size: 9px; margin: 0; white-space: pre-wrap; }
+.phase-history-panel { margin: 16px 0 0; padding: 17px; border: 1px solid var(--line); border-radius: 8px; background: #191d18; }
+.phase-history-row { display: grid; grid-template-columns: minmax(130px, .7fr) minmax(150px, 1fr); gap: 5px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.phase-history-row:last-child { border-bottom: 0; }
+.phase-history-row strong { color: #c4d58a; font-size: 10px; }
+.phase-history-row span, .phase-history-row small { color: #858b7e; font-size: 8px; }
+.phase-history-row small { grid-column: 1 / -1; }
+@media (max-width: 700px) {
+  .approval-rule-card { grid-template-columns: 1fr; }
+  .approval-tally { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .approval-finalize { align-items: start; flex-direction: column; }
+  .approval-vote-row { grid-template-columns: minmax(70px, 1fr) auto; }
+  .approval-vote-row > small { grid-column: 1 / -1; }
+  .phase-history-row { grid-template-columns: 1fr; }
+  .phase-history-row small { grid-column: 1; }
+}
