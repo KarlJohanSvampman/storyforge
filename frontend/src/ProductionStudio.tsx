@@ -17,6 +17,7 @@ type SceneRun = {
 };
 type Take = { id: string; scene_run_id: string; take_number: number; status: string; duration_ms: number; event_count: number; state_snapshot: Record<string, unknown>; events: TakeEvent[] };
 type EditItem = { id: string; take_id: string; scene_id: string; item_order: number; in_ms: number; out_ms: number; transition: string; title_overlay: string; effects: Record<string, unknown>; audio_cue: string };
+type EditItemDraft = { in_ms: string; out_ms: string; transition: "cut" | "fade" | "dissolve"; title_overlay: string; effects: string; audio_cue: string };
 type EditSequence = { id: string; name: string; status: string; revision_number: number; items: EditItem[] };
 type Lease = { id: string; lease_token: string; expires_at: string; authority_epoch: number };
 type Props = { projectId: string; phase: string; scenes: SceneOption[]; members: Member[]; currentUserId: string | null; canManage: boolean; onPhaseChanged: () => Promise<void> };
@@ -53,6 +54,9 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [exportManifest, setExportManifest] = useState<Record<string, any> | null>(null);
+  const [cameraPreset, setCameraPreset] = useState<"wide" | "close" | "overhead" | "reverse">("wide");
+  const [cameraEvents, setCameraEvents] = useState<Array<{ timestamp_ms: number; preset: string }>>([]);
+  const [itemDrafts, setItemDrafts] = useState<Record<string, EditItemDraft>>({});
 
   async function refresh() {
     const [runRows, takeRows, sequenceRows] = await Promise.all([
@@ -87,6 +91,15 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const selectedSequence = sequences.find(item => item.id === selectedSequenceId) || null;
   const selectedScene = selectedRun ? scenes.find(scene => scene.id === selectedRun.scene_id) : null;
   const writable = canManage && phase === "production";
+
+  useEffect(() => { setCameraPreset("wide"); setCameraEvents([]); }, [selectedRunId]);
+  useEffect(() => {
+    if (!selectedSequence) return;
+    setItemDrafts(Object.fromEntries(selectedSequence.items.map(item => [item.id, {
+      in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"],
+      title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue,
+    }])));
+  }, [selectedSequence?.id, selectedSequence?.revision_number]);
 
   async function perform(action: () => Promise<void>, success: string) {
     setBusy(true); setError(""); setNotice("");
@@ -155,9 +168,15 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
     if (!selectedRun) return;
     await perform(async () => {
       const created = await api<Take>(`${base(projectId)}/scene-runs/${selectedRun.id}/takes`, {
-        method: "POST", body: JSON.stringify({ state_snapshot: { cast_members: selectedRun.cast_members.map(item => ({ instance_id: item.id, state: item.state_snapshot })) } }),
+        method: "POST", body: JSON.stringify({ state_snapshot: {
+          camera_preset: cameraPreset, camera_events: cameraEvents,
+          cast_members: selectedRun.cast_members.map(item => ({ instance_id: item.id, state: item.state_snapshot })),
+        } }),
       });
-      await refresh(); setSelectedTakeId(created.id);
+      if (cameraEvents.length) await api<Take>(`${base(projectId)}/takes/${created.id}/events`, {
+        method: "POST", body: JSON.stringify({ events: cameraEvents.map(item => ({ timestamp_ms: item.timestamp_ms, event_type: "camera_cut", payload: { preset: item.preset } })) }),
+      });
+      setCameraEvents([]); await refresh(); setSelectedTakeId(created.id);
     }, "New take created. Add ordered performance events to make it replayable.");
   }
 
@@ -213,6 +232,32 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       });
       await refresh();
     }, "Selected take added to the edit timeline.");
+  }
+
+  async function saveEditItem(item: EditItem) {
+    if (!selectedSequence) return;
+    const draft = itemDrafts[item.id];
+    if (!draft) return;
+    await perform(async () => {
+      let effects: Record<string, unknown>;
+      try { effects = JSON.parse(draft.effects) as Record<string, unknown>; }
+      catch { throw new Error("Effect settings must be valid JSON."); }
+      await api<EditSequence>(`${base(projectId)}/edit-sequences/${selectedSequence.id}/items/${item.id}`, {
+        method: "PATCH", body: JSON.stringify({
+          in_ms: Number(draft.in_ms), out_ms: Number(draft.out_ms), transition: draft.transition,
+          title_overlay: draft.title_overlay, effects, audio_cue: draft.audio_cue,
+        }),
+      });
+      await refresh();
+    }, "Clip edit instructions saved as a new sequence revision.");
+  }
+
+  async function deleteEditItem(item: EditItem) {
+    if (!selectedSequence) return;
+    await perform(async () => {
+      await api<EditSequence>(`${base(projectId)}/edit-sequences/${selectedSequence.id}/items/${item.id}`, { method: "DELETE" });
+      await refresh();
+    }, "Clip removed from the edit sequence. The source take remains untouched.");
   }
 
   async function moveItem(item: EditItem, direction: -1 | 1) {
@@ -288,7 +333,13 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       <section className="production-panel production-runtime-panel">
         <div className="casting-panel-heading"><div><div className="section-kicker">LIVE SET</div><h3>{selectedRun?.scene_snapshot.scene?.title || selectedScene?.title || "Select a scene run"}</h3></div><Camera size={17} /></div>
         {selectedRun ? <>
-          <ThreeSceneViewport castMembers={selectedRun.cast_members} sceneTitle={selectedRun.scene_snapshot.scene?.title || "Scene"} />
+          <ThreeSceneViewport castMembers={selectedRun.cast_members} sceneTitle={selectedRun.scene_snapshot.scene?.title || "Scene"} cameraPreset={cameraPreset} />
+          <label className="production-camera-select">Virtual camera<select value={cameraPreset} disabled={selectedRun.status !== "running"} onChange={event => {
+            const preset = event.target.value as typeof cameraPreset;
+            setCameraPreset(preset);
+            const timestamp = selectedRun.started_at ? Math.max(0, Date.now() - new Date(selectedRun.started_at).getTime()) : 0;
+            setCameraEvents(current => [...current, { timestamp_ms: timestamp, preset }]);
+          }}><option value="wide">Wide master</option><option value="close">Close-up</option><option value="overhead">Overhead</option><option value="reverse">Reverse angle</option></select></label>
           <div className="production-run-controls">
             <span className={`production-status ${selectedRun.status}`}>{selectedRun.status}</span>
             {writable && selectedRun.status === "ready" && <button className="primary-button" disabled={busy} onClick={() => transitionRun("running")}><Play size={13} /> Start run</button>}
@@ -367,8 +418,17 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
               const take = takes.find(row => row.id === item.take_id);
               const scene = scenes.find(row => row.id === item.scene_id);
               return <article className="edit-timeline-item" key={item.id}>
-                <div><small>CLIP {item.item_order.toString().padStart(2,"0")} · {item.transition}</small><strong>{scene?.title || "Scene"} · Take {take?.take_number}</strong><span>{item.in_ms}–{item.out_ms} ms · {item.out_ms-item.in_ms} ms</span></div>
+                <div className="edit-timeline-title"><small>CLIP {item.item_order.toString().padStart(2,"0")} · {item.transition}</small><strong>{scene?.title || "Scene"} · Take {take?.take_number}</strong><span>{item.in_ms}–{item.out_ms} ms · {item.out_ms-item.in_ms} ms</span></div>
                 <div className="edit-item-order-controls"><button type="button" aria-label="Move clip up" disabled={!writable || item.item_order===1 || busy} onClick={() => moveItem(item,-1)}><ChevronUp size={14}/></button><button type="button" aria-label="Move clip down" disabled={!writable || item.item_order===selectedSequence.items.length || busy} onClick={() => moveItem(item,1)}><ChevronDown size={14}/></button></div>
+                {writable && <div className="edit-item-editor">
+                  <label>In (ms)<input type="number" min="0" value={itemDrafts[item.id]?.in_ms ?? String(item.in_ms)} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), in_ms: event.target.value } }))}/></label>
+                  <label>Out (ms)<input type="number" min="1" value={itemDrafts[item.id]?.out_ms ?? String(item.out_ms)} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), out_ms: event.target.value } }))}/></label>
+                  <label>Transition<select value={itemDrafts[item.id]?.transition ?? item.transition} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), transition: event.target.value as EditItemDraft["transition"] } }))}><option value="cut">Cut</option><option value="fade">Fade</option><option value="dissolve">Dissolve</option></select></label>
+                  <label>Title overlay<input value={itemDrafts[item.id]?.title_overlay ?? item.title_overlay} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), title_overlay: event.target.value } }))}/></label>
+                  <label>Effects (JSON)<input value={itemDrafts[item.id]?.effects ?? JSON.stringify(item.effects)} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), effects: event.target.value } }))}/></label>
+                  <label>Audio cue<input value={itemDrafts[item.id]?.audio_cue ?? item.audio_cue} onChange={event => setItemDrafts(current => ({ ...current, [item.id]: { ...(current[item.id] || { in_ms: String(item.in_ms), out_ms: String(item.out_ms), transition: item.transition as EditItemDraft["transition"], title_overlay: item.title_overlay, effects: JSON.stringify(item.effects), audio_cue: item.audio_cue }), audio_cue: event.target.value } }))}/></label>
+                  <div className="edit-item-actions"><button type="button" className="secondary-button" disabled={busy} onClick={() => saveEditItem(item)}><Save size={12}/> Save clip</button><button type="button" className="quiet-button" disabled={busy} onClick={() => deleteEditItem(item)}>Remove clip</button></div>
+                </div>}
               </article>;
             })}
           </div>
