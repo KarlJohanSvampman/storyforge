@@ -430,3 +430,22 @@ docker compose down -v
 ## Current limitations
 
 M0.2 is a development vertical slice, not production authentication. The app uses one configured local user. Invitation records are pending placeholders; no email is sent and no recipient can accept yet. Public/unlisted discovery, role administration, account registration, authentication, and invitation acceptance are not implemented.
+
+
+## M2.1–M2.2 scene runtime and performance capture (backend foundation)
+
+The scene runtime API prepares an isolated production run from a scene in the project's latest storyboard interpretation. It snapshots the storyboard's exact narrative version and creates one cast-member instance for each scene character with an active casting assignment. Uncast characters are returned explicitly so production setup can be completed without silently substituting an actor.
+
+- `POST /api/projects/{project_id}/scene-runs` — prepare a run; body: `{"scene_id":"..." }`.
+- `GET /api/projects/{project_id}/scene-runs` and `GET .../scene-runs/{run_id}` — inspect prepared runs and their cast snapshots.
+
+Each run starts at authority epoch 1. The schema includes append-only controller assignment events and time-bounded possession leases; lease issuance and authority enforcement are not yet exposed as API operations.
+
+Performance capture stores event streams rather than only final poses. A take snapshots camera configuration and references an optional cast-member instance. Events have a monotonically increasing sequence number and millisecond timestamp, with typed JSON payloads. Finalized takes are immutable through the API.
+
+- `POST /api/projects/{project_id}/scene-runs/{run_id}/takes` — start a take.
+- `POST /api/projects/{project_id}/takes/{take_id}/events` — append up to 250 ordered events per batch.
+- `POST /api/projects/{project_id}/takes/{take_id}/finalize` — finalize with total duration.
+- `GET /api/projects/{project_id}/takes/{take_id}` — retrieve the replayable event stream.
+
+Supported event types currently include transform, gesture, expression, voice marker, camera, and cue. This is a backend capture contract, not yet a live 3D renderer, browser camera UI, or playback engine. A camera snapshot is configuration metadata; camera movement during a take is represented by timestamped camera events.
