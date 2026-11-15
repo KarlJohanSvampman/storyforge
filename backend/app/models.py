@@ -881,3 +881,42 @@ class PossessionLease(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PerformanceTake(Base):
+    """A recorded scene performance; finalized takes are immutable."""
+    __tablename__ = "performance_takes"
+    __table_args__ = (
+        CheckConstraint("status IN ('recording', 'finalized', 'discarded')", name="ck_performance_takes_status"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_performance_takes_duration"),
+        Index("ix_performance_takes_scene_run_created", "scene_run_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    scene_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("scene_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    cast_member_instance_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("cast_member_instances.id", ondelete="RESTRICT"), nullable=True)
+    take_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), default="Take", nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="recording", nullable=False)
+    camera_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class PerformanceEvent(Base):
+    """Timestamped, ordered control/performance event within a take."""
+    __tablename__ = "performance_events"
+    __table_args__ = (
+        UniqueConstraint("take_id", "sequence_number", name="uq_performance_events_take_sequence"),
+        CheckConstraint("sequence_number >= 0", name="ck_performance_events_sequence"),
+        CheckConstraint("timestamp_ms >= 0", name="ck_performance_events_timestamp"),
+        CheckConstraint("event_type IN ('transform', 'gesture', 'expression', 'voice_marker', 'camera', 'cue')", name="ck_performance_events_type"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    take_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("performance_takes.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
