@@ -118,18 +118,22 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Expand integration coverage for ownership, project isolation, recasting, reuse policy, and controller validation.
 
 ### M2.1 — Scene runtime foundation
-- [ ] Create isolated SceneRuns and CastMemberInstances from approved casting assignments.
-- [ ] Add authority epochs, controller assignment history, and possession leases.
-- [ ] Render a simple 3D set and rigged characters.
+- [x] Create isolated SceneRuns and CastMemberInstances from approved storyboard scenes and active casting assignments, preserving immutable scene, actor, character, and controller snapshots.
+- [x] Add append-only controller assignment history, authority epochs, short-lived possession leases, expiry, release, and stale-epoch rejection.
+- [x] Render an interactive Three.js set with simple rigged character stand-ins and orbitable viewport.
+- [x] Add an owner-controlled storyboard-to-production phase handoff with scene and casting readiness checks.
 
 ### M2.2 — Performance and recording
-- [ ] Provide virtual cameras and basic character performance recording.
-- [ ] Store takes as structured, replayable data.
+- [ ] Provide dedicated virtual cameras and camera take controls.
+- [x] Record typed, timestamped, ordered performance events with actor-instance references and authority epochs.
+- [x] Store take snapshots and event streams as replayable data; preserve selected/rejected take decisions.
 
 ## M3 — Editing and finished-film workflow
-- [ ] Select takes, cut scenes, arrange sequences, and manage audio.
-- [ ] Add basic transitions, titles, and simple effects.
-- [ ] Export a rendered film.
+- [x] Select takes, arrange non-destructive scene clips, trim source ranges, and reorder a sequence.
+- [x] Add cut/fade/dissolve transitions, title overlays, effect metadata, and audio cues to clip instructions.
+- [ ] Manage actual audio media, tracks, mixing, and synchronization.
+- [x] Export immutable, revision-stamped edit decision list (EDL) manifests as JSON.
+- [ ] Render and export a finished video file.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
