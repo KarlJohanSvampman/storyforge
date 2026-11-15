@@ -153,7 +153,7 @@ type DocumentaryResearchSource = {
 };
 type DocumentaryClaimEvidence = {
   id: string; source_id: string; source_title: string; source_type: DocumentarySourceType;
-  source_url: string | null; evidence_relation: DocumentaryEvidenceRelation;
+  source_url: string | null; source_status: string; evidence_relation: DocumentaryEvidenceRelation;
   excerpt: string; locator: string; notes: string; created_by_user_id: string; created_at: string;
 };
 type DocumentaryClaimReview = {
@@ -1370,7 +1370,7 @@ function App() {
                               <div className="section-kicker">LINKED EVIDENCE · {claim.evidence.length}</div>
                               {claim.evidence.map(evidence => (
                                 <div className="documentary-evidence-card" key={evidence.id}>
-                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")}</span>
+                                  <strong>{evidence.source_title}</strong><span>{evidence.evidence_relation.toUpperCase()} · {evidence.source_type.replaceAll("_", " ")} · SOURCE {evidence.source_status.toUpperCase()}</span>
                                   {evidence.locator && <small>{evidence.locator}</small>}
                                   {evidence.excerpt && <blockquote>{evidence.excerpt}</blockquote>}
                                   {evidence.notes && <p>{evidence.notes}</p>}
