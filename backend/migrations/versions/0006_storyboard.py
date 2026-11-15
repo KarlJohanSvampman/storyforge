@@ -51,7 +51,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=160), nullable=False),
         sa.Column("created_by_user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="RESTRICT"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.UniqueConstraint("project_id", name="uq_storyboards_project"),
+        sa.UniqueConstraint("project_id", "narrative_version_id", name="uq_storyboards_project_narrative"),
     )
     op.create_index("ix_storyboards_project_id", "storyboards", ["project_id"])
 
