@@ -19,7 +19,7 @@ type Take = { id: string; scene_run_id: string; take_number: number; status: str
 type EditItem = { id: string; take_id: string; scene_id: string; item_order: number; in_ms: number; out_ms: number; transition: string; title_overlay: string; effects: Record<string, unknown>; audio_cue: string };
 type EditSequence = { id: string; name: string; status: string; revision_number: number; items: EditItem[] };
 type Lease = { id: string; lease_token: string; expires_at: string; authority_epoch: number };
-type Props = { projectId: string; phase: string; scenes: SceneOption[]; members: Member[]; currentUserId: string | null; canManage: boolean };
+type Props = { projectId: string; phase: string; scenes: SceneOption[]; members: Member[]; currentUserId: string | null; canManage: boolean; onPhaseChanged: () => Promise<void> };
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
@@ -34,7 +34,7 @@ const controllerLabels: Record<ControllerType, string> = { user: "Human", ai_age
 const modeLabels: Record<ControlMode, string> = { direct: "Direct", command: "Command", assisted: "Assisted", autonomous: "Autonomous", scripted: "Scripted" };
 const base = (projectId: string) => `/api/projects/${projectId}/production`;
 
-export default function ProductionStudio({ projectId, phase, scenes, members, currentUserId, canManage }: Props) {
+export default function ProductionStudio({ projectId, phase, scenes, members, currentUserId, canManage, onPhaseChanged }: Props) {
   const [runs, setRuns] = useState<SceneRun[]>([]);
   const [takes, setTakes] = useState<Take[]>([]);
   const [sequences, setSequences] = useState<EditSequence[]>([]);
@@ -244,6 +244,15 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
     }, "Immutable edit decision list exported. Video rendering is not yet part of this milestone.");
   }
 
+  if (phase === "storyboard") return <section className="production-studio">
+    <div className="section-kicker">M2.1 · PRODUCTION HANDOFF</div><h2>Ready to enter production?</h2>
+    <p className="production-studio-intro">The storyboard and cast are the source for runtime instances. Entering production locks the project into its production workspace; scene runs will snapshot the approved storyboard and current casting assignments.</p>
+    {writable && <button className="primary-button" disabled={busy} onClick={() => perform(async () => {
+      await api(`${base(projectId)}/activate`, { method: "POST", body: JSON.stringify({ reason: "Storyboard and casting approved for production." }) });
+      await onPhaseChanged();
+    }, "Project entered production.")}><Clapperboard size={14} /> Enter production</button>}
+    {!canManage && <p className="muted-note">Only the project owner can activate production.</p>}
+  </section>;
   if (phase !== "production") return <section className="production-studio">
     <div className="section-kicker">M2.1–M3 · PRODUCTION</div><h2>Production studio</h2>
     <p className="muted-note">The project must enter the production phase before scene runs, takes and editorial sequences can be created.</p>
