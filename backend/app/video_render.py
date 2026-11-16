@@ -8,8 +8,8 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .audio import _project_access, _safe_path, _sequence_or_404
-from .models import ProductionVideoAsset, VideoRenderJob
+from .audio import _project_access, _safe_path
+from .models import EditSequence, ProductionVideoAsset, VideoRenderJob
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import ProductionVideoAssetRead, VideoRenderJobRead
 
@@ -84,7 +84,12 @@ async def create_video_render(
     expected_duration_ms: int = Form(..., gt=0, le=MAX_VIDEO_DURATION_MS),
 ):
     project = _project_access(db, project_id, user.id, write=True)
-    sequence = _sequence_or_404(db, project_id, sequence_id)
+    sequence = db.scalar(select(EditSequence).where(
+        EditSequence.id == sequence_id,
+        EditSequence.project_id == project_id,
+    ).with_for_update())
+    if sequence is None:
+        raise HTTPException(status_code=404, detail="Edit sequence not found.")
     if sequence.status != "draft":
         raise HTTPException(status_code=409, detail="Only draft edit sequences can be exported.")
     if sequence.revision_number != sequence_revision:
