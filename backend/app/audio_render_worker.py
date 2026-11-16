@@ -85,7 +85,7 @@ def _render_command(manifest: dict[str, Any], output_path: Path) -> list[str]:
             "asetpts=PTS-STARTPTS",
             "aformat=sample_fmts=fltp:channel_layouts=stereo",
             f"volume={gain:.6f}",
-            f"pan=stereo|c0=c0*{left_gain:.6f}|c1=c1*{right_gain:.6f}",
+            f"pan=stereo|c0={left_gain:.6f}*c0|c1={right_gain:.6f}*c1",
         ]
         if fade_in:
             chain.append(f"afade=t=in:st=0:d={_seconds(fade_in)}")
@@ -106,7 +106,6 @@ def _render_command(manifest: dict[str, Any], output_path: Path) -> list[str]:
         "".join(labels)
         + f"amix=inputs={len(labels)}:duration=longest:dropout_transition=0:normalize=0,"
         + f"apad=whole_dur={_seconds(total_duration)},"
-        + f"atrim=duration={_seconds(total_duration)},"
         + "alimiter=limit=0.98:level=false,asetpts=PTS-STARTPTS[out]"
     )
     filters.append(mix)
