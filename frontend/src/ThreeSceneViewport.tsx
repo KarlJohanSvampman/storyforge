@@ -21,6 +21,9 @@ type Props = {
   cameraPreset: CameraPreset;
   replayEvents?: ReplayEvent[];
   playheadMs?: number;
+  titleOverlay?: string;
+  fadeOpacity?: number;
+  onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
 };
 
 const CAMERA_POSITIONS: Record<CameraPreset, [number, number, number]> = {
@@ -50,6 +53,41 @@ function makeLabel(text: string): THREE.Sprite {
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
   sprite.scale.set(2.8, 0.52, 1);
   return sprite;
+}
+
+function makeTitleSprite(): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 220;
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture, transparent: true, depthTest: false, depthWrite: false,
+  }));
+  sprite.scale.set(6.2, 1.14, 1);
+  sprite.position.set(0, -1.2, -4.4);
+  sprite.renderOrder = 1000;
+  sprite.userData.canvas = canvas;
+  return sprite;
+}
+
+function updateTitleSprite(sprite: THREE.Sprite, text: string): void {
+  const canvas = sprite.userData.canvas as HTMLCanvasElement;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  if (text.trim()) {
+    context.fillStyle = "rgba(8, 12, 9, 0.78)";
+    context.beginPath();
+    context.roundRect(28, 28, 1144, 164, 22);
+    context.fill();
+    context.fillStyle = "#f0f1e7";
+    context.font = "600 58px Arial";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(text.slice(0, 54), 600, 110);
+  }
+  sprite.visible = Boolean(text.trim());
+  (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
 }
 
 function makeCharacter(index: number, total: number, label: string): THREE.Group {
@@ -83,6 +121,23 @@ function makeCharacter(index: number, total: number, label: string): THREE.Group
   return group;
 }
 
+function disposeObject(root: THREE.Object3D): void {
+  root.traverse((object) => {
+    if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
+      const material = object.material;
+      if (Array.isArray(material)) material.forEach((item) => {
+        if ("map" in item && item.map) item.map.dispose();
+        item.dispose();
+      });
+      else if (material) {
+        if ("map" in material && material.map) material.map.dispose();
+        material.dispose();
+      }
+    }
+  });
+}
+
 function vectorFrom(value: unknown): THREE.Vector3 | null {
   if (Array.isArray(value) && value.length >= 3) {
     const values = value.slice(0, 3).map(Number);
@@ -101,11 +156,7 @@ function eventTransform(event: ReplayEvent): Record<string, unknown> {
   return nested && typeof nested === "object" ? nested as Record<string, unknown> : event.payload;
 }
 
-function interpolateVector(
-  previous: THREE.Vector3,
-  next: THREE.Vector3 | null,
-  amount: number,
-): THREE.Vector3 {
+function interpolateVector(previous: THREE.Vector3, next: THREE.Vector3 | null, amount: number): THREE.Vector3 {
   return next ? previous.clone().lerp(next, THREE.MathUtils.clamp(amount, 0, 1)) : previous;
 }
 
@@ -115,29 +166,53 @@ export default function ThreeSceneViewport({
   cameraPreset,
   replayEvents = [],
   playheadMs = 0,
+  titleOverlay = "",
+  fadeOpacity = 0,
+  onCanvasReady,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
   const rigsRef = useRef<Map<string, THREE.Group>>(new Map());
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const titleSpriteRef = useRef<THREE.Sprite | null>(null);
+  const fadePlaneRef = useRef<THREE.Mesh | null>(null);
+  const onCanvasReadyRef = useRef(onCanvasReady);
+
+  useEffect(() => { onCanvasReadyRef.current = onCanvasReady; }, [onCanvasReady]);
 
   useEffect(() => {
     const element = host.current;
     if (!element) return;
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     scene.background = new THREE.Color(0x161c18);
     scene.fog = new THREE.Fog(0x161c18, 18, 48);
     const camera = new THREE.PerspectiveCamera(44, 1, 0.1, 100);
-    camera.position.set(...CAMERA_POSITIONS[cameraPreset]);
+    camera.position.set(...CAMERA_POSITIONS.wide);
     cameraRef.current = camera;
+    scene.add(camera);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const titleSprite = makeTitleSprite();
+    camera.add(titleSprite);
+    titleSpriteRef.current = titleSprite;
+    const fadePlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(14, 9),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false, depthWrite: false }),
+    );
+    fadePlane.position.set(0, 0, -4.1);
+    fadePlane.renderOrder = 1001;
+    camera.add(fadePlane);
+    fadePlaneRef.current = fadePlane;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x161c18);
     element.appendChild(renderer.domElement);
+    onCanvasReadyRef.current?.(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controlsRef.current = controls;
@@ -206,12 +281,6 @@ export default function ThreeSceneViewport({
     stageLight.target.position.set(0, 0, 0);
     scene.add(stageLight, stageLight.target);
 
-    const rigs = castMembers.map((member, index) =>
-      makeCharacter(index, castMembers.length, member.character_name_snapshot || member.actor_name_snapshot || "Cast"),
-    );
-    rigs.forEach((rig) => scene.add(rig));
-    rigsRef.current = new Map(castMembers.map((member, index) => [member.id, rigs[index]]));
-
     const resize = () => {
       const width = Math.max(1, element.clientWidth);
       const height = Math.max(220, element.clientHeight);
@@ -236,20 +305,31 @@ export default function ThreeSceneViewport({
       observer.disconnect();
       controls.dispose();
       rigsRef.current.clear();
+      sceneRef.current = null;
       cameraRef.current = null;
       controlsRef.current = null;
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
-          if (object instanceof THREE.Mesh) object.geometry.dispose();
-          const material = object.material;
-          if (Array.isArray(material)) material.forEach((item) => item.dispose());
-          else material?.dispose();
-        }
-      });
+      titleSpriteRef.current = null;
+      fadePlaneRef.current = null;
+      onCanvasReadyRef.current?.(null);
+      disposeObject(scene);
       renderer.dispose();
       if (element.contains(renderer.domElement)) element.removeChild(renderer.domElement);
     };
-  }, [castMembers, sceneTitle]);
+  }, []);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    for (const rig of rigsRef.current.values()) {
+      scene.remove(rig);
+      disposeObject(rig);
+    }
+    const rigs = castMembers.map((member, index) =>
+      makeCharacter(index, castMembers.length, member.character_name_snapshot || member.actor_name_snapshot || "Cast"),
+    );
+    rigs.forEach((rig) => scene.add(rig));
+    rigsRef.current = new Map(castMembers.map((member, index) => [member.id, rigs[index]]));
+  }, [castMembers]);
 
   useEffect(() => {
     const camera = cameraRef.current;
@@ -302,7 +382,16 @@ export default function ThreeSceneViewport({
       rig.rotation.set(rotation.x, rotation.y, rotation.z);
       rig.scale.copy(interpolateVector(scaleStart, vectorFrom(nextPayload.scale), amount));
     }
-  }, [playheadMs, replayEvents]);
+  }, [castMembers, playheadMs, replayEvents]);
+
+  useEffect(() => {
+    if (titleSpriteRef.current) updateTitleSprite(titleSpriteRef.current, titleOverlay);
+  }, [titleOverlay]);
+
+  useEffect(() => {
+    const material = fadePlaneRef.current?.material;
+    if (material && !Array.isArray(material)) material.opacity = THREE.MathUtils.clamp(fadeOpacity, 0, 1);
+  }, [fadeOpacity]);
 
   return <div className="production-viewport" ref={host} aria-label={"Three dimensional production set for " + sceneTitle} />;
 }
