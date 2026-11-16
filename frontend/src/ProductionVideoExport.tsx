@@ -121,6 +121,31 @@ export default function ProductionVideoExport({
     return () => { alive = false; window.clearInterval(timer); };
   }, [projectId, sequenceId]);
 
+  useEffect(() => {
+    if (!videoJob || (videoJob.status !== "queued" && videoJob.status !== "running")) return;
+    let alive = true;
+    const refreshVideoJob = async () => {
+      try {
+        const jobs = await api<VideoRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/video-renders`);
+        const latest = jobs.find(candidate => candidate.id === videoJob.id);
+        if (!latest || !alive) return;
+        setVideoJob(latest);
+        if (latest.status === "completed") {
+          setProgress(100);
+          const assets = await api<VideoAsset[]>(`/api/projects/${projectId}/production/videos`);
+          if (alive) setVideoAssets(assets);
+        } else if (latest.status === "failed") {
+          setError(latest.error_message || "Server-side MP4 encoding failed.");
+        }
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : "Could not refresh video render status.");
+      }
+    };
+    const timer = window.setInterval(() => { void refreshVideoJob(); }, 2000);
+    void refreshVideoJob();
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [projectId, sequenceId, videoJob?.id, videoJob?.status]);
+
   const transitionOpacity = (() => {
     if (!activeItem) return 0;
     const duration = activeItem.out_ms - activeItem.in_ms;
@@ -255,23 +280,9 @@ export default function ProductionVideoExport({
         const body = await upload.json().catch(() => null);
         throw new Error(body?.detail || `Could not queue server MP4 encoding (${upload.status}).`);
       }
-      let job = await upload.json() as VideoRenderJob;
+      const job = await upload.json() as VideoRenderJob;
       setVideoJob(job);
-      while (job.status === "queued" || job.status === "running") {
-        if (cancelRef.current) throw new Error("Video export monitoring was cancelled; the server job will continue.");
-        await new Promise(resolve => window.setTimeout(resolve, 2000));
-        const jobs = await api<VideoRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/video-renders`);
-        const latest = jobs.find(candidate => candidate.id === job.id);
-        if (!latest) throw new Error("The server video render job could not be found.");
-        job = latest;
-        setVideoJob(job);
-      }
-      if (job.status !== "completed" || !job.download_url) {
-        throw new Error(job.error_message || "Server-side MP4 encoding failed.");
-      }
-      setProgress(100);
-      const assets = await api<VideoAsset[]>(`/api/projects/${projectId}/production/videos`);
-      setVideoAssets(assets);
+      if (job.status === "failed") throw new Error(job.error_message || "Server-side MP4 encoding failed.");
     } catch (err) {
       if (recorder && recorder.state !== "inactive") recorder.stop();
       setError(err instanceof Error ? err.message : "Video export failed.");
@@ -320,11 +331,11 @@ export default function ProductionVideoExport({
       </select>
     </label>}
     <div className="video-export-actions">
-      <button type="button" className="primary-button" disabled={loading || rendering || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length} onClick={() => void renderSequence()}>
+      <button type="button" className="primary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length} onClick={() => void renderSequence()}>
         {rendering ? <LoaderCircle size={14} className="spin" /> : <Video size={14} />}
-        {rendering ? (progress >= 98 ? (videoJob?.status === "completed" ? "MP4 ready" : "Encoding MP4…") : `Capturing ${progress}%`) : "Render and store MP4"}
+        {rendering ? `Capturing ${progress}%` : videoJob?.status === "queued" || videoJob?.status === "running" ? "Encoding MP4…" : videoJob?.status === "completed" ? "MP4 ready — render again" : "Render and store MP4"}
       </button>
-      {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel</button>}
+      {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel capture</button>}
       {videoJob?.status === "completed" && videoJob.download_url && <a className="secondary-button" href={videoJob.download_url}><Download size={13} /> Download MP4</a>}
       {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>Server encoding: {videoJob.status}</small>}
       {videoJob?.status === "failed" && <small className="production-error">{videoJob.error_message}</small>}
