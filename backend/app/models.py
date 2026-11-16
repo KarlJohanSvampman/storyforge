@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid, func, text
+from sqlalchemy import CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .database import Base
 
@@ -1006,3 +1006,78 @@ class PerformanceAnnotation(Base):
     status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+
+class ProductionMediaAsset(Base):
+    """Project-owned audio source file used by one or more editorial audio clips."""
+    __tablename__ = "production_media_assets"
+    __table_args__ = (
+        CheckConstraint("size_bytes > 0", name="ck_production_media_assets_size"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms > 0", name="ck_production_media_assets_duration"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_production_media_assets_status"),
+        UniqueConstraint("storage_key", name="uq_production_media_assets_storage_key"),
+        Index("ix_production_media_assets_project_created", "project_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AudioTrack(Base):
+    """An independently mixable audio lane in an edit sequence."""
+    __tablename__ = "audio_tracks"
+    __table_args__ = (
+        UniqueConstraint("sequence_id", "track_order", name="uq_audio_tracks_sequence_order"),
+        CheckConstraint("track_order >= 1", name="ck_audio_tracks_order"),
+        CheckConstraint("role IN ('dialogue', 'music', 'effects', 'ambience', 'voiceover')", name="ck_audio_tracks_role"),
+        CheckConstraint("gain >= 0 AND gain <= 2", name="ck_audio_tracks_gain"),
+        CheckConstraint("pan >= -1 AND pan <= 1", name="ck_audio_tracks_pan"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), default="effects", nullable=False)
+    track_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    gain: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    pan: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    muted: Mapped[bool] = mapped_column(default=False, nullable=False)
+    solo: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AudioClip(Base):
+    """A non-destructive source range placed at a position on an audio track."""
+    __tablename__ = "audio_clips"
+    __table_args__ = (
+        UniqueConstraint("track_id", "clip_order", name="uq_audio_clips_track_order"),
+        CheckConstraint("clip_order >= 1", name="ck_audio_clips_order"),
+        CheckConstraint("source_in_ms >= 0 AND source_out_ms > source_in_ms", name="ck_audio_clips_source_range"),
+        CheckConstraint("timeline_start_ms >= 0", name="ck_audio_clips_timeline_start"),
+        CheckConstraint("gain >= 0 AND gain <= 2", name="ck_audio_clips_gain"),
+        CheckConstraint("fade_in_ms >= 0 AND fade_out_ms >= 0", name="ck_audio_clips_fades"),
+        Index("ix_audio_clips_track_timeline", "track_id", "timeline_start_ms"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    track_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("audio_tracks.id", ondelete="CASCADE"), nullable=False, index=True)
+    media_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_media_assets.id", ondelete="RESTRICT"), nullable=False, index=True)
+    clip_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_in_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    source_out_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    timeline_start_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    gain: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    fade_in_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    fade_out_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

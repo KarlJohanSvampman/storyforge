@@ -137,8 +137,12 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Select takes and arrange non-destructive scene clips in an editable sequence.
 - [x] Support source trims, clip reordering, cut/fade/dissolve transitions, title overlays, effect metadata, and audio cues.
 - [x] Export immutable, revision-stamped JSON edit decision lists (EDLs).
-- [ ] Manage actual audio media, tracks, mixing, and synchronization.
-- [ ] Render and export a finished video file.
+- [x] Upload and privately store reusable project audio assets with content hashes and project-scoped access.
+- [x] Build independent dialogue, music, effects, ambience and voiceover tracks with gain, pan, mute and solo controls.
+- [x] Place non-destructive audio clips with source trims, timeline offsets and fade-in/fade-out automation.
+- [x] Preview synchronized multitrack mixes in the browser using the sequence millisecond timeline and Web Audio API.
+- [x] Include immutable audio source, timing and mix instructions in revision-stamped EDL exports.
+- [ ] Render and export a mastered audio mix and finished video file.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
