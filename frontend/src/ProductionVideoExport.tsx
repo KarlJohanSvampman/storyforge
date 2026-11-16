@@ -116,7 +116,7 @@ export default function ProductionVideoExport({
     const duration = activeItem.out_ms - activeItem.in_ms;
     const fadeMs = Math.min(450, Math.floor(duration / 3));
     if (fadeMs <= 0) return 0;
-    const fadeIn = activeItem.transition !== "cut" && activeItemIndex > 0
+    const fadeIn = activeItem.transition !== "cut"
       ? Math.max(0, 1 - clipElapsedMs / fadeMs) : 0;
     const nextItem = orderedItems[activeItemIndex + 1];
     const fadeOut = nextItem && nextItem.transition !== "cut"
@@ -199,7 +199,6 @@ export default function ProductionVideoExport({
       for (let index = 0; index < orderedItems.length; index += 1) {
         if (cancelRef.current) throw new Error("Video export was cancelled.");
         const item = orderedItems[index];
-        const replay = replays[item.id];
         const clipDuration = item.out_ms - item.in_ms;
         setActiveItemIndex(index);
         setClipElapsedMs(0);
@@ -226,7 +225,6 @@ export default function ProductionVideoExport({
           setClipElapsedMs(0);
           await nextFrame();
         }
-        void replay;
       }
       await new Promise(resolve => window.setTimeout(resolve, 150));
       if (recorder.state !== "inactive") recorder.stop();
@@ -250,7 +248,7 @@ export default function ProductionVideoExport({
       if (blobUrl) URL.revokeObjectURL(blobUrl);
       setError(err instanceof Error ? err.message : "Video export failed.");
     } finally {
-      audioSource?.stop();
+      if (audioSource) { try { audioSource.stop(); } catch { /* source may not have started */ } }
       await audioContext?.close().catch(() => undefined);
       combinedStream?.getTracks().forEach(track => track.stop());
       videoStream?.getTracks().forEach(track => track.stop());
@@ -303,6 +301,6 @@ export default function ProductionVideoExport({
       {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB · WebM</small>}
     </div>
     {rendering && <div className="video-render-progress"><span style={{ width: progress + "%" }} /></div>}
-    <p className="muted-note">This is a real-time browser capture. Cuts and title overlays are included; fade/dissolve transitions are approximated as fade-through-black. The current procedural scene models do not yet provide skeletal animation or deterministic physics replay.</p>
+    <p className="muted-note">This is a real-time browser capture. Cuts and title overlays are included; fade/dissolve transitions are approximated as fade-through-black. The current procedural scene models do not yet provide skeletal animation or deterministic physics replay; per-clip effects metadata is not yet rendered.</p>
   </section>;
 }
