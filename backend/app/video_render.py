@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audio import _project_access, _safe_path, _sequence_or_404
-from .models import EditSequence, ProductionVideoAsset, VideoRenderJob
+from .models import CastMemberInstance, EditSequence, EditSequenceItem, PerformanceEvent, PerformanceTake, ProductionVideoAsset, SceneRun, StoryboardScene, VideoRenderJob
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
-from .schemas import ProductionVideoAssetRead, VideoRenderJobRead
+from .schemas import HeadlessVideoRenderCreate, ProductionVideoAssetRead, VideoRenderJobRead
 
 router = APIRouter(tags=["production video"])
 
@@ -43,7 +43,7 @@ def _job_read(job: VideoRenderJob) -> VideoRenderJobRead:
     return VideoRenderJobRead(
         id=job.id, project_id=job.project_id, sequence_id=job.sequence_id,
         sequence_revision=job.sequence_revision, status=job.status,
-        input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
+        render_mode=job.render_mode, input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
         output_sha256=job.output_sha256, duration_ms=job.duration_ms,
         width=job.width, height=job.height, error_message=job.error_message,
         download_url=(
@@ -126,7 +126,7 @@ async def create_video_render(
         os.replace(temporary, target)
         job = VideoRenderJob(
             id=job_id, project_id=project.id, sequence_id=sequence.id,
-            sequence_revision=sequence.revision_number, status="queued",
+            sequence_revision=sequence.revision_number, status="queued", render_mode="upload",
             title=clean_title, source_filename=original,
             input_storage_key=storage_key, input_size_bytes=size,
             input_sha256=digest.hexdigest(), input_content_type=file.content_type or "video/webm",
@@ -201,3 +201,104 @@ def download_video_render(project_id: uuid.UUID, job_id: uuid.UUID, db: DbSessio
         path, media_type="video/mp4",
         filename=f"storyforge-{job.id}.mp4", content_disposition_type="attachment",
     )
+
+
+@router.post(
+    "/api/projects/{project_id}/edit-sequences/{sequence_id}/headless-video-renders",
+    response_model=VideoRenderJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_headless_video_render(
+    project_id: uuid.UUID,
+    sequence_id: uuid.UUID,
+    payload: HeadlessVideoRenderCreate,
+    db: DbSession,
+    user: CurrentUser,
+):
+    project = _project_access(db, project_id, user.id, write=True)
+    sequence = db.scalar(select(EditSequence).where(
+        EditSequence.id == sequence_id,
+        EditSequence.project_id == project_id,
+    ).with_for_update())
+    if sequence is None:
+        raise HTTPException(status_code=404, detail="Edit sequence not found.")
+    if sequence.status != "draft":
+        raise HTTPException(status_code=409, detail="Only draft edit sequences can be rendered.")
+    if sequence.revision_number != payload.sequence_revision:
+        raise HTTPException(status_code=409, detail="The edit sequence changed. Reload it before rendering.")
+
+    rows = db.execute(
+        select(EditSequenceItem, PerformanceTake, SceneRun)
+        .join(PerformanceTake, PerformanceTake.id == EditSequenceItem.take_id)
+        .join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+        .where(EditSequenceItem.sequence_id == sequence.id)
+        .order_by(EditSequenceItem.item_order, EditSequenceItem.id)
+    ).all()
+    if not rows:
+        raise HTTPException(status_code=422, detail="Add at least one finalized take to the edit sequence before rendering.")
+
+    clips = []
+    timeline_start = 0
+    for item, take, run in rows:
+        if run.project_id != project.id or run.scene_id != item.scene_id:
+            raise HTTPException(status_code=422, detail="An edit clip references a scene run outside its selected storyboard scene.")
+        if take.status not in ("finalized", "selected"):
+            raise HTTPException(status_code=409, detail=f"Take {take.id} is not finalized.")
+        if take.duration_ms is None or item.in_ms < 0 or item.out_ms > take.duration_ms or item.out_ms <= item.in_ms:
+            raise HTTPException(status_code=422, detail=f"Clip {item.id} has a trim outside its source take.")
+        clip_duration = item.out_ms - item.in_ms
+        cast_members = db.scalars(
+            select(CastMemberInstance)
+            .where(CastMemberInstance.scene_run_id == run.id, CastMemberInstance.instance_status == "ready")
+            .order_by(CastMemberInstance.created_at, CastMemberInstance.id)
+        ).all()
+        events = db.scalars(
+            select(PerformanceEvent)
+            .where(PerformanceEvent.take_id == take.id)
+            .order_by(PerformanceEvent.timestamp_ms, PerformanceEvent.sequence_number)
+        ).all()
+        scene = db.get(StoryboardScene, item.scene_id)
+        clips.append({
+            "clip_id": str(item.id), "take_id": str(take.id), "scene_id": str(item.scene_id),
+            "scene_title": getattr(scene, "title", None) or f"Scene {item.item_order}",
+            "timeline_start_ms": timeline_start, "source_in_ms": item.in_ms,
+            "source_out_ms": item.out_ms, "duration_ms": clip_duration,
+            "transition": item.transition, "title_overlay": item.title_overlay,
+            "camera_snapshot": take.camera_snapshot or {}, "state_snapshot": take.state_snapshot or {},
+            "cast_members": [{
+                "id": str(member.id), "actor_name_snapshot": member.actor_name_snapshot,
+                "character_name_snapshot": member.character_name_snapshot,
+                "role_label_snapshot": member.role_label_snapshot,
+            } for member in cast_members],
+            "events": [{
+                "timestamp_ms": event.timestamp_ms, "event_type": event.event_type,
+                "cast_member_instance_id": str(event.cast_member_instance_id) if event.cast_member_instance_id else None,
+                "payload": event.payload or {},
+            } for event in events],
+        })
+        timeline_start += clip_duration
+
+    if timeline_start <= 0 or timeline_start > 15 * 60 * 1000:
+        raise HTTPException(status_code=422, detail="Headless sequence renders must be between 1 ms and 15 minutes.")
+    title = payload.title.strip() or sequence.name
+    if not title:
+        raise HTTPException(status_code=422, detail="Video title cannot be blank.")
+    manifest = {
+        "schema_version": 1, "project_id": str(project.id), "sequence_id": str(sequence.id),
+        "sequence_revision": sequence.revision_number, "title": title,
+        "width": payload.width, "height": payload.height, "fps": payload.fps,
+        "duration_ms": timeline_start, "clips": clips, "audio": None,
+    }
+    job = VideoRenderJob(
+        project_id=project.id, sequence_id=sequence.id,
+        sequence_revision=sequence.revision_number, status="queued",
+        render_mode="headless", render_manifest=manifest,
+        input_storage_key=None, input_size_bytes=None, input_sha256=None,
+        input_content_type=None, expected_duration_ms=timeline_start,
+        title=title, source_filename="headless-edl.json",
+        created_by_user_id=user.id,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return _job_read(job)
