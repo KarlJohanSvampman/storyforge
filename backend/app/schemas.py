@@ -1735,3 +1735,46 @@ class ProductionVideoAssetRead(BaseModel):
     download_url: str
     created_by_user_id: uuid.UUID
     created_at: datetime
+
+
+class ProductionAssetUpload(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=10000)
+    asset_kind: Literal["character", "location", "prop"]
+    target_id: uuid.UUID | None = None
+
+    @field_validator("name", "description")
+    @classmethod
+    def clean_asset_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class ProductionAssetRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    asset_kind: Literal["character", "location", "prop"]
+    name: str
+    description: str
+    original_filename: str
+    file_format: Literal["glb", "gltf"]
+    content_type: str
+    size_bytes: int
+    sha256: str
+    version: int
+    gltf_version: str
+    metadata_json: dict
+    status: Literal["active", "archived"]
+    download_url: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+
+
+class ProductionAssetBindingRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    asset_id: uuid.UUID
+    target_type: Literal["character", "location"]
+    target_id: uuid.UUID
+    updated_by_user_id: uuid.UUID
+    updated_at: datetime
+    asset: ProductionAssetRead
