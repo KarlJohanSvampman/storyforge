@@ -105,7 +105,7 @@ def create_audio_render(project_id: uuid.UUID, sequence_id: uuid.UUID, db: DbSes
     job = AudioRenderJob(
         project_id=project.id, sequence_id=sequence.id,
         sequence_revision=sequence.revision_number, status="queued",
-        render_manifest=manifest, created_by_user_id=user.id,
+        render_manifest=manifest, duration_ms=manifest["duration_ms"], created_by_user_id=user.id,
     )
     db.add(job)
     db.commit()
