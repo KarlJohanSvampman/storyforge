@@ -1,3 +1,7 @@
+import hashlib
+
+import pytest
+
 from app.audio_render_worker import _render_command
 from test_audio_pipeline import _production_sequence, client
 
@@ -66,6 +70,7 @@ def test_ffmpeg_command_contains_trim_fade_pan_delay_and_mix(monkeypatch, tmp_pa
             "gain": 0.75, "pan": -0.25,
             "clips": [{
                 "storage_key": "source.wav", "media_asset_id": "asset-1", "filename": "source.wav",
+                "sha256": hashlib.sha256(b"source").hexdigest(),
                 "source_in_ms": 100, "source_out_ms": 2100, "timeline_start_ms": 500,
                 "gain": 0.8, "fade_in_ms": 250, "fade_out_ms": 400,
             }],
@@ -79,3 +84,25 @@ def test_ffmpeg_command_contains_trim_fade_pan_delay_and_mix(monkeypatch, tmp_pa
     assert "adelay=500|500" in graph
     assert "amix=inputs=1" in graph
     assert command[-1].endswith("mix.wav")
+
+
+
+def test_ffmpeg_command_rejects_modified_source_asset(monkeypatch, tmp_path):
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"modified")
+    monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
+    monkeypatch.setattr("app.audio_render_worker.shutil.which", lambda _name: "/usr/bin/ffmpeg")
+    manifest = {
+        "duration_ms": 1000,
+        "tracks": [{
+            "gain": 1, "pan": 0,
+            "clips": [{
+                "storage_key": "source.wav", "media_asset_id": "asset-2",
+                "sha256": hashlib.sha256(b"original").hexdigest(),
+                "source_in_ms": 0, "source_out_ms": 1000,
+                "timeline_start_ms": 0, "gain": 1,
+            }],
+        }],
+    }
+    with pytest.raises(RuntimeError, match="SHA-256 integrity check"):
+        _render_command(manifest, tmp_path / "out.wav")
