@@ -58,6 +58,14 @@ A dedicated Docker worker claims queued jobs with a database row lock and render
 
 Jobs move through queued, running, completed or failed states. Failures retain a bounded diagnostic message. A render is a master audio deliverable only; it does not render video, and it does not mutate source media or the edit sequence.
 
+## M4.0 — Browser sequence video export
+
+The Production Studio can render an ordered draft edit sequence in the browser. It loads replay data for each selected take, switches the persistent Three.js viewport between scenes, advances the take-local playhead through the selected source in/out range, reconstructs supported transform and camera events, and draws title overlays into the captured WebGL canvas.
+
+The canvas is captured at 30 fps through `HTMLCanvasElement.captureStream` and recorded with `MediaRecorder` to WebM. A completed offline WAV master can be decoded with Web Audio and attached as a synchronized audio stream in the same recording. The browser reports progress, supports cancellation, and downloads the resulting file locally; the video is not uploaded to the project server.
+
+Cuts are direct. Fade and dissolve edit instructions are currently approximated as fade-through-black. Effects metadata, deterministic physics, skeletal animation, persistent video assets, MP4/H.264 encoding, server-side rendering and true cross-dissolve compositing remain future work. Output resolution is based on the active viewport's drawing-buffer size, and export duration is real-time.
+
 ## Main API routes
 
 - `POST /api/projects/{project_id}/production/activate` — owner-controlled phase handoff.
