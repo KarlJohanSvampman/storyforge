@@ -72,6 +72,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
 
   useEffect(() => {
     let alive = true;
+    stopSources();
     setIsPlaying(false);
     setPlayheadMs(0);
     setAssets([]);
@@ -227,7 +228,9 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
         if (elapsed >= clipDuration) return;
         const delay = Math.max(0, clip.timeline_start_ms - playheadMs) / 1000;
         const sourceOffset = clip.source_in_ms / 1000 + elapsed / 1000;
-        const remaining = clipDuration / 1000 - elapsed / 1000;
+        if (sourceOffset >= buffer.duration) return;
+        const remaining = Math.min(clipDuration / 1000 - elapsed / 1000, buffer.duration - sourceOffset);
+        if (remaining <= 0) return;
         const source = context.createBufferSource();
         source.buffer = buffer;
         const gain = context.createGain();
@@ -238,10 +241,17 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
           gain.gain.linearRampToValueAtTime(track.gain * clip.gain, startTime + delay + (clip.fade_in_ms - elapsed) / 1000);
         }
         if (clip.fade_out_ms > 0) {
-          const fadeStart = Math.max(0, clipDuration - clip.fade_out_ms - elapsed) / 1000;
-          const fadeEnd = Math.max(0, clipDuration - elapsed) / 1000;
-          gain.gain.setValueAtTime(track.gain * clip.gain, startTime + delay + fadeStart);
-          gain.gain.linearRampToValueAtTime(0, startTime + delay + fadeEnd);
+          const fadeOutStart = clipDuration - clip.fade_out_ms;
+          const fadeRemaining = Math.max(0, clipDuration - elapsed);
+          if (elapsed >= fadeOutStart) {
+            const fadeLevel = Math.max(0, fadeRemaining / clip.fade_out_ms);
+            gain.gain.setValueAtTime(track.gain * clip.gain * fadeLevel, startTime + delay);
+            gain.gain.linearRampToValueAtTime(0, startTime + delay + fadeRemaining / 1000);
+          } else {
+            const untilFade = (fadeOutStart - elapsed) / 1000;
+            gain.gain.setValueAtTime(track.gain * clip.gain, startTime + delay + untilFade);
+            gain.gain.linearRampToValueAtTime(0, startTime + delay + fadeRemaining / 1000);
+          }
         }
         pan.pan.setValueAtTime(track.pan, startTime + delay);
         source.connect(gain);
