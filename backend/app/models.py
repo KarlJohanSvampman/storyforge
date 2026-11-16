@@ -984,3 +984,25 @@ class EditExport(Base):
     manifest: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PerformanceAnnotation(Base):
+    """Director or collaborator note anchored to a take time, event, and/or performer."""
+    __tablename__ = "performance_annotations"
+    __table_args__ = (
+        CheckConstraint("timestamp_ms >= 0", name="ck_performance_annotations_timestamp"),
+        CheckConstraint("category IN ('note', 'continuity', 'performance', 'camera', 'audio')", name="ck_performance_annotations_category"),
+        CheckConstraint("status IN ('open', 'resolved')", name="ck_performance_annotations_status"),
+        Index("ix_performance_annotations_take_time", "take_id", "timestamp_ms"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    take_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("performance_takes.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("performance_events.id", ondelete="SET NULL"), nullable=True)
+    cast_member_instance_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("cast_member_instances.id", ondelete="SET NULL"), nullable=True)
+    author_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    category: Mapped[str] = mapped_column(String(20), default="note", nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
