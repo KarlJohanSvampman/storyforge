@@ -979,6 +979,8 @@ class VideoRenderJob(Base):
     sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
     sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     input_storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
     input_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
