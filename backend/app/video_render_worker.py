@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import time
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from sqlalchemy import select
 
 from .database import SessionLocal
 from .models import ProductionVideoAsset, VideoRenderJob
+from .scene_animatic import render_manifest_frames
 
 
 def _media_root() -> Path:
@@ -68,6 +70,33 @@ def _run_ffmpeg(input_path: Path, output_path: Path) -> None:
     os.replace(temporary, output_path)
 
 
+def _run_frame_sequence(frames_dir: Path, output_path: Path, fps: int) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError("FFmpeg is not installed in the video renderer container.")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output_path.with_name(output_path.stem + ".part.mp4")
+    command = [
+        ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+        "-framerate", str(fps), "-i", str(frames_dir / "frame-%06d.jpg"),
+        "-an", "-c:v", "libx264", "-preset", os.getenv("STORYFORGE_VIDEO_PRESET", "medium"),
+        "-crf", os.getenv("STORYFORGE_VIDEO_CRF", "20"), "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart", str(temporary),
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=6 * 60 * 60)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    if result.returncode != 0:
+        temporary.unlink(missing_ok=True)
+        raise RuntimeError((result.stderr or result.stdout or "FFmpeg animatic encoding failed.")[-3500:])
+    if not temporary.is_file() or temporary.stat().st_size == 0:
+        temporary.unlink(missing_ok=True)
+        raise RuntimeError("FFmpeg completed without producing an animatic MP4.")
+    os.replace(temporary, output_path)
+
+
 def _probe_video(path: Path) -> dict:
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
@@ -111,23 +140,44 @@ def claim_next_job() -> tuple[uuid.UUID, dict] | None:
         snapshot = {
             "project_id": str(job.project_id), "sequence_id": str(job.sequence_id),
             "sequence_revision": job.sequence_revision, "title": job.title,
-            "source_filename": job.source_filename, "input_storage_key": job.input_storage_key,
-            "input_sha256": job.input_sha256, "created_by_user_id": str(job.created_by_user_id),
+            "source_filename": job.source_filename, "render_source": job.render_source,
+            "render_manifest": job.render_manifest,
+            "input_storage_key": job.input_storage_key, "input_sha256": job.input_sha256,
+            "created_by_user_id": str(job.created_by_user_id),
         }
         db.commit()
         return job_id, snapshot
 
 
 def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
-    input_path = _safe_path(snapshot["input_storage_key"])
     output_key = f"video-exports/final/{snapshot['project_id']}/{job_id}.mp4"
     output_path = _safe_path(output_key)
+    input_path = _safe_path(snapshot["input_storage_key"]) if snapshot.get("input_storage_key") else None
+    work_dir = _safe_path(f"video-exports/work/{job_id}")
     try:
-        if not input_path.is_file():
-            raise RuntimeError("Uploaded WebM source is missing from shared storage.")
-        if _sha256(input_path) != snapshot["input_sha256"]:
-            raise RuntimeError("Uploaded WebM source failed its SHA-256 integrity check.")
-        _run_ffmpeg(input_path, output_path)
+        render_source = snapshot.get("render_source", "webm_upload")
+        if render_source == "headless_animatic":
+            manifest = snapshot.get("render_manifest")
+            if not isinstance(manifest, dict):
+                raise RuntimeError("Headless render job has no immutable scene manifest.")
+            if str(manifest.get("project_id")) != snapshot["project_id"]:
+                raise RuntimeError("Headless scene manifest project does not match its render job.")
+            if str(manifest.get("sequence_id")) != snapshot["sequence_id"]:
+                raise RuntimeError("Headless scene manifest sequence does not match its render job.")
+            if int(manifest.get("sequence_revision", -1)) != int(snapshot["sequence_revision"]):
+                raise RuntimeError("Headless scene manifest revision does not match its render job.")
+            work_dir.mkdir(parents=True, exist_ok=True)
+            frame_count = render_manifest_frames(manifest, work_dir)
+            _run_frame_sequence(work_dir, output_path, int(manifest.get("fps", 24)))
+            print(f"Rendered {frame_count} headless animatic frames for {job_id}.", flush=True)
+        elif render_source == "webm_upload":
+            if input_path is None or not input_path.is_file():
+                raise RuntimeError("Uploaded WebM source is missing from shared storage.")
+            if _sha256(input_path) != snapshot["input_sha256"]:
+                raise RuntimeError("Uploaded WebM source failed its SHA-256 integrity check.")
+            _run_ffmpeg(input_path, output_path)
+        else:
+            raise RuntimeError(f"Unsupported video render source: {render_source}")
         metadata = _probe_video(output_path)
         size = output_path.stat().st_size
         digest = _sha256(output_path)
@@ -157,7 +207,8 @@ def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
             job.error_message = ""
             job.completed_at = datetime.now(timezone.utc)
             db.commit()
-        input_path.unlink(missing_ok=True)
+        if input_path is not None:
+            input_path.unlink(missing_ok=True)
     except Exception as error:
         output_path.unlink(missing_ok=True)
         with SessionLocal() as db:
@@ -167,6 +218,8 @@ def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
                 job.error_message = str(error)[-4000:]
                 job.completed_at = datetime.now(timezone.utc)
                 db.commit()
+    finally:
+        shutil.rmtree(work_dir, ignore_errors=True)
 
 
 def recover_stale_jobs(stale_after_hours: int = 12) -> int:
@@ -179,7 +232,9 @@ def recover_stale_jobs(stale_after_hours: int = 12) -> int:
             .with_for_update(skip_locked=True)
         ).all()
         for job in stale:
-            if _safe_path(job.input_storage_key).is_file():
+            if job.render_source == "headless_animatic" or (
+                job.input_storage_key and _safe_path(job.input_storage_key).is_file()
+            ):
                 job.status = "queued"
                 job.started_at = None
                 job.error_message = "Render was re-queued after an interrupted worker process."

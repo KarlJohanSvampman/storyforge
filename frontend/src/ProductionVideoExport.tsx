@@ -24,7 +24,8 @@ type AudioRenderJob = {
 };
 type VideoRenderJob = {
   id: string; status: "queued" | "running" | "completed" | "failed";
-  sequence_revision: number; input_size_bytes: number; output_size_bytes: number | null;
+  render_source: "webm_upload" | "headless_animatic";
+  sequence_revision: number; input_size_bytes: number | null; output_size_bytes: number | null;
   output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
   error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
 };
@@ -89,6 +90,7 @@ export default function ProductionVideoExport({
     setLoading(true);
     setError("");
     setReplays({});
+    setVideoJob(null);
     Promise.all(orderedItems.map(async item => {
       const replay = await api<ReplayData>(`/api/projects/${projectId}/takes/${item.take_id}/replay`);
       return [item.id, replay] as const;
@@ -295,6 +297,29 @@ export default function ProductionVideoExport({
     }
   }
 
+  async function renderHeadlessAnimatic() {
+    if (orderedItems.length === 0 || loading || rendering ||
+        videoJob?.status === "queued" || videoJob?.status === "running") return;
+    setError("");
+    setProgress(0);
+    setVideoJob(null);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/edit-sequences/${sequenceId}/scene-renders`,
+        { method: "POST", credentials: "same-origin" },
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || `Could not queue headless scene render (${response.status}).`);
+      }
+      const job = await response.json() as VideoRenderJob;
+      setVideoJob(job);
+      setProgress(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Headless animatic render failed.");
+    }
+  }
+
   function cancelRender() {
     cancelRef.current = true;
   }
@@ -304,7 +329,7 @@ export default function ProductionVideoExport({
       <div><div className="section-kicker">M4 · VIDEO EXPORT</div><h4>Sequence render</h4></div>
       <Film size={18} />
     </div>
-    <p className="muted-note">Captures the selected takes in the browser, then uploads the WebM master to the server for background H.264/AAC MP4 encoding and permanent project storage.</p>
+    <p className="muted-note">Choose the browser capture for the live Three.js viewport, or render a browser-independent animatic directly from the saved performance events and edit sequence.</p>
     {error && <p className="production-error">{error}</p>}
     {loading && <p className="muted-note">Loading replay data for {orderedItems.length} clips…</p>}
     {!loading && orderedItems.length > 0 && <div className="video-export-preview">
@@ -336,8 +361,11 @@ export default function ProductionVideoExport({
         {rendering ? `Capturing ${progress}%` : videoJob?.status === "queued" || videoJob?.status === "running" ? "Encoding MP4…" : videoJob?.status === "completed" ? "MP4 ready — render again" : "Render and store MP4"}
       </button>
       {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel capture</button>}
+      <button type="button" className="secondary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0} onClick={() => void renderHeadlessAnimatic()}>
+        <Film size={13} /> Render headless animatic
+      </button>
       {videoJob?.status === "completed" && videoJob.download_url && <a className="secondary-button" href={videoJob.download_url}><Download size={13} /> Download MP4</a>}
-      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>Server encoding: {videoJob.status}</small>}
+      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>{videoJob.render_source === "headless_animatic" ? "Headless scene render" : "Server encoding"}: {videoJob.status}</small>}
       {videoJob?.status === "failed" && <small className="production-error">{videoJob.error_message}</small>}
       {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB WebM source</small>}
     </div>

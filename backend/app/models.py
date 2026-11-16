@@ -968,7 +968,8 @@ class VideoRenderJob(Base):
     __tablename__ = "video_render_jobs"
     __table_args__ = (
         CheckConstraint("status IN ('queued', 'running', 'completed', 'failed')", name="ck_video_render_jobs_status"),
-        CheckConstraint("input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
+        CheckConstraint("input_size_bytes IS NULL OR input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
+        CheckConstraint("render_source IN ('webm_upload', 'headless_animatic')", name="ck_video_render_jobs_source"),
         CheckConstraint("output_size_bytes IS NULL OR output_size_bytes > 0", name="ck_video_render_jobs_output_size"),
         CheckConstraint("expected_duration_ms > 0", name="ck_video_render_jobs_expected_duration"),
         Index("ix_video_render_jobs_project_created", "project_id", "created_at"),
@@ -981,10 +982,12 @@ class VideoRenderJob(Base):
     status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
-    input_storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
-    input_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
-    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    input_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    render_source: Mapped[str] = mapped_column(String(30), default="webm_upload", nullable=False)
+    render_manifest: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    input_storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    input_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    input_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     expected_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
     output_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     output_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)

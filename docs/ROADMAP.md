@@ -153,7 +153,14 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Encode H.264/yuv420p video and AAC audio into MP4 using a dedicated FFmpeg worker.
 - [x] Persist completed MP4 files as immutable production video assets with duration, dimensions, size and SHA-256 metadata.
 - [x] Expose project-scoped asset listing and authenticated downloads, with queued/running/completed/failed job states and interrupted-job recovery.
-- [ ] Render scenes headlessly from EDL/replay data without a browser capture upload.
+- [x] Render scenes headlessly from EDL/replay data without a browser capture upload.
+- [x] Snapshot selected takes, scene/cast metadata and ordered performance events against an exact sequence revision.
+- [x] Reconstruct timestamped position, rotation and scale events at deterministic frame times.
+- [x] Apply simple camera preset framing, scene labels and title overlays.
+- [x] Composite cuts, fade-through-black and cross-dissolves in frame space.
+- [x] Encode headless animatic frames to MP4 and persist them as project video assets.
+- [ ] Replace procedural 2D stand-ins with shared 3D scene assets, rigs, lighting and animation.
+
 - [ ] Implement native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
 
 ## M4 — Publication and public work pages

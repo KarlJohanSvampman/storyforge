@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audio import _project_access, _safe_path, _sequence_or_404
-from .models import EditSequence, ProductionVideoAsset, VideoRenderJob
+from .models import CastMemberInstance, EditSequence, EditSequenceItem, PerformanceEvent, PerformanceTake, ProductionVideoAsset, SceneRun, StoryboardScene, VideoRenderJob
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import ProductionVideoAssetRead, VideoRenderJobRead
 
@@ -17,6 +17,7 @@ router = APIRouter(tags=["production video"])
 
 MAX_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 MAX_VIDEO_DURATION_MS = 8 * 60 * 60 * 1000
+MAX_HEADLESS_DURATION_MS = 10 * 60 * 1000
 
 
 def _job_or_404(db: Session, project_id: uuid.UUID, job_id: uuid.UUID) -> VideoRenderJob:
@@ -43,7 +44,7 @@ def _job_read(job: VideoRenderJob) -> VideoRenderJobRead:
     return VideoRenderJobRead(
         id=job.id, project_id=job.project_id, sequence_id=job.sequence_id,
         sequence_revision=job.sequence_revision, status=job.status,
-        input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
+        render_source=job.render_source, input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
         output_sha256=job.output_sha256, duration_ms=job.duration_ms,
         width=job.width, height=job.height, error_message=job.error_message,
         download_url=(
@@ -126,7 +127,7 @@ async def create_video_render(
         os.replace(temporary, target)
         job = VideoRenderJob(
             id=job_id, project_id=project.id, sequence_id=sequence.id,
-            sequence_revision=sequence.revision_number, status="queued",
+            sequence_revision=sequence.revision_number, status="queued", render_source="webm_upload",
             title=clean_title, source_filename=original,
             input_storage_key=storage_key, input_size_bytes=size,
             input_sha256=digest.hexdigest(), input_content_type=file.content_type or "video/webm",
@@ -143,6 +144,116 @@ async def create_video_render(
         raise
     finally:
         await file.close()
+
+
+@router.post(
+    "/api/projects/{project_id}/edit-sequences/{sequence_id}/scene-renders",
+    response_model=VideoRenderJobRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def create_headless_scene_render(
+    project_id: uuid.UUID,
+    sequence_id: uuid.UUID,
+    db: DbSession,
+    user: CurrentUser,
+):
+    project = _project_access(db, project_id, user.id, write=True)
+    sequence = db.scalar(select(EditSequence).where(
+        EditSequence.id == sequence_id,
+        EditSequence.project_id == project_id,
+    ).with_for_update())
+    if sequence is None:
+        raise HTTPException(status_code=404, detail="Edit sequence not found.")
+    if sequence.status != "draft":
+        raise HTTPException(status_code=409, detail="Only draft edit sequences can be rendered.")
+    items = db.scalars(select(EditSequenceItem).where(
+        EditSequenceItem.sequence_id == sequence.id,
+    ).order_by(EditSequenceItem.item_order)).all()
+    if not items:
+        raise HTTPException(status_code=422, detail="Add at least one selected take before rendering.")
+
+    clips = []
+    for item in items:
+        row = db.execute(
+            select(PerformanceTake, SceneRun, StoryboardScene)
+            .join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+            .join(StoryboardScene, StoryboardScene.id == item.scene_id)
+            .where(
+                PerformanceTake.id == item.take_id,
+                SceneRun.project_id == project.id,
+                SceneRun.scene_id == item.scene_id,
+                PerformanceTake.status == "selected",
+            )
+        ).first()
+        if row is None:
+            raise HTTPException(status_code=409, detail="Every edit clip must reference a selected take from this project.")
+        take, run, scene = row
+        if take.duration_ms is None or item.in_ms < 0 or item.out_ms > take.duration_ms or item.in_ms >= item.out_ms:
+            raise HTTPException(status_code=422, detail="An edit clip has invalid source trim points.")
+        cast = db.scalars(select(CastMemberInstance).where(
+            CastMemberInstance.scene_run_id == run.id,
+            CastMemberInstance.instance_status == "ready",
+        ).order_by(CastMemberInstance.created_at, CastMemberInstance.id)).all()
+        events = db.scalars(select(PerformanceEvent).where(
+            PerformanceEvent.take_id == take.id,
+        ).order_by(PerformanceEvent.timestamp_ms, PerformanceEvent.sequence_number)).all()
+        clips.append({
+            "item_id": str(item.id), "take_id": str(take.id), "scene_id": str(scene.id),
+            "scene_title": scene.title, "item_order": item.item_order,
+            "in_ms": item.in_ms, "out_ms": item.out_ms,
+            "duration_ms": item.out_ms - item.in_ms,
+            "transition": item.transition, "title_overlay": item.title_overlay,
+            "effects": item.effects or {}, "camera_snapshot": take.camera_snapshot or {},
+            "state_snapshot": take.state_snapshot or {},
+            "cast_members": [{
+                "id": str(member.id), "actor_name": member.actor_name_snapshot,
+                "character_name": member.character_name_snapshot,
+                "role_label": member.role_label_snapshot,
+            } for member in cast],
+            "events": [{
+                "timestamp_ms": event.timestamp_ms, "sequence_number": event.sequence_number,
+                "event_type": event.event_type,
+                "cast_member_instance_id": str(event.cast_member_instance_id) if event.cast_member_instance_id else None,
+                "payload": event.payload or {},
+            } for event in events],
+        })
+
+    transition_ms = 450
+    total_duration = sum(clip["duration_ms"] for clip in clips)
+    for index in range(1, len(clips)):
+        if clips[index]["transition"] in ("fade", "dissolve"):
+            overlap = min(transition_ms, clips[index - 1]["duration_ms"] // 3, clips[index]["duration_ms"] // 3)
+            clips[index]["transition_duration_ms"] = max(0, overlap)
+            total_duration -= max(0, overlap)
+        else:
+            clips[index]["transition_duration_ms"] = 0
+    if total_duration <= 0 or total_duration > MAX_HEADLESS_DURATION_MS:
+        raise HTTPException(status_code=422, detail="Headless animatic renders are limited to 10 minutes per export.")
+
+    manifest = {
+        "format_version": 1, "renderer": "storyforge-headless-animatic-v1",
+        "project_id": str(project.id), "sequence_id": str(sequence.id),
+        "sequence_revision": sequence.revision_number, "width": 1280, "height": 720,
+        "fps": 24, "duration_ms": total_duration, "clips": clips,
+        "capabilities": {
+            "transform_reconstruction": True, "camera_preset_framing": True,
+            "title_overlays": True, "cut": True, "fade_through_black": True,
+            "cross_dissolve": True, "skeletal_animation": False, "full_3d_assets": False,
+        },
+    }
+    job = VideoRenderJob(
+        project_id=project.id, sequence_id=sequence.id,
+        sequence_revision=sequence.revision_number, status="queued",
+        render_source="headless_animatic", render_manifest=manifest,
+        title=sequence.name, source_filename="storyforge-headless-animatic",
+        input_storage_key=None, input_size_bytes=None, input_sha256=None,
+        input_content_type=None, expected_duration_ms=total_duration,
+        created_by_user_id=user.id,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    return _job_read(job)
 
 
 @router.get(
