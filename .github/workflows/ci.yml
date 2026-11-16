@@ -56,6 +56,9 @@ jobs:
       - name: Install FFmpeg for audio render integration tests
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      - name: Install Chromium for headless Three.js rendering tests
+        run: python -m playwright install --with-deps chromium
+
       - name: Apply all database migrations
         working-directory: backend
         run: alembic upgrade head
