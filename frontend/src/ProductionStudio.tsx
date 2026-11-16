@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Activity, Camera, Check, ChevronDown, ChevronUp, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
+import AudioTimeline from "./AudioTimeline";
 
 type SceneOption = { id: string; title: string };
 type Member = { id: string; user_id: string | null; display_name: string | null; email: string | null; role: string; status: string };
@@ -551,6 +552,12 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
           {writable && selectedSequence.items.length > 0 && <button className="primary-button" disabled={busy} onClick={exportSequence}><Download size={13} /> Export edit decision list</button>}
           {exportManifest && <p className="muted-note">Last export: {exportManifest.duration_ms} ms · {exportManifest.clips?.length || 0} clips. Manifest downloaded as JSON.</p>}
           <p className="muted-note">The timeline references immutable selected takes. Trims, transitions, title overlays, effects and audio cues are edit instructions; source performances remain unchanged.</p>
+          <AudioTimeline
+            projectId={projectId}
+            sequenceId={selectedSequence.id}
+            editable={writable && selectedSequence.status === "draft"}
+            videoDurationMs={selectedSequence.items.reduce((total, item) => total + item.out_ms - item.in_ms, 0)}
+          />
         </>}
       </section>
     </div>
