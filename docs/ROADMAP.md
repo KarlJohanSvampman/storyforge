@@ -145,7 +145,11 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Queue durable offline audio render jobs from immutable mix snapshots.
 - [x] Render 48 kHz stereo PCM WAV masters with FFmpeg, source trims, timeline offsets, gain, pan, mute/solo and fade automation.
 - [x] Run renders in a dedicated Docker worker and expose job status, output checksums and authenticated WAV downloads.
-- [ ] Render and export a finished video file.
+- [x] Capture ordered selected takes from the Three.js scene viewport as a downloadable browser-generated WebM.
+- [x] Reconstruct supported transform/camera events per clip and include title overlays.
+- [x] Mux a completed offline WAV master into the WebM capture.
+- [x] Provide render progress, cancellation and local download controls.
+- [ ] Add server-side/headless rendering, true dissolve compositing, visual effects, persistent video assets and MP4/H.264 delivery.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.

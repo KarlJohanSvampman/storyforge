@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Activity, Camera, Check, ChevronDown, ChevronUp, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
 import AudioTimeline from "./AudioTimeline";
+import ProductionVideoExport from "./ProductionVideoExport";
 
 type SceneOption = { id: string; title: string };
 type Member = { id: string; user_id: string | null; display_name: string | null; email: string | null; role: string; status: string };
@@ -557,6 +558,14 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
             sequenceId={selectedSequence.id}
             editable={writable && selectedSequence.status === "draft"}
             videoDurationMs={selectedSequence.items.reduce((total, item) => total + item.out_ms - item.in_ms, 0)}
+          />
+          <ProductionVideoExport
+            projectId={projectId}
+            sequenceId={selectedSequence.id}
+            sequenceName={selectedSequence.name}
+            sequenceRevision={selectedSequence.revision_number}
+            items={selectedSequence.items}
+            scenes={scenes}
           />
         </>}
       </section>

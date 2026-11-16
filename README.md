@@ -145,6 +145,7 @@ Tagline: **Many minds. Many stories. Endless interpretations.**
 - **M2.2:** Timestamped performance events, take finalization, replay snapshots, event seeking, supported transform/camera reconstruction, and timecoded director notes are implemented. Deterministic physics and skeletal animation replay remain future work.
 - **M3.1:** Non-destructive edit sequences support clip trims, ordering, transitions, title/effect metadata, and immutable JSON EDL export.
 - **M3.2:** Project audio assets, multitrack editing, source/timeline trims, gain, pan, mute/solo, fade automation, browser mix preview and audio-aware EDL v2 are implemented.
-- **M3.3:** Durable FFmpeg audio-render jobs produce downloadable 48 kHz stereo 24-bit WAV masters from immutable mix snapshots. Finished video rendering remains future work.
+- **M3.3:** Durable FFmpeg audio-render jobs produce downloadable 48 kHz stereo 24-bit WAV masters from immutable mix snapshots.
+- **M4.0:** The Production Studio can capture ordered selected takes from its Three.js viewport as WebM, reconstruct supported transform/camera events, draw title overlays and mux a completed WAV master. Server-side rendering, true dissolves, visual effects, persistent video assets and MP4 delivery remain future work.
 
 See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.
