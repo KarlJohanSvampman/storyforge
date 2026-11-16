@@ -85,6 +85,19 @@ The video worker supports two render sources: `webm_upload` (the M4.1 browser ca
 
 This is a deterministic 2D animatic renderer using procedural stand-ins, not a 3D scene renderer. It is intended to validate blocking, timing, recorded transforms and editorial transitions without a browser, WebGL, or a user-uploaded video. The current API caps headless exports at ten minutes; the frame renderer accepts 12, 24 or 30 fps and up to 1920×1080 manifests, while the API currently selects 1280×720 at 24 fps. Full 3D assets, skeletal animation, physics, native effects, audio conform and configurable render profiles remain future work.
 
+## M4.3 — Headless Three.js production rendering
+
+The Production Studio offers a second server-render mode through the existing revision-locked scene-render endpoint:
+
+- POST /api/projects/{project_id}/edit-sequences/{sequence_id}/scene-renders?renderer=3d — create a headless_3d job from the same immutable selected-take manifest used by the 2D animatic path.
+- POST /api/projects/{project_id}/edit-sequences/{sequence_id}/scene-renders — retain the original Pillow-based 2D animatic renderer.
+
+The 3D job is processed by the dedicated video-renderer image, based on the Playwright Python/Chromium image. The worker loads the internal Vite-served headless-render.html entry point, passes the database-snapshotted manifest directly into the page, advances an integer frame index at the manifest frame rate, and captures PNG frames. No user browser session, public manifest URL, uploaded WebM, or client-side capture is involved. The worker composites the rendered frame sequence through FFmpeg and uses the existing MP4 probe, checksum, asset persistence, and authenticated download pipeline.
+
+frontend/src/productionScene.ts is the shared Three.js scene runtime. It creates the 3D set, lighting, camera, title overlay and procedural character rigs. ThreeSceneViewport uses the same character-rig builder as the headless renderer, keeping the visible interactive performers and offline render stand-ins consistent. The renderer reconstructs transform samples at source-trimmed frame times, applies camera snapshot/event state, and composites cut, fade-through-black and cross-dissolve transitions between rendered 3D frames.
+
+This is a genuine headless Three.js/WebGL render path, using Chromium's software WebGL implementation in the worker container. The current geometry and character bodies remain procedural blocking stand-ins: the project does not yet have a production asset registry, imported character meshes, skinned rigs, skeletal animation clips, retargeting, facial animation, physics replay, or audio conform. The 3D renderer supports 1280×720 at 24 fps from the current API manifest and retains the ten-minute frame budget. The 2D animatic path remains available as a lighter preview option.
+
 ## Main API routes
 
 - `POST /api/projects/{project_id}/production/activate` — owner-controlled phase handoff.
