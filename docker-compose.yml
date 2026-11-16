@@ -30,7 +30,28 @@ services:
       STORYFORGE_MEDIA_DIR: /app/storage/documentary
       STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
     depends_on:
+      audio-renderer:
+    build:
+      context: ./backend
+    container_name: storyforge-audio-renderer
+    command:
+      - sh
+      - -c
+      - until python -c "import urllib.request; urllib.request.urlopen('http://backend:8000/api/health', timeout=2)" >/dev/null 2>&1; do sleep 2; done; python -m app.audio_render_worker
+    volumes:
+      - ./backend:/app
+      - storyforge_production_media:/app/storage/production-audio
+    environment:
+      DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
+      STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
+    depends_on:
       db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
+  db:
         condition: service_healthy
     restart: unless-stopped
 
