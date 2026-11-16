@@ -1675,3 +1675,22 @@ class AudioTrackRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     clips: list[AudioClipRead] = Field(default_factory=list)
+
+
+
+class AudioRenderJobRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    sequence_id: uuid.UUID
+    sequence_revision: int
+    status: Literal["queued", "running", "completed", "failed"]
+    output_content_type: str | None
+    output_size_bytes: int | None
+    output_sha256: str | None
+    duration_ms: int | None
+    error_message: str
+    download_url: str | None
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
