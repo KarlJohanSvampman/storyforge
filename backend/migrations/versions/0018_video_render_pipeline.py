@@ -52,7 +52,7 @@ def upgrade() -> None:
         sa.Column("id", uuid, primary_key=True),
         sa.Column("project_id", uuid, sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=False),
         sa.Column("sequence_id", uuid, sa.ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("render_job_id", uuid, sa.ForeignKey("video_render_jobs.id", ondelete="RESTRICT"), nullable=False, unique=True),
+        sa.Column("render_job_id", uuid, sa.ForeignKey("video_render_jobs.id", ondelete="CASCADE"), nullable=False, unique=True),
         sa.Column("sequence_revision", sa.Integer(), nullable=False),
         sa.Column("title", sa.String(240), nullable=False),
         sa.Column("original_filename", sa.String(255), nullable=False),
