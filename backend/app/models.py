@@ -947,7 +947,7 @@ class ProductionVideoAsset(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
     sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
-    render_job_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("video_render_jobs.id", ondelete="RESTRICT"), nullable=False, unique=True)
+    render_job_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("video_render_jobs.id", ondelete="CASCADE"), nullable=False, unique=True)
     sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
