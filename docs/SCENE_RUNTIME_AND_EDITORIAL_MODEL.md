@@ -110,7 +110,7 @@ This is a genuine headless Three.js/WebGL render path, using Chromium's software
 
 ## Next work
 
-- Event-stream playback/reconstruction and higher-frequency realtime transport.
-- Production-quality character rigs, animation retargeting, and physics-driven performances.
-- Actual audio assets/tracks, mixing, and synchronization.
-- A conform/render worker capable of producing a finished video file from EDLs and source media.
+- A project asset registry for imported locations, props, character meshes and skinned production rigs.
+- Skeletal animation clips, retargeting, facial animation, and deterministic physics replay.
+- Audio conform that combines the completed WAV master with the headless 3D picture render.
+- Native effect processing, configurable render profiles, persistent thumbnails/posters, and scalable render scheduling.
