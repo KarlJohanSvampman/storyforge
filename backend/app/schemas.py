@@ -1702,7 +1702,8 @@ class VideoRenderJobRead(BaseModel):
     sequence_id: uuid.UUID
     sequence_revision: int
     status: Literal["queued", "running", "completed", "failed"]
-    input_size_bytes: int
+    render_mode: Literal["upload", "headless"]
+    input_size_bytes: int | None
     output_size_bytes: int | None
     output_sha256: str | None
     duration_ms: int | None
@@ -1734,3 +1735,11 @@ class ProductionVideoAssetRead(BaseModel):
     download_url: str
     created_by_user_id: uuid.UUID
     created_at: datetime
+
+
+class HeadlessVideoRenderCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=240)
+    sequence_revision: int = Field(ge=1)
+    width: Literal[1280, 1920] = 1280
+    height: Literal[720, 1080] = 720
+    fps: Literal[24, 30] = 30
