@@ -25,7 +25,7 @@ type AudioRenderJob = {
 type VideoRenderJob = {
   id: string; status: "queued" | "running" | "completed" | "failed";
   render_source: "webm_upload" | "headless_animatic";
-  sequence_revision: number; input_size_bytes: number; output_size_bytes: number | null;
+  sequence_revision: number; input_size_bytes: number | null; output_size_bytes: number | null;
   output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
   error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
 };
