@@ -24,7 +24,7 @@ type AudioRenderJob = {
 };
 type VideoRenderJob = {
   id: string; status: "queued" | "running" | "completed" | "failed"; render_mode: "upload" | "headless";
-  sequence_revision: number; input_size_bytes: number; output_size_bytes: number | null;
+  sequence_revision: number; input_size_bytes: number | null; output_size_bytes: number | null;
   output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
   error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
 };
@@ -335,7 +335,7 @@ export default function ProductionVideoExport({
       <div><div className="section-kicker">M4 · VIDEO EXPORT</div><h4>Sequence render</h4></div>
       <Film size={18} />
     </div>
-    <p className="muted-note">Captures the selected takes in the browser, then uploads the WebM master to the server for background H.264/AAC MP4 encoding and permanent project storage.</p>
+    <p className="muted-note">Choose browser capture or a server-side headless render from the immutable edit-sequence snapshot. Both paths create a stored project MP4.</p>
     {error && <p className="production-error">{error}</p>}
     {loading && <p className="muted-note">Loading replay data for {orderedItems.length} clips…</p>}
     {!loading && orderedItems.length > 0 && <div className="video-export-preview">
