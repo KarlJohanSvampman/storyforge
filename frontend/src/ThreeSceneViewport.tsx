@@ -255,10 +255,10 @@ export default function ThreeSceneViewport({
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
-    const latestCameraEvent = [...replayEvents]
+    const cameraEvents = replayEvents
       .filter((event) => event.event_type === "camera" && event.timestamp_ms <= playheadMs)
-      .sort((a, b) => a.timestamp_ms - b.timestamp_ms)
-      .at(-1);
+      .sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+    const latestCameraEvent = cameraEvents.length ? cameraEvents[cameraEvents.length - 1] : undefined;
     const payload = latestCameraEvent?.payload || {};
     const position = vectorFrom(payload.position);
     const target = vectorFrom(payload.target);
@@ -282,7 +282,11 @@ export default function ThreeSceneViewport({
       const basePosition = rig.userData.basePosition as THREE.Vector3;
       const baseRotation = rig.userData.baseRotation as THREE.Euler;
       const baseScale = rig.userData.baseScale as THREE.Vector3;
-      const previousIndex = samples.findLastIndex((event) => event.timestamp_ms <= playheadMs);
+      let previousIndex = -1;
+      for (let index = 0; index < samples.length; index += 1) {
+        if (samples[index].timestamp_ms <= playheadMs) previousIndex = index;
+        else break;
+      }
       const previous = previousIndex >= 0 ? samples[previousIndex] : null;
       const next = samples[previousIndex + 1] || null;
       const startTime = previous?.timestamp_ms ?? 0;
