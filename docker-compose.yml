@@ -57,6 +57,31 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  video-renderer:
+    build:
+      context: ./backend
+    container_name: storyforge-video-renderer
+    command:
+      - sh
+      - -c
+      - >-
+        until python -c "import urllib.request; urllib.request.urlopen('http://backend:8000/api/health', timeout=2)" >/dev/null 2>&1; do sleep 2; done;
+        python -m app.video_render_worker
+    volumes:
+      - ./backend:/app
+      - storyforge_production_media:/app/storage/production-audio
+    environment:
+      DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
+      STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
+      STORYFORGE_VIDEO_PRESET: medium
+      STORYFORGE_VIDEO_CRF: "20"
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: unless-stopped
+
   db:
     image: postgres:16-alpine
     container_name: storyforge-db
