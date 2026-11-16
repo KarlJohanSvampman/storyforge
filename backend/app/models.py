@@ -969,7 +969,7 @@ class VideoRenderJob(Base):
     __table_args__ = (
         CheckConstraint("status IN ('queued', 'running', 'completed', 'failed')", name="ck_video_render_jobs_status"),
         CheckConstraint("input_size_bytes IS NULL OR input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
-        CheckConstraint("render_source IN ('webm_upload', 'headless_animatic')", name="ck_video_render_jobs_source"),
+        CheckConstraint("render_source IN ('webm_upload', 'headless_animatic', 'headless_3d')", name="ck_video_render_jobs_source"),
         CheckConstraint("output_size_bytes IS NULL OR output_size_bytes > 0", name="ck_video_render_jobs_output_size"),
         CheckConstraint("expected_duration_ms > 0", name="ck_video_render_jobs_expected_duration"),
         Index("ix_video_render_jobs_project_created", "project_id", "created_at"),
