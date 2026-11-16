@@ -147,6 +147,7 @@ Tagline: **Many minds. Many stories. Endless interpretations.**
 - **M3.2:** Project audio assets, multitrack editing, source/timeline trims, gain, pan, mute/solo, fade automation, browser mix preview and audio-aware EDL v2 are implemented.
 - **M3.3:** Durable FFmpeg audio-render jobs produce downloadable 48 kHz stereo 24-bit WAV masters from immutable mix snapshots.
 - **M4.0:** The Production Studio captures ordered selected takes from its Three.js viewport as WebM, reconstructs supported transform/camera events, draws title overlays and can mux a completed WAV master.
-- **M4.1:** Browser captures upload into durable project-scoped video jobs. A dedicated FFmpeg worker verifies source integrity, encodes H.264/AAC MP4, probes output metadata and stores immutable video assets with checksums and authenticated downloads. True headless scene rendering, effects and native dissolves remain future work.
+- **M4.1:** Browser captures upload into durable project-scoped video jobs. A dedicated FFmpeg worker verifies source integrity, encodes H.264/AAC MP4, probes output metadata and stores immutable video assets with checksums and authenticated downloads.
+- **M4.2:** Draft EDLs can be rendered without a browser upload. A dedicated Chromium/Three.js worker builds each scene from an immutable take/cast/event snapshot, reconstructs supported transforms and camera events, captures frames at 24/30 fps, and encodes a stored H.264 MP4. The current headless path is video-only; native dissolves, effects, skeletal animation and deterministic physics remain future work.
 
 See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.
