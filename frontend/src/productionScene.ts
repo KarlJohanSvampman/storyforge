@@ -218,7 +218,7 @@ export function renderProductionClip(stage: ProductionStage, clip: SceneClip, lo
       stage.scene.remove(rig);
       rig.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
-          object.geometry?.dispose?.();
+          if (object instanceof THREE.Mesh) object.geometry.dispose();
           const materials = Array.isArray(object.material) ? object.material : [object.material];
           materials.forEach(material => {
             if (material && "map" in material && material.map) material.map.dispose();
@@ -268,7 +268,7 @@ export function disposeProductionStage(stage: ProductionStage): void {
   stage.renderer.dispose();
   stage.scene.traverse(object => {
     if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
-      object.geometry?.dispose?.();
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
       const materials = Array.isArray(object.material) ? object.material : [object.material];
       materials.forEach(material => {
         if (material && "map" in material && material.map) material.map.dispose();
