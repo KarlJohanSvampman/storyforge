@@ -60,6 +60,7 @@ services:
   video-renderer:
     build:
       context: ./backend
+      dockerfile: Dockerfile.video
     container_name: storyforge-video-renderer
     command:
       - sh
