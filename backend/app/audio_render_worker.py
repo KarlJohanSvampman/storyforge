@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +54,14 @@ def _render_command(manifest: dict[str, Any], output_path: Path) -> list[str]:
         source_path = _safe_storage_path(str(clip["storage_key"]))
         if not source_path.is_file():
             raise RuntimeError(f'Audio source "{clip.get("filename", clip["media_asset_id"])}" is missing.')
+        expected_hash = clip.get("sha256")
+        if expected_hash:
+            digest = hashlib.sha256()
+            with source_path.open("rb") as source_file:
+                for chunk in iter(lambda: source_file.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            if digest.hexdigest() != expected_hash:
+                raise RuntimeError(f'Audio source "{clip.get("filename", clip["media_asset_id"])}" failed its SHA-256 integrity check.')
         command.extend(["-i", str(source_path)])
         source_in = int(clip["source_in_ms"])
         source_out = int(clip["source_out_ms"])
@@ -118,9 +126,13 @@ def render_audio_manifest(manifest: dict[str, Any], output_path: Path) -> tuple[
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = output_path.with_suffix(output_path.suffix + ".part.wav")
     command = _render_command(manifest, temporary)
-    result = subprocess.run(
-        command, capture_output=True, text=True, check=False, timeout=4 * 60 * 60,
-    )
+    try:
+        result = subprocess.run(
+            command, capture_output=True, text=True, check=False, timeout=4 * 60 * 60,
+        )
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
     if result.returncode != 0:
         temporary.unlink(missing_ok=True)
         detail = (result.stderr or result.stdout or "FFmpeg failed without diagnostic output.")[-3500:]
@@ -186,8 +198,25 @@ def process_job(job_id: uuid.UUID, manifest: dict[str, Any]) -> None:
                 db.commit()
 
 
+def recover_stale_jobs(stale_after_hours: int = 12) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=stale_after_hours)
+    with SessionLocal() as db:
+        stale = db.scalars(
+            select(AudioRenderJob)
+            .where(AudioRenderJob.status == "running", AudioRenderJob.started_at < cutoff)
+            .with_for_update(skip_locked=True)
+        ).all()
+        for job in stale:
+            job.status = "queued"
+            job.started_at = None
+            job.error_message = "Render was re-queued after an interrupted worker process."
+        db.commit()
+        return len(stale)
+
+
 def run_worker(poll_seconds: float = 2.0) -> None:
-    print("StoryForge audio renderer started.", flush=True)
+    recovered = recover_stale_jobs()
+    print(f"StoryForge audio renderer started. Re-queued {recovered} interrupted jobs.", flush=True)
     while True:
         claimed = claim_next_job()
         if claimed is None:
