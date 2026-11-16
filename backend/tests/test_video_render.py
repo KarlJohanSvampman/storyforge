@@ -18,6 +18,7 @@ client = TestClient(app)
 def test_video_export_upload_queues_private_project_job(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("Persistent video export")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
     response = client.post(
         f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/video-renders",
         data={
@@ -46,6 +47,7 @@ def test_video_export_upload_queues_private_project_job(monkeypatch, tmp_path):
 def test_video_export_rejects_stale_revision_and_non_webm(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("Stale video export")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
     url = f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/video-renders"
     stale = client.post(
         url,
@@ -114,7 +116,7 @@ def test_video_render_worker_persists_mp4_asset_and_authenticated_download(monke
             f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/video-renders",
             data={
                 "title": "Server rendered final",
-                "sequence_revision": str(sequence["revision_number"]),
+                "sequence_revision": str(client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()["revision_number"]),
                 "expected_duration_ms": "1000",
             },
             files={"file": ("browser-capture.webm", video_file, "video/webm")},
