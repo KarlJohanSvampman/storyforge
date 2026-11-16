@@ -230,7 +230,7 @@ def create_headless_scene_render(
         else:
             clips[index]["transition_duration_ms"] = 0
     if total_duration <= 0 or total_duration > MAX_HEADLESS_DURATION_MS:
-        raise HTTPException(status_code=422, detail="Headless animatic renders are limited to 10 minutes per export.")
+        raise HTTPException(status_code=422, detail="Headless scene renders are limited to 10 minutes per export.")
 
     manifest = {
         "format_version": 1, "renderer": ("storyforge-headless-3d-v1" if renderer == "3d" else "storyforge-headless-animatic-v1"),
