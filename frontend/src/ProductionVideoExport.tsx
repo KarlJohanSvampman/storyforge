@@ -66,7 +66,6 @@ export default function ProductionVideoExport({
   const [rendering, setRendering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
-  const [renderedUrl, setRenderedUrl] = useState("");
   const [renderedSize, setRenderedSize] = useState(0);
   const [videoJob, setVideoJob] = useState<VideoRenderJob | null>(null);
   const [videoAssets, setVideoAssets] = useState<VideoAsset[]>([]);
@@ -122,10 +121,6 @@ export default function ProductionVideoExport({
     return () => { alive = false; window.clearInterval(timer); };
   }, [projectId, sequenceId]);
 
-  useEffect(() => () => {
-    if (renderedUrl) URL.revokeObjectURL(renderedUrl);
-  }, [renderedUrl]);
-
   const transitionOpacity = (() => {
     if (!activeItem) return 0;
     const duration = activeItem.out_ms - activeItem.in_ms;
@@ -162,6 +157,7 @@ export default function ProductionVideoExport({
     }
 
     setRendering(true);
+    setVideoJob(null);
     setProgress(0);
     setError("");
     setRenderedSize(0);
@@ -171,7 +167,6 @@ export default function ProductionVideoExport({
     let videoStream: MediaStream | null = null;
     let combinedStream: MediaStream | null = null;
     let recorder: MediaRecorder | null = null;
-    let blobUrl = "";
 
     try {
       setActiveItemIndex(0);
@@ -245,11 +240,6 @@ export default function ProductionVideoExport({
       if (recorder.state !== "inactive") recorder.stop();
       const blob = await completed;
       if (!blob.size) throw new Error("The browser produced an empty video file.");
-      blobUrl = URL.createObjectURL(blob);
-      setRenderedUrl(previous => {
-        if (previous) URL.revokeObjectURL(previous);
-        return blobUrl;
-      });
       setRenderedSize(blob.size);
       setProgress(98);
       const form = new FormData();
@@ -284,7 +274,6 @@ export default function ProductionVideoExport({
       setVideoAssets(assets);
     } catch (err) {
       if (recorder && recorder.state !== "inactive") recorder.stop();
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
       setError(err instanceof Error ? err.message : "Video export failed.");
     } finally {
       if (audioSource) { try { audioSource.stop(); } catch { /* source may not have started */ } }
