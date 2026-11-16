@@ -16,7 +16,9 @@ type SceneRun = {
   authority_epoch: number; cast_members: CastMember[]; created_at: string; started_at: string | null; ended_at: string | null;
 };
 type TakeEvent = { id: string; sequence_number: number; timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; authority_epoch: number | null; payload: Record<string, unknown> };
-type PerformanceAnnotation = { id: string; timestamp_ms: number; category: string; content: string; status: "open" | "resolved"; author_display_name: string };\ntype ReplayData = { duration_ms: number; events: TakeEvent[]; annotations: PerformanceAnnotation[]; playback_capabilities: Record<string, unknown> };\ntype Take = {
+type PerformanceAnnotation = { id: string; timestamp_ms: number; category: string; content: string; status: "open" | "resolved"; author_display_name: string };
+type ReplayData = { duration_ms: number; events: TakeEvent[]; annotations: PerformanceAnnotation[]; playback_capabilities: Record<string, unknown> };
+type Take = {
   id: string; scene_run_id: string; cast_member_instance_id: string | null; take_number: number;
   title: string; status: "recording" | "finalized" | "selected" | "discarded";
   duration_ms: number | null; camera_snapshot: Record<string, unknown>; state_snapshot: Record<string, unknown>;
@@ -57,7 +59,11 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const [eventPayload, setEventPayload] = useState('{"note":"Blocking marker"}');
   const [eventInstanceId, setEventInstanceId] = useState("");
   const [durationInput, setDurationInput] = useState("30000");
-  const [cameraPreset, setCameraPreset] = useState<CameraPreset>("wide");\n  const [replayData, setReplayData] = useState<ReplayData | null>(null);\n  const [playheadMs, setPlayheadMs] = useState(0);\n  const [isPlaying, setIsPlaying] = useState(false);\n  const [annotationDraft, setAnnotationDraft] = useState("");
+  const [cameraPreset, setCameraPreset] = useState<CameraPreset>("wide");
+  const [replayData, setReplayData] = useState<ReplayData | null>(null);
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [annotationDraft, setAnnotationDraft] = useState("");
   const [controllerDrafts, setControllerDrafts] = useState<Record<string, { controller_type: ControllerType; controller_user_id: string; control_mode: ControlMode }>>({});
   const [leases, setLeases] = useState<Record<string, Lease>>({});
   const [itemDrafts, setItemDrafts] = useState<Record<string, EditItemDraft>>({});
