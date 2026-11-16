@@ -71,10 +71,19 @@ This milestone moves encoding and delivery to the server, but scene composition 
 ## M4.1 — Persistent video export pipeline
 
 - `POST /api/projects/{project_id}/edit-sequences/{sequence_id}/video-renders` — upload a WebM master and queue server-side MP4 encoding. The request must match the current draft sequence revision.
+- `POST /api/projects/{project_id}/edit-sequences/{sequence_id}/scene-renders` — snapshot selected takes and queue a headless animatic render from recorded performance data.
 - `GET /api/projects/{project_id}/edit-sequences/{sequence_id}/video-renders` — list render jobs and their processing state.
 - `GET /api/projects/{project_id}/production/videos` — list completed project video assets.
 - `GET /api/projects/{project_id}/production/videos/{asset_id}/download` — download a stored MP4 asset.
 - `GET /api/projects/{project_id}/video-renders/{job_id}/download` — download the MP4 output for a completed render job.
+
+## M4.2 — Headless animatic rendering
+
+`POST /api/projects/{project_id}/edit-sequences/{sequence_id}/scene-renders` creates a revision-locked `VideoRenderJob` without a browser upload. The API verifies every edit item references a selected take in the same project and scene, then snapshots scene names, cast-member identity snapshots, camera/state snapshots, event streams, trims, titles, effects metadata and transition settings. The manifest is stored with the job, so later edits cannot change an in-progress render.
+
+The video worker supports two render sources: `webm_upload` (the M4.1 browser capture/transcode path) and `headless_animatic`. For headless jobs, the worker renders 1280×720 frames at 24 fps with Pillow, reconstructing position/rotation/scale from timestamped transform events and interpolating between samples. Camera presets and simple camera offsets affect framing. Each scene receives a scene label and optional title overlay. Cuts, fade-through-black and cross-dissolves are composited at the frame level. FFmpeg encodes the resulting frame sequence to H.264/yuv420p MP4, after which the existing asset pipeline records dimensions, duration, size and SHA-256 and exposes authenticated project downloads.
+
+This is a deterministic 2D animatic renderer using procedural stand-ins, not a 3D scene renderer. It is intended to validate blocking, timing, recorded transforms and editorial transitions without a browser, WebGL, or a user-uploaded video. The current API caps headless exports at ten minutes; the frame renderer accepts 12, 24 or 30 fps and up to 1920×1080 manifests, while the API currently selects 1280×720 at 24 fps. Full 3D assets, skeletal animation, physics, native effects, audio conform and configurable render profiles remain future work.
 
 ## Main API routes
 
