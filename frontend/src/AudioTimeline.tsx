@@ -110,6 +110,8 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
   }, [projectId, sequenceId]);
 
   const hasActiveRender = renderJobs.some(job => job.status === "queued" || job.status === "running");
+  const hasSoloTrack = tracks.some(track => track.solo);
+  const hasAudibleTrack = tracks.some(track => !track.muted && (!hasSoloTrack || track.solo) && track.clips.length > 0);
   useEffect(() => {
     if (!hasActiveRender) return;
     const timer = window.setInterval(() => {
@@ -366,7 +368,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     </div>
     <div className="audio-render-panel">
       <div><strong>Offline WAV render</strong><small>Render the current immutable mix snapshot to a 48 kHz stereo WAV.</small></div>
-      {editable && <button type="button" className="secondary-button" disabled={busy || tracks.every(track => track.muted || track.clips.length === 0)} onClick={() => void createRender()}><AudioLines size={13} /> Render mix WAV</button>}
+      {editable && <button type="button" className="secondary-button" disabled={busy || !hasAudibleTrack} onClick={() => void createRender()}><AudioLines size={13} /> Render mix WAV</button>}
       {renderJobs.length > 0 && <div className="audio-render-jobs">
         {renderJobs.map(job => <div className="audio-render-job" key={job.id}>
           <span className={"render-status " + job.status}>{job.status}</span>
