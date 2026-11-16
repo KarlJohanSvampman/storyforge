@@ -91,15 +91,20 @@ export default function ProductionVideoExport({
 
   useEffect(() => {
     let alive = true;
-    api<AudioRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/audio-renders`)
-      .then(jobs => {
-        if (!alive) return;
-        setAudioJobs(jobs);
-        const latest = jobs.find(job => job.status === "completed" && job.download_url);
-        if (latest) setAudioJobId(current => current || latest.id);
-      })
-      .catch(() => { /* video-only rendering remains available */ });
-    return () => { alive = false; };
+    const refreshAudioJobs = () => {
+      api<AudioRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/audio-renders`)
+        .then(jobs => {
+          if (!alive) return;
+          setAudioJobs(jobs);
+          const latest = jobs.find(job => job.status === "completed" && job.download_url);
+          setAudioJobId(current => current && jobs.some(job => job.id === current && job.status === "completed")
+            ? current : latest?.id || "");
+        })
+        .catch(() => { /* video-only rendering remains available */ });
+    };
+    refreshAudioJobs();
+    const timer = window.setInterval(refreshAudioJobs, 3000);
+    return () => { alive = false; window.clearInterval(timer); };
   }, [projectId, sequenceId]);
 
   useEffect(() => () => {
