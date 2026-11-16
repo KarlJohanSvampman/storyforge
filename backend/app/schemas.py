@@ -1709,7 +1709,6 @@ class VideoRenderJobRead(BaseModel):
     width: int | None
     height: int | None
     error_message: str
-    asset_id: uuid.UUID | None
     download_url: str | None
     created_by_user_id: uuid.UUID
     created_at: datetime
