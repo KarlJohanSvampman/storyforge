@@ -40,6 +40,16 @@ Export creates an immutable `EditExport` snapshot containing a revision-stamped 
 
 **Important boundary:** an EDL is not a rendered movie. Actual audio media/track management, mixing and synchronization, media conform, compositing, and final video rendering are future work.
 
+## M3.2 — Media and audio pipeline
+
+Production audio assets are project-scoped, content-hashed files stored outside the public web root. Uploads accept common browser-decodable audio formats and are limited to 250 MiB per file. Download endpoints require active project membership; storage keys are never exposed.
+
+An `AudioTrack` belongs to one draft edit sequence and has a role (dialogue, music, effects, ambience, or voiceover), order, gain, pan, mute and solo state. An `AudioClip` references an immutable source asset and stores source in/out points, timeline start, clip gain and fade-in/fade-out durations. Source media is not modified by editing.
+
+The browser audio timeline supports overlapping clips across tracks. Its Web Audio preview schedules clips against the sequence millisecond clock, applies track and clip gain, stereo pan, mute/solo state, source offsets and fade envelopes, and supports seeking while preserving synchronization. The audio timeline is preview-only: it does not create a mastered audio file.
+
+EDL format version 2 adds audio track and clip snapshots, source asset identifiers, checksums, content types, download routes, source ranges, timeline positions, gains, pans, mute/solo state and fade automation. The export remains an immutable instruction manifest, not a rendered audio or video file.
+
 ## Main API routes
 
 - `POST /api/projects/{project_id}/production/activate` — owner-controlled phase handoff.
