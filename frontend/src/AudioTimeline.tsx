@@ -230,6 +230,16 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     finally { setBusy(false); }
   }
 
+  async function createRender() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const job = await request<AudioRenderJob>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`, { method: "POST" });
+      setRenderJobs(rows => [job, ...rows.filter(row => row.id !== job.id)]);
+      setNotice("Offline audio render queued. The renderer will process it in the background.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not queue audio render."); }
+    finally { setBusy(false); }
+  }
+
   async function loadBuffer(clip: AudioClip): Promise<AudioBuffer> {
     const cached = buffersRef.current.get(clip.media_asset_id);
     if (cached) return cached;
