@@ -1694,3 +1694,44 @@ class AudioRenderJobRead(BaseModel):
     created_at: datetime
     started_at: datetime | None
     completed_at: datetime | None
+
+
+class VideoRenderJobRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    sequence_id: uuid.UUID
+    sequence_revision: int
+    status: Literal["queued", "running", "completed", "failed"]
+    input_size_bytes: int
+    output_size_bytes: int | None
+    output_sha256: str | None
+    duration_ms: int | None
+    width: int | None
+    height: int | None
+    error_message: str
+    asset_id: uuid.UUID | None
+    download_url: str | None
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+class ProductionVideoAssetRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    sequence_id: uuid.UUID
+    render_job_id: uuid.UUID
+    sequence_revision: int
+    title: str
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    duration_ms: int
+    width: int
+    height: int
+    status: str
+    download_url: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
