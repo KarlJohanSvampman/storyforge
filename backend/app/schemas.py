@@ -1702,7 +1702,7 @@ class VideoRenderJobRead(BaseModel):
     sequence_id: uuid.UUID
     sequence_revision: int
     status: Literal["queued", "running", "completed", "failed"]
-    render_source: Literal["webm_upload", "headless_animatic"]
+    render_source: Literal["webm_upload", "headless_animatic", "headless_3d"]
     input_size_bytes: int | None
     output_size_bytes: int | None
     output_sha256: str | None
