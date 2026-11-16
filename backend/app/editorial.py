@@ -28,7 +28,7 @@ def _editor(db: Session, project_id: uuid.UUID, user_id: uuid.UUID, write: bool 
 def _sequence(db: Session, project_id: uuid.UUID, sequence_id: uuid.UUID) -> EditSequence:
     sequence = db.scalar(select(EditSequence).where(
         EditSequence.id == sequence_id, EditSequence.project_id == project_id,
-    ))
+    ).with_for_update())
     if sequence is None:
         raise HTTPException(status_code=404, detail="Edit sequence not found.")
     return sequence
