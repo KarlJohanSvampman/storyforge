@@ -28,6 +28,7 @@ export type ProductionStage = {
   renderer: THREE.WebGLRenderer;
   rigs: Map<string, THREE.Group>;
   titleSprite: THREE.Sprite;
+  sceneLabel: THREE.Sprite;
   fadePlane: THREE.Mesh;
   width: number;
   height: number;
@@ -66,6 +67,39 @@ function titleSprite(): THREE.Sprite {
   sprite.renderOrder = 1000;
   sprite.userData.canvas = canvas;
   return sprite;
+}
+
+
+function sceneLabelSprite(): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 900;
+  canvas.height = 100;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(canvas), transparent: true, depthTest: false, depthWrite: false,
+  }));
+  sprite.scale.set(5.2, .58, 1);
+  sprite.position.set(0, 2.75, -4.4);
+  sprite.renderOrder = 999;
+  sprite.userData.canvas = canvas;
+  return sprite;
+}
+
+function updateSceneLabel(sprite: THREE.Sprite, text: string): void {
+  const canvas = sprite.userData.canvas as HTMLCanvasElement;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "rgba(8,12,9,.72)";
+  context.beginPath();
+  context.roundRect(18, 14, 864, 72, 18);
+  context.fill();
+  context.fillStyle = "#dce5d7";
+  context.font = "600 34px Arial";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(text.slice(0, 70), 450, 50);
+  sprite.visible = Boolean(text.trim());
+  (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
 }
 
 function updateTitle(sprite: THREE.Sprite, text: string): void {
@@ -129,6 +163,7 @@ export function createProductionStage(width: number, height: number): Production
   camera.position.set(...CAMERA_POSITIONS.wide);
   scene.add(camera);
   const title = titleSprite(); camera.add(title);
+  const sceneLabel = sceneLabelSprite(); camera.add(sceneLabel);
   const fade = new THREE.Mesh(new THREE.PlaneGeometry(14, 9),
     new THREE.MeshBasicMaterial({ color: 0, transparent: true, opacity: 0, depthTest: false, depthWrite: false }));
   fade.position.set(0, 0, -4.1); fade.renderOrder = 1001; camera.add(fade);
@@ -167,7 +202,7 @@ export function createProductionStage(width: number, height: number): Production
   renderer.setPixelRatio(1); renderer.setSize(width, height, false);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  return { scene, camera, renderer, rigs: new Map(), titleSprite: title, fadePlane: fade, width, height };
+  return { scene, camera, renderer, rigs: new Map(), titleSprite: title, sceneLabel, fadePlane: fade, width, height };
 }
 
 function vector(value: unknown): THREE.Vector3 | null {
@@ -259,6 +294,7 @@ export function renderProductionClip(stage: ProductionStage, clip: SceneClip, lo
     rig.rotation.set(rotation?.x ?? baseRotation.x, rotation?.y ?? baseRotation.y, rotation?.z ?? baseRotation.z);
     rig.scale.copy(scale || baseScale);
   }
+  updateSceneLabel(stage.sceneLabel, String(clip.scene_title || "Scene"));
   updateTitle(stage.titleSprite, String(clip.title_overlay || ""));
   stage.renderer.render(stage.scene, stage.camera);
   return stage.renderer.domElement;
