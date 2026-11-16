@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import EditExport, EditSequence, EditSequenceItem, PerformanceTake, Project, SceneRun, StoryboardScene
+from .models import AudioClip, AudioTrack, EditExport, EditSequence, EditSequenceItem, PerformanceTake, ProductionMediaAsset, Project, SceneRun, StoryboardScene
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
     EditExportRead, EditSequenceCreate, EditSequenceItemCreate, EditSequenceItemRead,
@@ -202,13 +202,52 @@ def export_sequence(project_id: uuid.UUID, sequence_id: uuid.UUID, db: DbSession
             "title_overlay": item.title_overlay, "effects": item.effects, "audio_cue": item.audio_cue,
         })
         cursor += duration
+    audio_tracks = []
+    audio_duration_ms = 0
+    track_rows = db.scalars(
+        select(AudioTrack).where(AudioTrack.sequence_id == sequence.id)
+        .order_by(AudioTrack.track_order, AudioTrack.created_at)
+    ).all()
+    for track in track_rows:
+        audio_clips = []
+        clip_rows = db.execute(
+            select(AudioClip, ProductionMediaAsset)
+            .join(ProductionMediaAsset, ProductionMediaAsset.id == AudioClip.media_asset_id)
+            .where(AudioClip.track_id == track.id)
+            .order_by(AudioClip.clip_order, AudioClip.timeline_start_ms)
+        ).all()
+        for audio_clip, asset in clip_rows:
+            if asset.project_id != project_id:
+                raise HTTPException(status_code=409, detail="An audio clip references media outside this project.")
+            clip_duration = audio_clip.source_out_ms - audio_clip.source_in_ms
+            timeline_end = audio_clip.timeline_start_ms + clip_duration
+            audio_duration_ms = max(audio_duration_ms, timeline_end)
+            audio_clips.append({
+                "id": str(audio_clip.id), "media_asset_id": str(asset.id),
+                "title": asset.title, "filename": asset.original_filename,
+                "content_type": asset.content_type, "sha256": asset.sha256,
+                "download_url": f"/api/projects/{project_id}/production/media/{asset.id}/download",
+                "asset_duration_ms": asset.duration_ms,
+                "source_in_ms": audio_clip.source_in_ms, "source_out_ms": audio_clip.source_out_ms,
+                "timeline_start_ms": audio_clip.timeline_start_ms, "timeline_end_ms": timeline_end,
+                "duration_ms": clip_duration, "gain": audio_clip.gain,
+                "fade_in_ms": audio_clip.fade_in_ms, "fade_out_ms": audio_clip.fade_out_ms,
+                "clip_order": audio_clip.clip_order,
+            })
+        audio_tracks.append({
+            "id": str(track.id), "name": track.name, "role": track.role,
+            "track_order": track.track_order, "gain": track.gain, "pan": track.pan,
+            "muted": track.muted, "solo": track.solo, "clips": audio_clips,
+        })
     number = (db.scalar(select(func.max(EditExport.export_number)).where(EditExport.sequence_id == sequence.id)) or 0) + 1
     manifest = {
-        "format": "storyforge-edit-decision-list", "format_version": 1,
+        "format": "storyforge-edit-decision-list", "format_version": 2,
         "project": {"id": str(project.id), "title": project.title, "format": project.format, "category": project.category},
         "sequence": {"id": str(sequence.id), "name": sequence.name, "revision": sequence.revision_number},
         "timebase": {"unit": "milliseconds", "frame_rate": None},
-        "duration_ms": cursor, "clips": clips,
+        "duration_ms": max(cursor, audio_duration_ms), "video_duration_ms": cursor,
+        "audio_duration_ms": audio_duration_ms, "clips": clips, "audio_tracks": audio_tracks,
+        "audio_mix": {"sample_peak_normalization": False, "rendered": False, "note": "Audio sources and mix automation are referenced by this EDL; a final mixed audio file is not rendered."},
         "rendering": {"status": "manifest_only", "note": "This is an immutable edit decision list, not a rendered video file."},
         "exported_at": datetime.now(timezone.utc).isoformat(),
     }
