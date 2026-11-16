@@ -176,6 +176,48 @@ def render_clip_frame(clip: dict, local_ms: int, width: int, height: int) -> Ima
     return image
 
 
+def render_timeline_frame(
+    clips: list[dict], starts: list[int], timeline_ms: float, width: int, height: int
+) -> Image.Image:
+    """Render one timeline frame, compositing the transition between adjacent clips."""
+    for index in range(1, len(clips)):
+        next_clip = clips[index]
+        overlap = int(next_clip.get("transition_duration_ms", 0))
+        transition_start = starts[index]
+        if overlap <= 0 or not (transition_start <= timeline_ms < transition_start + overlap):
+            continue
+
+        previous_clip = clips[index - 1]
+        progress = max(0.0, min(1.0, (timeline_ms - transition_start) / overlap))
+        previous_local = max(0, int(timeline_ms - starts[index - 1]))
+        next_local = max(0, int(timeline_ms - transition_start))
+        previous_frame = render_clip_frame(previous_clip, previous_local, width, height)
+        next_frame = render_clip_frame(next_clip, next_local, width, height)
+        try:
+            if next_clip.get("transition") == "fade":
+                black = Image.new("RGB", (width, height), (0, 0, 0))
+                try:
+                    if progress < 0.5:
+                        return Image.blend(previous_frame, black, progress * 2)
+                    return Image.blend(black, next_frame, (progress - 0.5) * 2)
+                finally:
+                    black.close()
+            return Image.blend(previous_frame, next_frame, progress)
+        finally:
+            previous_frame.close()
+            next_frame.close()
+
+    active = 0
+    for index, start in enumerate(starts):
+        if start <= timeline_ms:
+            active = index
+        else:
+            break
+    clip = clips[active]
+    local = min(int(clip["duration_ms"]), max(0, int(timeline_ms - starts[active])))
+    return render_clip_frame(clip, local, width, height)
+
+
 def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
     width, height = int(manifest.get("width", 1280)), int(manifest.get("height", 720))
     fps = int(manifest.get("fps", 24))
@@ -183,39 +225,28 @@ def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
     if not clips or width < 320 or height < 180 or width > 1920 or height > 1080 or fps not in (12, 24, 30):
         raise ValueError("Headless animatic manifest has unsupported dimensions, frame rate, or no clips.")
     starts = [0]
-    for index in range(1, len(clips)):
-        overlap = int(clips[index].get("transition_duration_ms", 0))
+    for index, clip in enumerate(clips):
+        duration = int(clip.get("duration_ms", 0))
+        if duration <= 0:
+            raise ValueError("Headless animatic clips must have a positive duration.")
+        if index == 0:
+            continue
+        overlap = int(clip.get("transition_duration_ms", 0))
+        if overlap < 0 or overlap > min(int(clips[index - 1]["duration_ms"]), duration) // 2:
+            raise ValueError("Headless animatic transition duration is invalid.")
+        if clip.get("transition", "cut") not in ("cut", "fade", "dissolve"):
+            raise ValueError("Headless animatic contains an unsupported transition.")
         starts.append(starts[-1] + int(clips[index - 1]["duration_ms"]) - overlap)
     duration_ms = starts[-1] + int(clips[-1]["duration_ms"])
     frame_count = max(1, math.ceil(duration_ms * fps / 1000))
     if frame_count > 14400:
         raise ValueError("Headless animatic exceeds the 10-minute frame budget.")
     output_dir.mkdir(parents=True, exist_ok=True)
-    black = Image.new("RGB", (width, height), (0, 0, 0))
     for frame_index in range(frame_count):
         timeline_ms = frame_index * 1000 / fps
-        active = 0
-        for index, start in enumerate(starts):
-            if start <= timeline_ms:
-                active = index
-            else:
-                break
-        clip = clips[active]
-        local = min(int(clip["duration_ms"]), max(0, int(timeline_ms - starts[active])))
-        frame = render_clip_frame(clip, local, width, height)
-        if active + 1 < len(clips):
-            next_clip = clips[active + 1]
-            overlap = int(next_clip.get("transition_duration_ms", 0))
-            overlap_start = starts[active + 1]
-            if overlap > 0 and overlap_start <= timeline_ms < overlap_start + overlap:
-                progress = (timeline_ms - overlap_start) / overlap
-                next_local = max(0, int(timeline_ms - overlap_start))
-                next_frame = render_clip_frame(next_clip, next_local, width, height)
-                if next_clip.get("transition") == "fade":
-                    frame = Image.blend(black, frame, 1.0 - progress)
-                    frame = Image.blend(frame, next_frame, progress)
-                else:
-                    frame = Image.blend(frame, next_frame, progress)
-        frame.save(output_dir / f"frame-{frame_index + 1:06d}.jpg", quality=88, optimize=False)
-        frame.close()
+        frame = render_timeline_frame(clips, starts, timeline_ms, width, height)
+        try:
+            frame.save(output_dir / f"frame-{frame_index + 1:06d}.jpg", quality=88, optimize=False)
+        finally:
+            frame.close()
     return frame_count
