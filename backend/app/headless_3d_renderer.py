@@ -22,6 +22,22 @@ def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
     clips = manifest.get("clips")
     if not isinstance(clips, list) or not clips:
         raise ValueError("Headless 3D render manifest contains no clips.")
+    starts = [0]
+    for index, clip in enumerate(clips):
+        duration = int(clip.get("duration_ms", 0))
+        if duration <= 0:
+            raise ValueError("Headless 3D clips must have a positive duration.")
+        if index:
+            overlap = int(clip.get("transition_duration_ms", 0))
+            if overlap < 0 or overlap > min(int(clips[index - 1]["duration_ms"]), duration) // 2:
+                raise ValueError("Headless 3D transition duration is invalid.")
+            if clip.get("transition", "cut") not in ("cut", "fade", "dissolve"):
+                raise ValueError("Headless 3D manifest contains an unsupported transition.")
+            starts.append(starts[-1] + int(clips[index - 1]["duration_ms"]) - overlap)
+    duration_ms = starts[-1] + int(clips[-1]["duration_ms"])
+    expected_frames = (duration_ms * fps + 999) // 1000
+    if expected_frames < 1 or expected_frames > 14_400:
+        raise ValueError("Headless 3D render exceeds the ten-minute frame budget.")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as playwright:
@@ -37,8 +53,8 @@ def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
             page.wait_for_function("() => Boolean(window.storyForgeRenderer)", timeout=60_000)
             initialized = page.evaluate("(manifest) => window.storyForgeRenderer.initialize(manifest)", manifest)
             frame_count = int(initialized.get("frame_count", 0))
-            if frame_count < 1 or frame_count > 14_400:
-                raise ValueError("Headless 3D render frame count is outside the allowed budget.")
+            if frame_count != expected_frames:
+                raise RuntimeError("Browser renderer frame count does not match the immutable manifest timeline.")
             frame = page.locator("#frame")
             for index in range(frame_count):
                 page.evaluate("(index) => window.storyForgeRenderer.renderFrame(index)", index)
