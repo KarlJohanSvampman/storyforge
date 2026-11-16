@@ -40,17 +40,13 @@ def _asset_or_404(db: Session, project_id: uuid.UUID, asset_id: uuid.UUID) -> Pr
 
 
 def _job_read(job: VideoRenderJob) -> VideoRenderJobRead:
-    asset = None
-    if job.status == "completed":
-        # The completed asset is uniquely linked by its render job.
-        asset = getattr(job, "_completed_asset", None)
     return VideoRenderJobRead(
         id=job.id, project_id=job.project_id, sequence_id=job.sequence_id,
         sequence_revision=job.sequence_revision, status=job.status,
         input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
         output_sha256=job.output_sha256, duration_ms=job.duration_ms,
         width=job.width, height=job.height, error_message=job.error_message,
-        asset_id=asset.id if asset else None,
+        asset_id=None,
         download_url=(
             f"/api/projects/{job.project_id}/video-renders/{job.id}/download"
             if job.status == "completed" and job.output_storage_key else None
@@ -127,6 +123,7 @@ async def create_video_render(
         job = VideoRenderJob(
             id=job_id, project_id=project.id, sequence_id=sequence.id,
             sequence_revision=sequence.revision_number, status="queued",
+            title=clean_title, source_filename=original,
             input_storage_key=storage_key, input_size_bytes=size,
             input_sha256=digest.hexdigest(), input_content_type=file.content_type or "video/webm",
             expected_duration_ms=expected_duration_ms, created_by_user_id=user.id,
