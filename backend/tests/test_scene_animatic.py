@@ -10,7 +10,7 @@ from PIL import Image, ImageChops
 from app.database import SessionLocal
 from app.main import app
 from app.models import VideoRenderJob
-from app.scene_animatic import render_manifest_frames, render_clip_frame
+from app.scene_animatic import render_manifest_frames, render_clip_frame, render_timeline_frame
 from app.video_render_worker import _probe_video, process_job
 from test_audio_pipeline import _production_sequence
 
@@ -135,3 +135,24 @@ def test_headless_scene_job_renders_mp4_and_persists_asset(monkeypatch, tmp_path
     downloaded = client.get(completed["download_url"])
     assert downloaded.status_code == 200
     assert downloaded.content[4:8] == b"ftyp"
+
+def test_headless_timeline_composites_the_incoming_clip_transition():
+    manifest = _manifest()
+    clips = manifest["clips"]
+    starts = [0, 500]
+
+    outgoing = render_clip_frame(clips[0], 750, 640, 360)
+    incoming = render_clip_frame(clips[1], 250, 640, 360)
+    actual = render_timeline_frame(clips, starts, 750, 640, 360)
+    expected = Image.blend(outgoing, incoming, 0.5)
+    assert ImageChops.difference(actual, expected).getbbox() is None
+    outgoing.close()
+    incoming.close()
+    actual.close()
+    expected.close()
+
+    clips[1]["transition"] = "fade"
+    midpoint = render_timeline_frame(clips, starts, 750, 640, 360)
+    assert midpoint.getpixel((320, 180)) == (0, 0, 0)
+    midpoint.close()
+
