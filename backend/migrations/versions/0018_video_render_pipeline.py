@@ -18,6 +18,8 @@ def upgrade() -> None:
         sa.Column("sequence_id", uuid, sa.ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False),
         sa.Column("sequence_revision", sa.Integer(), nullable=False),
         sa.Column("status", sa.String(20), server_default="queued", nullable=False),
+        sa.Column("title", sa.String(240), nullable=False),
+        sa.Column("source_filename", sa.String(255), nullable=False),
         sa.Column("input_storage_key", sa.String(500), nullable=False),
         sa.Column("input_size_bytes", sa.Integer(), nullable=False),
         sa.Column("input_sha256", sa.String(64), nullable=False),
