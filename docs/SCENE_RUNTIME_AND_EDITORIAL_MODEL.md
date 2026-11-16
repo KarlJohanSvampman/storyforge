@@ -76,6 +76,16 @@ This milestone moves encoding and delivery to the server, but scene composition 
 - `GET /api/projects/{project_id}/production/videos/{asset_id}/download` — download a stored MP4 asset.
 - `GET /api/projects/{project_id}/video-renders/{job_id}/download` — download the MP4 output for a completed render job.
 
+## M4.2 — Headless EDL rendering
+
+A headless render request snapshots the current draft sequence revision into a durable video job. The manifest contains ordered clip timing and source trims, scene identifiers, cast-member identity snapshots, take camera/state snapshots, ordered performance events, title overlays and transition instructions. The sequence is locked while the snapshot is assembled; later edits increment the sequence revision but do not mutate a queued job.
+
+The dedicated video-renderer image includes Chromium, Playwright, Three.js assets and FFmpeg. It opens the standalone `headless-render.html` entrypoint, builds the procedural production set for each clip, reconstructs supported transform and camera events at the requested source time, draws title overlays and fade-through-black transitions, and captures frames at 24 or 30 fps. FFmpeg encodes the frame sequence to H.264/yuv420p MP4, after which the existing output-probe, checksum, immutable asset and authenticated-download pipeline is reused.
+
+Headless profiles currently support 1280×720 or 1920×1080 and sequences up to 15 minutes. This first pass is video-only: it does not yet mux a completed audio master. Dissolve is still approximated as fade-through-black, and the procedural stand-ins do not provide skeletal animation or deterministic physics reconstruction. The browser-capture upload path remains available as a separate render mode.
+
+- `POST /api/projects/{project_id}/edit-sequences/{sequence_id}/headless-video-renders` — queue a headless render from the current draft EDL revision.
+
 ## Main API routes
 
 - `POST /api/projects/{project_id}/production/activate` — owner-controlled phase handoff.
