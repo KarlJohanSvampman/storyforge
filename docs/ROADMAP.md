@@ -159,7 +159,13 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Apply simple camera preset framing, scene labels and title overlays.
 - [x] Composite cuts, fade-through-black and cross-dissolves in frame space.
 - [x] Encode headless animatic frames to MP4 and persist them as project video assets.
-- [ ] Replace procedural 2D stand-ins with shared 3D scene assets, rigs, lighting and animation.
+- [x] Add a deterministic headless Three.js/WebGL renderer using a dedicated Playwright Chromium worker.
+- [x] Share the procedural character-rig builder between the interactive Three.js viewport and headless renderer.
+- [x] Reconstruct per-clip character transforms, camera snapshots/events, scene labels and title overlays in actual 3D geometry.
+- [x] Composite cuts, fade-through-black and cross-dissolves from rendered 3D frames before FFmpeg MP4 encoding.
+- [x] Preserve immutable EDL revision snapshots, durable job status, output checksums and authenticated production-asset delivery for 3D renders.
+- [ ] Load project-authored 3D character/location/prop assets and production rigs.
+- [ ] Add skeletal animation clips, retargeting, deterministic physics replay and animation blending.
 
 - [ ] Implement native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
 

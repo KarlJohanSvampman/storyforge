@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { createCharacterRig } from "./productionScene";
 
 type CastVisual = {
   id: string;
@@ -32,28 +33,6 @@ const CAMERA_POSITIONS: Record<CameraPreset, [number, number, number]> = {
   overhead: [0, 15, 0.1],
   reverse: [-8, 6, -10],
 };
-
-function makeLabel(text: string): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 96;
-  const context = canvas.getContext("2d");
-  if (context) {
-    context.fillStyle = "rgba(20, 25, 21, 0.86)";
-    context.beginPath();
-    context.roundRect(8, 8, 496, 80, 16);
-    context.fill();
-    context.fillStyle = "#e8eddd";
-    context.font = "bold 34px Arial";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(text.slice(0, 28), 256, 48);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
-  sprite.scale.set(2.8, 0.52, 1);
-  return sprite;
-}
 
 function makeTitleSprite(): THREE.Sprite {
   const canvas = document.createElement("canvas");
@@ -90,36 +69,7 @@ function updateTitleSprite(sprite: THREE.Sprite, text: string): void {
   (sprite.material as THREE.SpriteMaterial).map!.needsUpdate = true;
 }
 
-function makeCharacter(index: number, total: number, label: string): THREE.Group {
-  const group = new THREE.Group();
-  const hue = (index * 0.19 + 0.08) % 1;
-  const cloth = new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(hue, 0.32, 0.48), roughness: 0.82 });
-  const skin = new THREE.MeshStandardMaterial({ color: 0xb58c70, roughness: 0.9 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x292e2a, roughness: 0.95 });
-  const add = (geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number]) => {
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(...position);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    group.add(mesh);
-    return mesh;
-  };
-  add(new THREE.CylinderGeometry(0.31, 0.4, 0.95, 12), cloth, [0, 1.35, 0]);
-  add(new THREE.SphereGeometry(0.28, 16, 12), skin, [0, 2.02, 0]);
-  add(new THREE.CylinderGeometry(0.12, 0.13, 0.72, 10), skin, [-0.43, 1.35, 0]).rotation.z = -0.24;
-  add(new THREE.CylinderGeometry(0.12, 0.13, 0.72, 10), skin, [0.43, 1.35, 0]).rotation.z = 0.24;
-  add(new THREE.CylinderGeometry(0.14, 0.16, 0.82, 10), dark, [-0.17, 0.45, 0]).rotation.z = -0.04;
-  add(new THREE.CylinderGeometry(0.14, 0.16, 0.82, 10), dark, [0.17, 0.45, 0]).rotation.z = 0.04;
-  const labelSprite = makeLabel(label);
-  labelSprite.position.set(0, 2.65, 0);
-  group.add(labelSprite);
-  const spacing = Math.max(2.2, Math.min(3.8, 10 / Math.max(1, total)));
-  group.position.set((index - (total - 1) / 2) * spacing, 0, 0);
-  group.userData.basePosition = group.position.clone();
-  group.userData.baseRotation = group.rotation.clone();
-  group.userData.baseScale = group.scale.clone();
-  return group;
-}
+const makeCharacter = createCharacterRig;
 
 function disposeObject(root: THREE.Object3D): void {
   root.traverse((object) => {

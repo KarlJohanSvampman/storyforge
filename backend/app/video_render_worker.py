@@ -14,6 +14,7 @@ from sqlalchemy import select
 from .database import SessionLocal
 from .models import ProductionVideoAsset, VideoRenderJob
 from .scene_animatic import render_manifest_frames
+from .headless_3d_renderer import render_manifest_frames as render_headless_3d_frames
 
 
 def _media_root() -> Path:
@@ -70,7 +71,7 @@ def _run_ffmpeg(input_path: Path, output_path: Path) -> None:
     os.replace(temporary, output_path)
 
 
-def _run_frame_sequence(frames_dir: Path, output_path: Path, fps: int) -> None:
+def _run_frame_sequence(frames_dir: Path, output_path: Path, fps: int, extension: str = "jpg") -> None:
     ffmpeg = shutil.which("ffmpeg")
     if not ffmpeg:
         raise RuntimeError("FFmpeg is not installed in the video renderer container.")
@@ -78,7 +79,7 @@ def _run_frame_sequence(frames_dir: Path, output_path: Path, fps: int) -> None:
     temporary = output_path.with_name(output_path.stem + ".part.mp4")
     command = [
         ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-        "-framerate", str(fps), "-i", str(frames_dir / "frame-%06d.jpg"),
+        "-framerate", str(fps), "-i", str(frames_dir / f"frame-%06d.{extension}"),
         "-an", "-c:v", "libx264", "-preset", os.getenv("STORYFORGE_VIDEO_PRESET", "medium"),
         "-crf", os.getenv("STORYFORGE_VIDEO_CRF", "20"), "-pix_fmt", "yuv420p",
         "-movflags", "+faststart", str(temporary),
@@ -170,6 +171,18 @@ def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
             frame_count = render_manifest_frames(manifest, work_dir)
             _run_frame_sequence(work_dir, output_path, int(manifest.get("fps", 24)))
             print(f"Rendered {frame_count} headless animatic frames for {job_id}.", flush=True)
+        elif render_source == "headless_3d":
+            manifest = snapshot.get("render_manifest")
+            if not isinstance(manifest, dict):
+                raise RuntimeError("Headless 3D render job has no immutable scene manifest.")
+            if str(manifest.get("project_id")) != snapshot["project_id"] or str(manifest.get("sequence_id")) != snapshot["sequence_id"]:
+                raise RuntimeError("Headless 3D manifest project or sequence does not match its render job.")
+            if int(manifest.get("sequence_revision", -1)) != int(snapshot["sequence_revision"]):
+                raise RuntimeError("Headless 3D manifest revision does not match its render job.")
+            work_dir.mkdir(parents=True, exist_ok=True)
+            frame_count = render_headless_3d_frames(manifest, work_dir)
+            _run_frame_sequence(work_dir, output_path, int(manifest.get("fps", 24)), extension="png")
+            print(f"Rendered {frame_count} headless Three.js frames for {job_id}.", flush=True)
         elif render_source == "webm_upload":
             if input_path is None or not input_path.is_file():
                 raise RuntimeError("Uploaded WebM source is missing from shared storage.")
@@ -232,7 +245,7 @@ def recover_stale_jobs(stale_after_hours: int = 12) -> int:
             .with_for_update(skip_locked=True)
         ).all()
         for job in stale:
-            if job.render_source == "headless_animatic" or (
+            if job.render_source in ("headless_animatic", "headless_3d") or (
                 job.input_storage_key and _safe_path(job.input_storage_key).is_file()
             ):
                 job.status = "queued"

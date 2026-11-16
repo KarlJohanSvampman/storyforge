@@ -1,6 +1,7 @@
 import hashlib
 import os
 import uuid
+from typing import Literal
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
@@ -156,6 +157,7 @@ def create_headless_scene_render(
     sequence_id: uuid.UUID,
     db: DbSession,
     user: CurrentUser,
+    renderer: Literal["animatic", "3d"] = "animatic",
 ):
     project = _project_access(db, project_id, user.id, write=True)
     sequence = db.scalar(select(EditSequence).where(
@@ -228,24 +230,24 @@ def create_headless_scene_render(
         else:
             clips[index]["transition_duration_ms"] = 0
     if total_duration <= 0 or total_duration > MAX_HEADLESS_DURATION_MS:
-        raise HTTPException(status_code=422, detail="Headless animatic renders are limited to 10 minutes per export.")
+        raise HTTPException(status_code=422, detail="Headless scene renders are limited to 10 minutes per export.")
 
     manifest = {
-        "format_version": 1, "renderer": "storyforge-headless-animatic-v1",
+        "format_version": 1, "renderer": ("storyforge-headless-3d-v1" if renderer == "3d" else "storyforge-headless-animatic-v1"),
         "project_id": str(project.id), "sequence_id": str(sequence.id),
         "sequence_revision": sequence.revision_number, "width": 1280, "height": 720,
         "fps": 24, "duration_ms": total_duration, "clips": clips,
         "capabilities": {
             "transform_reconstruction": True, "camera_preset_framing": True,
             "title_overlays": True, "cut": True, "fade_through_black": True,
-            "cross_dissolve": True, "skeletal_animation": False, "full_3d_assets": False,
+            "cross_dissolve": True, "skeletal_animation": False, "full_3d_assets": False, "threejs_webgl_scene": renderer == "3d",
         },
     }
     job = VideoRenderJob(
         project_id=project.id, sequence_id=sequence.id,
         sequence_revision=sequence.revision_number, status="queued",
-        render_source="headless_animatic", render_manifest=manifest,
-        title=sequence.name, source_filename="storyforge-headless-animatic",
+        render_source=("headless_3d" if renderer == "3d" else "headless_animatic"), render_manifest=manifest,
+        title=sequence.name, source_filename=("storyforge-headless-3d" if renderer == "3d" else "storyforge-headless-animatic"),
         input_storage_key=None, input_size_bytes=None, input_sha256=None,
         input_content_type=None, expected_duration_ms=total_duration,
         created_by_user_id=user.id,

@@ -156,3 +156,59 @@ def test_headless_timeline_composites_the_incoming_clip_transition():
     assert midpoint.getpixel((320, 180)) == (0, 0, 0)
     midpoint.close()
 
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="FFmpeg tools unavailable")
+def test_headless_3d_scene_job_encodes_png_frames_and_persists_asset(monkeypatch, tmp_path):
+    from PIL import Image
+    from app import video_render_worker
+
+    monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
+    project_id, sequence = _production_sequence("Headless 3D scene MP4")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
+    queued = client.post(
+        f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/scene-renders?renderer=3d"
+    )
+    assert queued.status_code == 202, queued.text
+    assert queued.json()["render_source"] == "headless_3d"
+    job_id = uuid.UUID(queued.json()["id"])
+
+    with SessionLocal() as db:
+        stored = db.get(VideoRenderJob, job_id)
+        manifest = stored.render_manifest
+        assert manifest["renderer"] == "storyforge-headless-3d-v1"
+        manifest["width"] = 640
+        manifest["height"] = 360
+        manifest["fps"] = 12
+        manifest["duration_ms"] = 250
+        manifest["clips"][0]["duration_ms"] = 250
+        manifest["clips"][0]["transition_duration_ms"] = 0
+        stored.render_manifest = manifest
+        db.commit()
+        snapshot = {
+            "project_id": str(stored.project_id), "sequence_id": str(stored.sequence_id),
+            "sequence_revision": stored.sequence_revision, "title": stored.title,
+            "source_filename": stored.source_filename, "render_source": stored.render_source,
+            "render_manifest": stored.render_manifest, "input_storage_key": stored.input_storage_key,
+            "input_sha256": stored.input_sha256, "created_by_user_id": str(stored.created_by_user_id),
+        }
+
+    def fake_render(manifest, output_dir):
+        assert manifest["renderer"] == "storyforge-headless-3d-v1"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for index in range(1, 4):
+            Image.new("RGB", (640, 360), (20 * index, 35, 28)).save(
+                output_dir / f"frame-{index:06d}.png"
+            )
+        return 3
+
+    monkeypatch.setattr(video_render_worker, "render_headless_3d_frames", fake_render)
+    process_job(job_id, snapshot)
+    jobs = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/video-renders")
+    completed = next(item for item in jobs.json() if item["id"] == str(job_id))
+    assert completed["status"] == "completed", completed
+    assert completed["render_source"] == "headless_3d"
+    assert completed["output_size_bytes"] > 0
+    assert completed["width"] == 640 and completed["height"] == 360
+    downloaded = client.get(completed["download_url"])
+    assert downloaded.status_code == 200
+    assert downloaded.content[4:8] == b"ftyp"
+

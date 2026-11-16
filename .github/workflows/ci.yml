@@ -17,7 +17,7 @@ concurrency:
 jobs:
   backend:
     name: Backend migration and tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -56,6 +56,7 @@ jobs:
       - name: Install FFmpeg for audio render integration tests
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+
       - name: Apply all database migrations
         working-directory: backend
         run: alembic upgrade head
@@ -66,7 +67,7 @@ jobs:
 
   frontend:
     name: Frontend TypeScript build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -83,6 +84,10 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+
+      - name: Verify headless renderer page is included in production build
+        working-directory: frontend
+        run: test -s dist/headless-render.html
 
       - name: Validate Docker Compose configuration
         run: docker compose config --quiet

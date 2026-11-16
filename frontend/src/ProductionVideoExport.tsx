@@ -24,7 +24,7 @@ type AudioRenderJob = {
 };
 type VideoRenderJob = {
   id: string; status: "queued" | "running" | "completed" | "failed";
-  render_source: "webm_upload" | "headless_animatic";
+  render_source: "webm_upload" | "headless_animatic" | "headless_3d";
   sequence_revision: number; input_size_bytes: number | null; output_size_bytes: number | null;
   output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
   error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
@@ -297,7 +297,7 @@ export default function ProductionVideoExport({
     }
   }
 
-  async function renderHeadlessAnimatic() {
+  async function renderHeadless(renderer: "animatic" | "3d") {
     if (orderedItems.length === 0 || loading || rendering ||
         videoJob?.status === "queued" || videoJob?.status === "running") return;
     setError("");
@@ -305,18 +305,18 @@ export default function ProductionVideoExport({
     setVideoJob(null);
     try {
       const response = await fetch(
-        `/api/projects/${projectId}/edit-sequences/${sequenceId}/scene-renders`,
+        `/api/projects/${projectId}/edit-sequences/${sequenceId}/scene-renders?renderer=${renderer}`,
         { method: "POST", credentials: "same-origin" },
       );
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.detail || `Could not queue headless scene render (${response.status}).`);
+        throw new Error(body?.detail || `Could not queue headless ${renderer} render (${response.status}).`);
       }
       const job = await response.json() as VideoRenderJob;
       setVideoJob(job);
       setProgress(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Headless animatic render failed.");
+      setError(err instanceof Error ? err.message : `Headless ${renderer} render failed.`);
     }
   }
 
@@ -361,11 +361,14 @@ export default function ProductionVideoExport({
         {rendering ? `Capturing ${progress}%` : videoJob?.status === "queued" || videoJob?.status === "running" ? "Encoding MP4…" : videoJob?.status === "completed" ? "MP4 ready — render again" : "Render and store MP4"}
       </button>
       {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel capture</button>}
-      <button type="button" className="secondary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0} onClick={() => void renderHeadlessAnimatic()}>
-        <Film size={13} /> Render headless animatic
+      <button type="button" className="secondary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0} onClick={() => void renderHeadless("animatic")}>
+        <Film size={13} /> Render 2D animatic
+      </button>
+      <button type="button" className="secondary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0} onClick={() => void renderHeadless("3d")}>
+        <Film size={13} /> Render headless 3D
       </button>
       {videoJob?.status === "completed" && videoJob.download_url && <a className="secondary-button" href={videoJob.download_url}><Download size={13} /> Download MP4</a>}
-      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>{videoJob.render_source === "headless_animatic" ? "Headless scene render" : "Server encoding"}: {videoJob.status}</small>}
+      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>{videoJob.render_source === "headless_3d" ? "Headless Three.js render" : videoJob.render_source === "headless_animatic" ? "Headless 2D animatic" : "Server encoding"}: {videoJob.status}</small>}
       {videoJob?.status === "failed" && <small className="production-error">{videoJob.error_message}</small>}
       {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB WebM source</small>}
     </div>
@@ -377,6 +380,6 @@ export default function ProductionVideoExport({
         <a className="secondary-button" href={asset.download_url}><Download size={12} /> MP4</a>
       </div>)}
     </div>}
-    <p className="muted-note">Scene composition is still captured from the browser viewport; the server performs durable MP4 encoding and storage. True headless scene rendering, deterministic physics, skeletal animation and native effect rendering remain later work.</p>
+    <p className="muted-note">The 3D option renders the shared procedural Three.js production set in a background Chromium worker; it does not use this browser viewport. Production character assets, skeletal animation, physics replay, native effects and audio conform remain future work.</p>
   </section>;
 }
