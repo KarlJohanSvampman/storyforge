@@ -149,7 +149,12 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Reconstruct supported transform/camera events per clip and include title overlays.
 - [x] Mux a completed offline WAV master into the WebM capture.
 - [x] Provide render progress, cancellation and local download controls.
-- [ ] Add server-side/headless rendering, true dissolve compositing, visual effects, persistent video assets and MP4/H.264 delivery.
+- [x] Upload browser captures into durable project-scoped video render jobs with revision and source SHA-256 snapshots.
+- [x] Encode H.264/yuv420p video and AAC audio into MP4 using a dedicated FFmpeg worker.
+- [x] Persist completed MP4 files as immutable production video assets with duration, dimensions, size and SHA-256 metadata.
+- [x] Expose project-scoped asset listing and authenticated downloads, with queued/running/completed/failed job states and interrupted-job recovery.
+- [ ] Render scenes headlessly from EDL/replay data without a browser capture upload.
+- [ ] Implement native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
