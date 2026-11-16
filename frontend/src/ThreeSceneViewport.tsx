@@ -8,7 +8,8 @@ type CastVisual = {
   actor_name_snapshot: string;
 };
 
-type Props = { castMembers: CastVisual[]; sceneTitle: string; cameraPreset: "wide" | "close" | "overhead" | "reverse" };
+type ReplayEvent = { timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; payload: Record<string, unknown> };
+type Props = { castMembers: CastVisual[]; sceneTitle: string; cameraPreset: "wide" | "close" | "overhead" | "reverse"; replayEvents?: ReplayEvent[]; playheadMs?: number };
 
 function makeLabel(text: string): THREE.Sprite {
   const canvas = document.createElement("canvas");
@@ -60,7 +61,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPres
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x161c18);
     scene.fog = new THREE.Fog(0x161c18, 18, 48);
-    const camera = new THREE.PerspectiveCamera(44, 1, .1, 100);
+    const camera = new THREE.PerspectiveCamera(44, 1, .1, 100);\n    cameraRef.current = camera;
     const cameraPositions = { wide: [8, 7, 11], close: [4, 3, 6], overhead: [0, 15, .1], reverse: [-8, 6, -10] } as const;
     const cameraPosition = cameraPositions[cameraPreset];
     camera.position.set(cameraPosition[0], cameraPosition[1], cameraPosition[2]);
@@ -71,7 +72,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPres
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setClearColor(0x161c18);
     element.appendChild(renderer.domElement);
-    const controls = new OrbitControls(camera, renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);\n    controlsRef.current = controls;
     controls.target.set(0, 1, 0);
     controls.enableDamping = true;
     controls.maxPolarAngle = Math.PI * .48;
@@ -109,7 +110,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPres
     const rigs = castMembers.map((member, index) =>
       makeCharacter(index, castMembers.length, member.character_name_snapshot || member.actor_name_snapshot || "Cast")
     );
-    rigs.forEach(rig => scene.add(rig));
+    rigs.forEach(rig => scene.add(rig));\n    rigsRef.current = new Map(castMembers.map((member, index) => [member.id, rigs[index]]));
 
     const resize = () => {
       const width = Math.max(1, element.clientWidth);
@@ -127,7 +128,7 @@ export default function ThreeSceneViewport({ castMembers, sceneTitle, cameraPres
     };
     animate();
     return () => {
-      cancelAnimationFrame(frame); observer.disconnect(); controls.dispose();
+      cancelAnimationFrame(frame); observer.disconnect(); controls.dispose();\n      rigsRef.current.clear(); cameraRef.current = null; controlsRef.current = null;
       scene.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
           if (object instanceof THREE.Mesh) object.geometry.dispose();
