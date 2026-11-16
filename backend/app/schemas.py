@@ -1743,3 +1743,9 @@ class HeadlessVideoRenderCreate(BaseModel):
     width: Literal[1280, 1920] = 1280
     height: Literal[720, 1080] = 720
     fps: Literal[24, 30] = 30
+
+    @model_validator(mode="after")
+    def validate_resolution_pair(self):
+        if (self.width, self.height) not in ((1280, 720), (1920, 1080)):
+            raise ValueError("Supported headless resolutions are 1280x720 and 1920x1080.")
+        return self
