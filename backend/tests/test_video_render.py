@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.database import SessionLocal
 from app.models import VideoRenderJob
-from app.video_render_worker import _probe_video, _run_ffmpeg, process_job
+from app.video_render_worker import _probe_video, _render_headless_video, _run_ffmpeg, process_job
 from test_audio_pipeline import _production_sequence
 
 client = TestClient(app)
@@ -153,3 +153,87 @@ def test_video_render_worker_persists_mp4_asset_and_authenticated_download(monke
     assert len(assets.json()) == 1
     assert assets.json()[0]["title"] == "Server rendered final"
     assert assets.json()[0]["sha256"] == completed["output_sha256"]
+
+
+def test_headless_render_job_snapshots_sequence_and_rejects_stale_revision():
+    project_id, sequence = _production_sequence("Headless EDL snapshot")
+    sequence_url = f"/api/projects/{project_id}/edit-sequences/{sequence['id']}"
+    current = client.get(sequence_url)
+    assert current.status_code == 200
+    sequence_data = current.json()
+    assert len(sequence_data["items"]) == 1
+    item = sequence_data["items"][0]
+
+    queued = client.post(
+        f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/headless-video-renders",
+        json={
+            "title": "Headless sequence master",
+            "sequence_revision": sequence_data["revision_number"],
+            "width": 1280, "height": 720, "fps": 24,
+        },
+    )
+    assert queued.status_code == 202, queued.text
+    job_data = queued.json()
+    assert job_data["status"] == "queued"
+    assert job_data["render_mode"] == "headless"
+    assert job_data["input_size_bytes"] is None
+
+    with SessionLocal() as db:
+        job = db.get(VideoRenderJob, job_data["id"])
+        manifest = job.render_manifest
+        assert manifest["schema_version"] == 1
+        assert manifest["sequence_revision"] == sequence_data["revision_number"]
+        assert manifest["duration_ms"] == item["out_ms"] - item["in_ms"]
+        assert manifest["clips"][0]["take_id"] == item["take_id"]
+        assert manifest["clips"][0]["source_in_ms"] == item["in_ms"]
+        assert manifest["clips"][0]["source_out_ms"] == item["out_ms"]
+        assert manifest["clips"][0]["cast_members"]
+        assert manifest["clips"][0]["events"]
+
+    changed = client.patch(
+        f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/items/{item['id']}",
+        json={"title_overlay": "A later editorial change"},
+    )
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["revision_number"] == sequence_data["revision_number"] + 1
+    with SessionLocal() as db:
+        stored_job = db.get(VideoRenderJob, job_data["id"])
+        assert stored_job.render_manifest == manifest
+
+    stale = client.post(
+        f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/headless-video-renders",
+        json={"title": "Stale", "sequence_revision": sequence_data["revision_number"]},
+    )
+    assert stale.status_code == 409
+
+
+@pytest.mark.skipif(
+    not os.getenv("STORYFORGE_RENDER_FRONTEND_URL"),
+    reason="Headless frontend server is not configured in this test environment",
+)
+def test_headless_renderer_produces_h264_mp4(tmp_path):
+    manifest = {
+        "title": "Headless renderer integration",
+        "width": 1280, "height": 720, "fps": 24, "duration_ms": 1000,
+        "clips": [{
+            "clip_id": "clip-1", "scene_title": "Headless test scene",
+            "timeline_start_ms": 0, "source_in_ms": 0, "source_out_ms": 1000,
+            "duration_ms": 1000, "transition": "cut", "title_overlay": "Headless frame",
+            "camera_snapshot": {"preset": "wide"},
+            "cast_members": [{
+                "id": "cast-1", "actor_name_snapshot": "Test actor",
+                "character_name_snapshot": "Test character", "role_label_snapshot": "Lead",
+            }],
+            "events": [{
+                "timestamp_ms": 0, "event_type": "transform",
+                "cast_member_instance_id": "cast-1",
+                "payload": {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+            }],
+        }],
+    }
+    output = tmp_path / "headless.mp4"
+    _render_headless_video(manifest, output)
+    metadata = _probe_video(output)
+    assert output.is_file() and output.stat().st_size > 0
+    assert metadata["width"] == 1280 and metadata["height"] == 720
+    assert 900 <= metadata["duration_ms"] <= 1100
