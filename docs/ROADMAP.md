@@ -153,8 +153,11 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Encode H.264/yuv420p video and AAC audio into MP4 using a dedicated FFmpeg worker.
 - [x] Persist completed MP4 files as immutable production video assets with duration, dimensions, size and SHA-256 metadata.
 - [x] Expose project-scoped asset listing and authenticated downloads, with queued/running/completed/failed job states and interrupted-job recovery.
-- [ ] Render scenes headlessly from EDL/replay data without a browser capture upload.
-- [ ] Implement native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
+- [x] Snapshot draft EDL clips, source trims, cast, camera snapshots and ordered performance events into immutable headless render jobs.
+- [x] Render the Three.js production set in headless Chromium without a browser capture upload, reconstructing supported transform/camera events and title overlays.
+- [x] Encode frame sequences to H.264 MP4 at 720p/1080p and 24/30 fps using the dedicated video worker.
+- [ ] Add audio-master muxing to headless renders, native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
+- [ ] Replace procedural stand-ins with production character rigs and deterministic physics/animation replay.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
