@@ -17,6 +17,7 @@ router = APIRouter(tags=["production video"])
 
 MAX_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024
 MAX_VIDEO_DURATION_MS = 8 * 60 * 60 * 1000
+MAX_HEADLESS_DURATION_MS = 10 * 60 * 1000
 
 
 def _job_or_404(db: Session, project_id: uuid.UUID, job_id: uuid.UUID) -> VideoRenderJob:
@@ -226,8 +227,8 @@ def create_headless_scene_render(
             total_duration -= max(0, overlap)
         else:
             clips[index]["transition_duration_ms"] = 0
-    if total_duration <= 0 or total_duration > MAX_VIDEO_DURATION_MS:
-        raise HTTPException(status_code=422, detail="The assembled scene render duration is outside the supported range.")
+    if total_duration <= 0 or total_duration > MAX_HEADLESS_DURATION_MS:
+        raise HTTPException(status_code=422, detail="Headless animatic renders are limited to 10 minutes per export.")
 
     manifest = {
         "format_version": 1, "renderer": "storyforge-headless-animatic-v1",
