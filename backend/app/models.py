@@ -1081,3 +1081,32 @@ class AudioClip(Base):
     fade_in_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     fade_out_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+
+class AudioRenderJob(Base):
+    """Durable request to render one immutable audio-mix snapshot."""
+    __tablename__ = "audio_render_jobs"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'running', 'completed', 'failed')", name="ck_audio_render_jobs_status"),
+        CheckConstraint("output_size_bytes IS NULL OR output_size_bytes > 0", name="ck_audio_render_jobs_output_size"),
+        CheckConstraint("duration_ms IS NULL OR duration_ms >= 0", name="ck_audio_render_jobs_duration"),
+        Index("ix_audio_render_jobs_project_created", "project_id", "created_at"),
+        Index("ix_audio_render_jobs_status_created", "status", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    render_manifest: Mapped[dict] = mapped_column(JSON, nullable=False)
+    output_storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    output_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    output_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
