@@ -26,7 +26,7 @@ A `PerformanceTake` belongs to one SceneRun and stores a title, camera snapshot,
 
 Supported event types include transforms, gestures, expressions, voice markers, camera changes and cues. Selected/finalized takes are immutable. Selecting a take for editorial use deselects the previous selected take for that storyboard scene. Event data can be retrieved in sequence for a future deterministic playback/reconstruction layer.
 
-The browser MVP provides a live Three.js set, selectable virtual-camera presets, manual structured event entry, and camera-cut recording. It does not yet stream every physics/animation frame or play back an event stream into a reconstructed scene.
+The browser MVP provides a live Three.js set, selectable virtual-camera presets, manual structured event entry, and camera-cut recording. Finalized takes expose an ordered replay payload with their original state/camera snapshots and cast-member identity snapshots. The browser supports play/pause, seeking, stepping between events, position interpolation between transform samples, rotation/scale application, and camera-preset changes.\n\nReplay is deliberately capability-aware: it reconstructs only data explicitly present in event payloads. It does not claim deterministic physics replay, continuous capture between recorded events, skeletal animation, lip-sync, or audio playback. A take with sparse manually entered events will therefore show sparse motion.\n\nDirector annotations are timecoded to a take and can optionally reference a performance event or cast-member instance. Notes retain author identity and open/resolved state; owners/editors can resolve notes, while collaborators can create and edit their own notes.
 
 ## M3 — Editorial assembly
 
