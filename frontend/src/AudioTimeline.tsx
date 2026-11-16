@@ -37,6 +37,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 const root = (projectId: string) => `/api/projects/${projectId}`;
 
+async function readAudioDuration(file: File): Promise<number | null> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const audio = new Audio();
+    const finish = (duration: number | null) => {
+      audio.removeAttribute("src");
+      URL.revokeObjectURL(url);
+      resolve(duration);
+    };
+    audio.addEventListener("loadedmetadata", () => {
+      finish(Number.isFinite(audio.duration) && audio.duration > 0 ? Math.round(audio.duration * 1000) : null);
+    }, { once: true });
+    audio.addEventListener("error", () => finish(null), { once: true });
+    audio.src = url;
+  });
+}
+
 export default function AudioTimeline({ projectId, sequenceId, editable, videoDurationMs }: Props) {
   const [assets, setAssets] = useState<AudioAsset[]>([]);
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
@@ -120,7 +137,10 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
       const data = new FormData();
       data.append("file", file);
       data.append("title", assetTitle.trim());
-      if (Number(assetDuration) > 0) data.append("duration_ms", String(Math.round(Number(assetDuration))));
+      const measuredDuration = Number(assetDuration) > 0
+        ? Math.round(Number(assetDuration))
+        : await readAudioDuration(file);
+      if (measuredDuration && measuredDuration > 0) data.append("duration_ms", String(measuredDuration));
       await request<AudioAsset>(`${root(projectId)}/production/media`, { method: "POST", body: data });
       await refresh();
       setAssetTitle(""); setAssetDuration(""); form.reset();
