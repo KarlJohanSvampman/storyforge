@@ -815,3 +815,46 @@ a { color: inherit; text-decoration: none; }
 .replay-note-list { display: grid; gap: 6px; margin-top: 8px; }
 .replay-note-list article { padding: 8px; border-left: 2px solid #9cac70; background: #202a21; }
 .replay-note-list p { margin: 5px 0; color: #dce5d5; font-size: 9px; }
+
+
+/* M3.2 multitrack audio workflow */
+.audio-timeline { margin-top: 16px; padding: 13px; border: 1px solid #465440; border-radius: 6px; background: #171f19; }
+.audio-timeline-heading { display: flex; justify-content: space-between; align-items: center; color: #dfe8d6; }
+.audio-timeline-heading h4 { margin: 5px 0 10px; font: 500 18px "Playfair Display",serif; }
+.audio-library-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin: 10px 0; }
+.audio-form { display: grid; align-content: start; gap: 8px; padding: 10px; border: 1px solid #3d4939; border-radius: 5px; background: #202a21; }
+.audio-form > strong { color: #dfe8d6; font-size: 9px; }
+.audio-form label,.audio-clip-form label { display: grid; gap: 4px; color: #aab8a0; font-size: 8px; text-transform: uppercase; letter-spacing: .4px; }
+.audio-form input,.audio-form select,.audio-clip-form input,.audio-clip-form select { width: 100%; min-width: 0; padding: 7px; border: 1px solid #465240; border-radius: 4px; background: #171e18; color: #dce5d5; font: 9px "DM Sans",sans-serif; }
+.audio-asset-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 10px 0; color: #93a18a; font-size: 8px; }
+.audio-asset-strip strong { color: #d8e2cf; }
+.audio-asset-strip span { padding: 5px 7px; border: 1px solid #3e4b3b; border-radius: 4px; background: #202a21; }
+.audio-preview-controls { display: grid; grid-template-columns: auto auto minmax(100px,1fr); align-items: center; gap: 9px; margin: 12px 0; }
+.audio-preview-controls strong { color: #dce5d5; font-size: 8px; white-space: nowrap; }
+.audio-preview-controls input { width: 100%; accent-color: #a9bb78; }
+.audio-track-list { display: grid; gap: 8px; }
+.audio-track { padding: 10px; border: 1px solid #46523f; border-left: 3px solid #a9bb78; border-radius: 5px; background: #202a21; }
+.audio-track-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.audio-track-header > div:first-child { display: grid; gap: 4px; }
+.audio-track-header strong { color: #e0e8d8; font-size: 9px; }
+.audio-track-header small { color: #92a087; font-size: 8px; text-transform: uppercase; }
+.audio-track-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.audio-track-actions label { display: flex; align-items: center; gap: 4px; color: #aab8a0; font-size: 8px; }
+.audio-track-actions input { width: 74px; accent-color: #a9bb78; }
+.audio-toggle { display: grid; place-items: center; width: 26px; height: 25px; border: 1px solid #475440; border-radius: 4px; background: #19231b; color: #9eac94; cursor: pointer; }
+.audio-toggle.active { border-color: #b6c77c; background: #39452e; color: #e6efcf; }
+.audio-clip-list { display: grid; gap: 5px; margin: 8px 0; }
+.audio-clip-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 7px; border: 1px solid #394738; border-radius: 4px; background: #18211a; }
+.audio-clip-row span { color: #dbe5d3; font-size: 8px; font-weight: 600; }
+.audio-clip-row small { color: #8f9e85; font-size: 7px; }
+.audio-clip-form { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)) auto; align-items: end; gap: 7px; margin-top: 9px; padding-top: 9px; border-top: 1px solid #3b4839; }
+.audio-clip-form button { white-space: nowrap; }
+.production-error { color: #e5a9a0; font-size: 9px; }
+.production-notice { color: #bfd59a; font-size: 9px; }
+@media (max-width: 760px) {
+  .audio-library-grid { grid-template-columns: 1fr; }
+  .audio-track-header { align-items: flex-start; flex-direction: column; }
+  .audio-clip-form { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .audio-preview-controls { grid-template-columns: auto 1fr; }
+  .audio-preview-controls input { grid-column: 1 / -1; }
+}
