@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse
@@ -89,7 +88,6 @@ def _build_snapshot(db: Session, project: Project, sequence_id: uuid.UUID) -> di
     return {
         "format": "storyforge-audio-mix", "format_version": 1,
         "project_id": str(project.id), "sequence_id": str(sequence_id),
-        "sequence_revision": db.scalar(select(Project.id).where(Project.id == project.id)) and None,
         "duration_ms": duration_ms, "sample_rate": 48000, "channels": 2,
         "tracks": snapshot_tracks, "clip_count": clip_count,
         "created_at": datetime.now(timezone.utc).isoformat(),
