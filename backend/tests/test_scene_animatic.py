@@ -86,7 +86,8 @@ def test_scene_render_endpoint_snapshots_selected_take_and_revision(monkeypatch,
         assert manifest["sequence_revision"] == sequence["revision_number"]
         assert manifest["clips"][0]["scene_title"]
         assert manifest["clips"][0]["cast_members"]
-        assert manifest["clips"][0]["events"] == []
+        assert [event["event_type"] for event in manifest["clips"][0]["events"]] == ["cue", "camera"]
+        assert manifest["clips"][0]["events"][1]["payload"]["preset"] == "close"
         snapshot = {
             "project_id": str(stored.project_id), "sequence_id": str(stored.sequence_id),
             "sequence_revision": stored.sequence_revision, "title": stored.title,
