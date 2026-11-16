@@ -968,7 +968,9 @@ class VideoRenderJob(Base):
     __tablename__ = "video_render_jobs"
     __table_args__ = (
         CheckConstraint("status IN ('queued', 'running', 'completed', 'failed')", name="ck_video_render_jobs_status"),
-        CheckConstraint("input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
+        CheckConstraint("input_size_bytes IS NULL OR input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
+        CheckConstraint("render_mode IN ('upload', 'headless')", name="ck_video_render_jobs_render_mode"),
+        CheckConstraint("(render_mode = 'upload' AND input_storage_key IS NOT NULL AND input_size_bytes IS NOT NULL AND input_sha256 IS NOT NULL AND render_manifest IS NULL) OR (render_mode = 'headless' AND input_storage_key IS NULL AND input_size_bytes IS NULL AND input_sha256 IS NULL AND render_manifest IS NOT NULL)", name="ck_video_render_jobs_render_source"),
         CheckConstraint("output_size_bytes IS NULL OR output_size_bytes > 0", name="ck_video_render_jobs_output_size"),
         CheckConstraint("expected_duration_ms > 0", name="ck_video_render_jobs_expected_duration"),
         Index("ix_video_render_jobs_project_created", "project_id", "created_at"),
