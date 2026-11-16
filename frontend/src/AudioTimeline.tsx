@@ -364,6 +364,18 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
       <strong>{Math.round(playheadMs)} / {durationMs} ms</strong>
       <input aria-label="Audio mix playhead" type="range" min="0" max={Math.max(1, durationMs)} value={Math.min(playheadMs, durationMs)} onChange={event => seek(Number(event.target.value))} />
     </div>
+    <div className="audio-render-panel">
+      <div><strong>Offline master render</strong><small>Render the current immutable mix snapshot to a 48 kHz stereo WAV.</small></div>
+      {editable && <button type="button" className="secondary-button" disabled={busy || tracks.every(track => track.muted || track.clips.length === 0)} onClick={() => void createRender()}><AudioLines size={13} /> Render mastered WAV</button>}
+      {renderJobs.length > 0 && <div className="audio-render-jobs">
+        {renderJobs.map(job => <div className="audio-render-job" key={job.id}>
+          <span className={"render-status " + job.status}>{job.status}</span>
+          <small>Revision {job.sequence_revision} · {job.duration_ms ? job.duration_ms + " ms" : "duration pending"}</small>
+          {job.status === "completed" && job.download_url && <a className="secondary-button" href={job.download_url}><Download size={12} /> Download WAV</a>}
+          {job.status === "failed" && <small className="production-error">{job.error_message}</small>}
+        </div>)}
+      </div>}
+    </div>
     <div className="audio-track-list">
       {tracks.map(track => <article className="audio-track" key={track.id}>
         <div className="audio-track-header">
