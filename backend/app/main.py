@@ -15,6 +15,7 @@ from .production_control import router as production_control_router
 from .editorial import router as editorial_router
 from .performance_playback import router as performance_playback_router
 from .audio import router as audio_router
+from .audio_render import router as audio_render_router
 from .projects import CurrentUser
 
 app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.14.0")
@@ -40,6 +41,7 @@ app.include_router(production_control_router)
 app.include_router(editorial_router)
 app.include_router(performance_playback_router)
 app.include_router(audio_router)
+app.include_router(audio_render_router)
 
 
 @app.get("/api/me", tags=["users"])

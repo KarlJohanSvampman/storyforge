@@ -50,6 +50,14 @@ The browser audio timeline supports overlapping clips across tracks. Its Web Aud
 
 EDL format version 2 adds audio track and clip snapshots, source asset identifiers, checksums, content types, download routes, source ranges, timeline positions, gains, pans, mute/solo state and fade automation. The export remains an immutable instruction manifest, not a rendered audio or video file.
 
+## M3.3 — Offline audio rendering
+
+An audio render request creates a durable `AudioRenderJob` containing a revision-stamped, immutable snapshot of all audible tracks and clips. The snapshot records source asset identifiers and private storage keys, source ranges, timeline offsets, track/clip gain, stereo pan, mute/solo selection, fades, output sample rate and total duration. Later edits to the sequence do not alter a queued render.
+
+A dedicated Docker worker claims queued jobs with a database row lock and renders the mix through FFmpeg to 48 kHz, stereo, 24-bit PCM WAV. It applies source trimming, timeline delay, gain, pan, fade envelopes, summing, padding to the planned timeline duration and a final limiter. Completed outputs are stored in the shared production-media volume and recorded with size, SHA-256 checksum and duration. Project members can poll job state and download completed WAVs through authenticated routes.
+
+Jobs move through queued, running, completed or failed states. Failures retain a bounded diagnostic message. A render is a master audio deliverable only; it does not render video, and it does not mutate source media or the edit sequence.
+
 ## Main API routes
 
 - `POST /api/projects/{project_id}/production/activate` — owner-controlled phase handoff.

@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { AudioLines, Pause, Play, Plus, Upload, Volume2, VolumeX } from "lucide-react";
+import { AudioLines, Download, Pause, Play, Plus, Upload, Volume2, VolumeX } from "lucide-react";
 
 type AudioAsset = {
   id: string; title: string; original_filename: string; content_type: string;
@@ -16,6 +16,7 @@ type AudioTrack = {
   id: string; name: string; role: "dialogue" | "music" | "effects" | "ambience" | "voiceover";
   track_order: number; gain: number; pan: number; muted: boolean; solo: boolean; clips: AudioClip[];
 };
+type AudioRenderJob = { id: string; status: "queued" | "running" | "completed" | "failed"; sequence_revision: number; duration_ms: number | null; output_size_bytes: number | null; output_sha256: string | null; error_message: string; download_url: string | null; created_at: string; completed_at: string | null };
 type Props = { projectId: string; sequenceId: string; editable: boolean; videoDurationMs: number };
 
 const roles: AudioTrack["role"][] = ["dialogue", "music", "effects", "ambience", "voiceover"];
@@ -57,6 +58,7 @@ async function readAudioDuration(file: File): Promise<number | null> {
 export default function AudioTimeline({ projectId, sequenceId, editable, videoDurationMs }: Props) {
   const [assets, setAssets] = useState<AudioAsset[]>([]);
   const [tracks, setTracks] = useState<AudioTrack[]>([]);
+  const [renderJobs, setRenderJobs] = useState<AudioRenderJob[]>([]);
   const [assetTitle, setAssetTitle] = useState("");
   const [assetDuration, setAssetDuration] = useState("");
   const [trackName, setTrackName] = useState("Music");
@@ -79,12 +81,14 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
   const durationMs = Math.max(videoDurationMs, audioDurationMs);
 
   async function refresh() {
-    const [assetRows, trackRows] = await Promise.all([
+    const [assetRows, trackRows, jobRows] = await Promise.all([
       request<AudioAsset[]>(`${root(projectId)}/production/media`),
       request<AudioTrack[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-tracks`),
+      request<AudioRenderJob[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`),
     ]);
     setAssets(assetRows);
     setTracks(trackRows);
+    setRenderJobs(jobRows);
   }
 
   useEffect(() => {
@@ -94,14 +98,29 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     setPlayheadMs(0);
     setAssets([]);
     setTracks([]);
+    setRenderJobs([]);
     Promise.all([
       request<AudioAsset[]>(`${root(projectId)}/production/media`),
       request<AudioTrack[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-tracks`),
-    ]).then(([assetRows, trackRows]) => {
-      if (alive) { setAssets(assetRows); setTracks(trackRows); }
+      request<AudioRenderJob[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`),
+    ]).then(([assetRows, trackRows, jobRows]) => {
+      if (alive) { setAssets(assetRows); setTracks(trackRows); setRenderJobs(jobRows); }
     }).catch(err => { if (alive) setError(err instanceof Error ? err.message : "Could not load audio timeline."); });
     return () => { alive = false; };
   }, [projectId, sequenceId]);
+
+  const hasActiveRender = renderJobs.some(job => job.status === "queued" || job.status === "running");
+  const hasSoloTrack = tracks.some(track => track.solo);
+  const hasAudibleTrack = tracks.some(track => !track.muted && (!hasSoloTrack || track.solo) && track.clips.length > 0);
+  useEffect(() => {
+    if (!hasActiveRender) return;
+    const timer = window.setInterval(() => {
+      request<AudioRenderJob[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`)
+        .then(setRenderJobs)
+        .catch(err => setError(err instanceof Error ? err.message : "Could not refresh audio render status."));
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [projectId, sequenceId, hasActiveRender]);
 
   function stopSources() {
     sourcesRef.current.forEach(source => { try { source.stop(); } catch { /* already stopped */ } });
@@ -213,6 +232,16 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     finally { setBusy(false); }
   }
 
+  async function createRender() {
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const job = await request<AudioRenderJob>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`, { method: "POST" });
+      setRenderJobs(rows => [job, ...rows.filter(row => row.id !== job.id)]);
+      setNotice("Offline audio render queued. The renderer will process it in the background.");
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not queue audio render."); }
+    finally { setBusy(false); }
+  }
+
   async function loadBuffer(clip: AudioClip): Promise<AudioBuffer> {
     const cached = buffersRef.current.get(clip.media_asset_id);
     if (cached) return cached;
@@ -305,7 +334,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
 
   return <section className="audio-timeline">
     <div className="audio-timeline-heading">
-      <div><div className="section-kicker">M3.2 · MEDIA & SOUND</div><h4>Audio timeline</h4></div>
+      <div><div className="section-kicker">M3.2–M3.3 · MEDIA & SOUND</div><h4>Audio timeline</h4></div>
       <AudioLines size={18} />
     </div>
     {error && <p className="production-error">{error}</p>}
@@ -336,6 +365,18 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
       </button>
       <strong>{Math.round(playheadMs)} / {durationMs} ms</strong>
       <input aria-label="Audio mix playhead" type="range" min="0" max={Math.max(1, durationMs)} value={Math.min(playheadMs, durationMs)} onChange={event => seek(Number(event.target.value))} />
+    </div>
+    <div className="audio-render-panel">
+      <div><strong>Offline WAV render</strong><small>Render the current immutable mix snapshot to a 48 kHz stereo WAV.</small></div>
+      {editable && <button type="button" className="secondary-button" disabled={busy || !hasAudibleTrack} onClick={() => void createRender()}><AudioLines size={13} /> Render mix WAV</button>}
+      {renderJobs.length > 0 && <div className="audio-render-jobs">
+        {renderJobs.map(job => <div className="audio-render-job" key={job.id}>
+          <span className={"render-status " + job.status}>{job.status}</span>
+          <small>Revision {job.sequence_revision} · {job.duration_ms ? job.duration_ms + " ms" : "duration pending"}</small>
+          {job.status === "completed" && job.download_url && <a className="secondary-button" href={job.download_url}><Download size={12} /> Download WAV</a>}
+          {job.status === "failed" && <small className="production-error">{job.error_message}</small>}
+        </div>)}
+      </div>}
     </div>
     <div className="audio-track-list">
       {tracks.map(track => <article className="audio-track" key={track.id}>

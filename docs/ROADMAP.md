@@ -142,7 +142,10 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Place non-destructive audio clips with source trims, timeline offsets and fade-in/fade-out automation.
 - [x] Preview synchronized multitrack mixes in the browser using the sequence millisecond timeline and Web Audio API.
 - [x] Include immutable audio source, timing and mix instructions in revision-stamped EDL exports.
-- [ ] Render and export a mastered audio mix and finished video file.
+- [x] Queue durable offline audio render jobs from immutable mix snapshots.
+- [x] Render 48 kHz stereo PCM WAV masters with FFmpeg, source trims, timeline offsets, gain, pan, mute/solo and fade automation.
+- [x] Run renders in a dedicated Docker worker and expose job status, output checksums and authenticated WAV downloads.
+- [ ] Render and export a finished video file.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
