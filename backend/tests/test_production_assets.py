@@ -18,7 +18,7 @@ def _glb():
 
 
 def _character(project_id):
-    created = client.post(f"/api/projects/{project_id}/characters", json={"name": "Lead"})
+    created = client.post(f"/api/projects/{project_id}/storyboard/characters", json={"name": "Lead"})
     assert created.status_code == 201, created.text
     return created.json()["id"]
 
