@@ -46,7 +46,6 @@ def _job_read(job: VideoRenderJob) -> VideoRenderJobRead:
         input_size_bytes=job.input_size_bytes, output_size_bytes=job.output_size_bytes,
         output_sha256=job.output_sha256, duration_ms=job.duration_ms,
         width=job.width, height=job.height, error_message=job.error_message,
-        asset_id=None,
         download_url=(
             f"/api/projects/{job.project_id}/video-renders/{job.id}/download"
             if job.status == "completed" and job.output_storage_key else None
