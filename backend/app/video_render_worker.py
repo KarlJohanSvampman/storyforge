@@ -100,23 +100,25 @@ def _render_headless_video(manifest: dict, output_path: Path) -> None:
                     "--enable-unsafe-swiftshader",
                 ],
             )
-            page = browser.new_page(
-                viewport={"width": width, "height": height},
-                device_scale_factor=1,
-            )
-            page.goto(f"{frontend_url}/headless-render.html", wait_until="networkidle", timeout=120000)
-            page.wait_for_function("typeof window.storyforgeRenderFrame === 'function'", timeout=120000)
-            page.evaluate("manifest => { window.__storyforgeManifest = manifest; }", manifest)
-            frame_count = int((duration_ms * fps + 999) // 1000)
-            canvas = page.locator("#frame")
-            for frame_number in range(frame_count):
-                timeline_ms = min(duration_ms, frame_number * 1000 / fps)
-                page.evaluate(
-                    "time => window.storyforgeRenderFrame(window.__storyforgeManifest, time)",
-                    timeline_ms,
+            try:
+                page = browser.new_page(
+                    viewport={"width": width, "height": height},
+                    device_scale_factor=1,
                 )
-                canvas.screenshot(path=str(frames / f"frame-{frame_number:06d}.png"), animations="disabled")
-            browser.close()
+                page.goto(f"{frontend_url}/headless-render.html", wait_until="networkidle", timeout=120000)
+                page.wait_for_function("typeof window.storyforgeRenderFrame === 'function'", timeout=120000)
+                page.evaluate("manifest => { window.__storyforgeManifest = manifest; }", manifest)
+                frame_count = int((duration_ms * fps + 999) // 1000)
+                canvas = page.locator("#frame")
+                for frame_number in range(frame_count):
+                    timeline_ms = min(duration_ms, frame_number * 1000 / fps)
+                    page.evaluate(
+                        "time => window.storyforgeRenderFrame(window.__storyforgeManifest, time)",
+                        timeline_ms,
+                    )
+                    canvas.screenshot(path=str(frames / f"frame-{frame_number:06d}.png"), animations="disabled")
+            finally:
+                browser.close()
 
         ffmpeg = shutil.which("ffmpeg")
         if not ffmpeg:
