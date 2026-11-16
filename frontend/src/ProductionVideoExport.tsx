@@ -23,7 +23,7 @@ type AudioRenderJob = {
   sequence_revision: number; output_size_bytes: number | null;
 };
 type VideoRenderJob = {
-  id: string; status: "queued" | "running" | "completed" | "failed";
+  id: string; status: "queued" | "running" | "completed" | "failed"; render_mode: "upload" | "headless";
   sequence_revision: number; input_size_bytes: number; output_size_bytes: number | null;
   output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
   error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
@@ -295,6 +295,37 @@ export default function ProductionVideoExport({
     }
   }
 
+  async function startHeadlessRender() {
+    if (loading || rendering || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length) return;
+    setError("");
+    setVideoJob(null);
+    setProgress(0);
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/edit-sequences/${sequenceId}/headless-video-renders`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: sequenceName,
+            sequence_revision: sequenceRevision,
+            width: 1280,
+            height: 720,
+            fps: 30,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        throw new Error(body?.detail || `Could not queue headless render (${response.status}).`);
+      }
+      setVideoJob(await response.json() as VideoRenderJob);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start headless video rendering.");
+    }
+  }
+
   function cancelRender() {
     cancelRef.current = true;
   }
@@ -335,9 +366,12 @@ export default function ProductionVideoExport({
         {rendering ? <LoaderCircle size={14} className="spin" /> : <Video size={14} />}
         {rendering ? `Capturing ${progress}%` : videoJob?.status === "queued" || videoJob?.status === "running" ? "Encoding MP4…" : videoJob?.status === "completed" ? "MP4 ready — render again" : "Render and store MP4"}
       </button>
+      <button type="button" className="quiet-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length} onClick={() => void startHeadlessRender()}>
+        {videoJob?.render_mode === "headless" && videoJob.status === "queued" ? "Queueing…" : "Render headlessly"}
+      </button>
       {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel capture</button>}
       {videoJob?.status === "completed" && videoJob.download_url && <a className="secondary-button" href={videoJob.download_url}><Download size={13} /> Download MP4</a>}
-      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>Server encoding: {videoJob.status}</small>}
+      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>{videoJob.render_mode === "headless" ? "Headless rendering" : "MP4 encoding"}: {videoJob.status}</small>}
       {videoJob?.status === "failed" && <small className="production-error">{videoJob.error_message}</small>}
       {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB WebM source</small>}
     </div>
