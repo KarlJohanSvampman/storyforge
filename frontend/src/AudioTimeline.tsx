@@ -332,7 +332,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
 
   return <section className="audio-timeline">
     <div className="audio-timeline-heading">
-      <div><div className="section-kicker">M3.2 · MEDIA & SOUND</div><h4>Audio timeline</h4></div>
+      <div><div className="section-kicker">M3.2–M3.3 · MEDIA & SOUND</div><h4>Audio timeline</h4></div>
       <AudioLines size={18} />
     </div>
     {error && <p className="production-error">{error}</p>}
@@ -365,8 +365,8 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
       <input aria-label="Audio mix playhead" type="range" min="0" max={Math.max(1, durationMs)} value={Math.min(playheadMs, durationMs)} onChange={event => seek(Number(event.target.value))} />
     </div>
     <div className="audio-render-panel">
-      <div><strong>Offline master render</strong><small>Render the current immutable mix snapshot to a 48 kHz stereo WAV.</small></div>
-      {editable && <button type="button" className="secondary-button" disabled={busy || tracks.every(track => track.muted || track.clips.length === 0)} onClick={() => void createRender()}><AudioLines size={13} /> Render mastered WAV</button>}
+      <div><strong>Offline WAV render</strong><small>Render the current immutable mix snapshot to a 48 kHz stereo WAV.</small></div>
+      {editable && <button type="button" className="secondary-button" disabled={busy || tracks.every(track => track.muted || track.clips.length === 0)} onClick={() => void createRender()}><AudioLines size={13} /> Render mix WAV</button>}
       {renderJobs.length > 0 && <div className="audio-render-jobs">
         {renderJobs.map(job => <div className="audio-render-job" key={job.id}>
           <span className={"render-status " + job.status}>{job.status}</span>
