@@ -39,7 +39,7 @@ def _run_ffmpeg(input_path: Path, output_path: Path) -> None:
     if not ffmpeg:
         raise RuntimeError("FFmpeg is not installed in the video renderer container.")
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = output_path.with_suffix(".mp4.part")
+    temporary = output_path.with_name(output_path.stem + ".part.mp4")
     command = [
         ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
         "-i", str(input_path),
