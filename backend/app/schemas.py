@@ -1585,3 +1585,93 @@ class ProductionPhaseActivate(BaseModel):
     @classmethod
     def clean_production_phase_reason(cls, value: str) -> str:
         return value.strip() or "Storyboard and casting approved for production."
+
+
+
+AudioTrackRole = Literal["dialogue", "music", "effects", "ambience", "voiceover"]
+
+
+class ProductionMediaAssetRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    title: str
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    sha256: str
+    duration_ms: int | None
+    status: str
+    download_url: str
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+class AudioTrackCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    role: AudioTrackRole = "effects"
+    gain: float = Field(default=1.0, ge=0, le=2)
+    pan: float = Field(default=0.0, ge=-1, le=1)
+
+
+class AudioTrackUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    role: AudioTrackRole | None = None
+    gain: float | None = Field(default=None, ge=0, le=2)
+    pan: float | None = Field(default=None, ge=-1, le=1)
+    muted: bool | None = None
+    solo: bool | None = None
+
+
+class AudioClipCreate(BaseModel):
+    media_asset_id: uuid.UUID
+    source_in_ms: int = Field(default=0, ge=0)
+    source_out_ms: int = Field(gt=0)
+    timeline_start_ms: int = Field(default=0, ge=0)
+    gain: float = Field(default=1.0, ge=0, le=2)
+    fade_in_ms: int = Field(default=0, ge=0)
+    fade_out_ms: int = Field(default=0, ge=0)
+
+
+class AudioClipUpdate(BaseModel):
+    source_in_ms: int | None = Field(default=None, ge=0)
+    source_out_ms: int | None = Field(default=None, gt=0)
+    timeline_start_ms: int | None = Field(default=None, ge=0)
+    gain: float | None = Field(default=None, ge=0, le=2)
+    fade_in_ms: int | None = Field(default=None, ge=0)
+    fade_out_ms: int | None = Field(default=None, ge=0)
+
+
+class AudioClipRead(BaseModel):
+    id: uuid.UUID
+    track_id: uuid.UUID
+    media_asset_id: uuid.UUID
+    asset_title: str
+    original_filename: str
+    content_type: str
+    download_url: str
+    asset_duration_ms: int | None
+    clip_order: int
+    source_in_ms: int
+    source_out_ms: int
+    timeline_start_ms: int
+    gain: float
+    fade_in_ms: int
+    fade_out_ms: int
+    created_at: datetime
+
+
+class AudioTrackRead(BaseModel):
+    id: uuid.UUID
+    sequence_id: uuid.UUID
+    name: str
+    role: AudioTrackRole
+    track_order: int
+    gain: float
+    pan: float
+    muted: bool
+    solo: bool
+    created_by_user_id: uuid.UUID
+    created_at: datetime
+    updated_at: datetime
+    clips: list[AudioClipRead] = Field(default_factory=list)
