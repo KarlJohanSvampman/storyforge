@@ -152,3 +152,12 @@ Tagline: **Many minds. Many stories. Endless interpretations.**
 - **M4.3:** A dedicated Playwright/Chromium worker renders immutable scene manifests through Three.js WebGL without using the user's browser. The interactive viewport and headless renderer share the same procedural character-rig builder; the headless stage includes 3D set geometry, lighting, camera reconstruction, transforms, titles and transitions. Production asset import, skeletal animation, physics replay and audio conform remain future work.
 
 See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.
+
+
+## Production 3D asset library (M4.4)
+
+Projects can store versioned, immutable glTF 2.0 assets in a project-scoped library. Uploads accept self-contained `.glb` files or JSON `.gltf` documents with embedded data-URI resources; external URLs and relative resource paths are rejected so an asset cannot make the renderer fetch arbitrary network or filesystem resources. Uploads are limited to 250 MiB (25 MiB for JSON glTF documents), hashed with SHA-256, and stored in the persistent `storyforge_assets` volume.
+
+Character and location models can be assigned to project characters and locations. Prop models are retained as reusable library entries. Re-uploading an asset name creates a new immutable version and updates the current binding; prior versions remain available for reproducible render manifests. Asset list, metadata, binding and download endpoints are project-membership protected. Viewers may read assets but cannot upload, archive or change bindings.
+
+The current milestone establishes the registry, validation, storage and binding contracts. The next renderer integration milestone consumes the selected immutable asset versions in both the interactive and headless Three.js scene builders.

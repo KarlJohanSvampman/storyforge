@@ -1180,3 +1180,50 @@ class AudioRenderJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class ProductionAsset(Base):
+    """Immutable, project-scoped 3D source asset. Re-uploads create a new version."""
+    __tablename__ = "production_assets"
+    __table_args__ = (
+        CheckConstraint("asset_kind IN ('character', 'location', 'prop')", name="ck_production_assets_kind"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_production_assets_status"),
+        CheckConstraint("version >= 1", name="ck_production_assets_version"),
+        CheckConstraint("size_bytes > 0", name="ck_production_assets_size"),
+        UniqueConstraint("project_id", "asset_kind", "name", "version", name="uq_production_assets_version"),
+        UniqueConstraint("storage_key", name="uq_production_assets_storage_key"),
+        Index("ix_production_assets_project_created", "project_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_format: Mapped[str] = mapped_column(String(8), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    gltf_version: Mapped[str] = mapped_column(String(20), default="2.0", nullable=False)
+    metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ProductionAssetBinding(Base):
+    """Current project assignment of an immutable asset version to a character or location."""
+    __tablename__ = "production_asset_bindings"
+    __table_args__ = (
+        UniqueConstraint("project_id", "target_type", "target_id", name="uq_production_asset_bindings_target"),
+        CheckConstraint("target_type IN ('character', 'location')", name="ck_production_asset_bindings_target"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_assets.id", ondelete="RESTRICT"), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    target_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

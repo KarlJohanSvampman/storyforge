@@ -22,6 +22,7 @@ services:
       - ./backend:/app
       - storyforge_documentary_media:/app/storage/documentary
       - storyforge_production_media:/app/storage/production-audio
+      - storyforge_assets:/app/storage/assets
     environment:
       DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
       STORYFORGE_AUTH_MODE: development
@@ -29,6 +30,7 @@ services:
       STORYFORGE_DEV_USER_NAME: Storyteller
       STORYFORGE_MEDIA_DIR: /app/storage/documentary
       STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
+      STORYFORGE_ASSET_DIR: /app/storage/assets
     depends_on:
       db:
         condition: service_healthy
@@ -71,9 +73,11 @@ services:
     volumes:
       - ./backend:/app
       - storyforge_production_media:/app/storage/production-audio
+      - storyforge_assets:/app/storage/assets:ro
     environment:
       DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
       STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
+      STORYFORGE_ASSET_DIR: /app/storage/assets
       STORYFORGE_HEADLESS_RENDERER_URL: http://frontend:5173/headless-render.html
       STORYFORGE_VIDEO_PRESET: medium
       STORYFORGE_VIDEO_CRF: "20"
@@ -109,3 +113,4 @@ volumes:
   storyforge_postgres_data:
   storyforge_documentary_media:
   storyforge_production_media:
+  storyforge_assets:
