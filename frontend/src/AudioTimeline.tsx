@@ -98,7 +98,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     const context = audioContextRef.current;
     const start = playbackStartRef.current;
     if (context && start) {
-      setPlayheadMs(Math.min(durationMs, start.playheadMs + (context.currentTime - start.contextTime) * 1000));
+      setPlayheadMs(Math.max(0, Math.min(durationMs, start.playheadMs + (context.currentTime - start.contextTime) * 1000)));
     }
     stopSources();
     setIsPlaying(false);
@@ -266,7 +266,7 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
       const tick = () => {
         const start = playbackStartRef.current;
         if (!start || !audioContextRef.current) return;
-        const next = Math.min(durationMs, start.playheadMs + (audioContextRef.current.currentTime - start.contextTime) * 1000);
+        const next = Math.max(0, Math.min(durationMs, start.playheadMs + (audioContextRef.current.currentTime - start.contextTime) * 1000));
         setPlayheadMs(next);
         if (next >= durationMs) { stopSources(); setIsPlaying(false); return; }
         frameRef.current = requestAnimationFrame(tick);
