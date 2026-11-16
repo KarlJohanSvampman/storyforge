@@ -128,7 +128,10 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add take lifecycle and timestamped, sequenced performance-event capture API with camera-state snapshots.
 - [x] Store finalized takes as structured, replayable data.
 - [x] Add browser-based virtual camera controls, take recording, event capture, and take finalization/selection UI.
-- [ ] Add runtime playback/reconstruction of captured transforms and performance events.
+- [x] Add finalized-take replay endpoint with immutable scene/cast snapshots and ordered event stream.
+- [x] Add browser play/pause, event stepping, timeline scrubbing, transform interpolation and camera-preset reconstruction for supported payloads.
+- [x] Add timecoded director annotations with author identity, event/performer anchors, and resolution state.
+- [ ] Add side-by-side take comparison, higher-frequency capture, deterministic physics replay, and skeletal animation reconstruction.
 
 ## M3 — Editing and finished-film workflow
 - [x] Select takes and arrange non-destructive scene clips in an editable sequence.

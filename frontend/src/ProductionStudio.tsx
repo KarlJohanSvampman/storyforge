@@ -16,6 +16,8 @@ type SceneRun = {
   authority_epoch: number; cast_members: CastMember[]; created_at: string; started_at: string | null; ended_at: string | null;
 };
 type TakeEvent = { id: string; sequence_number: number; timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; authority_epoch: number | null; payload: Record<string, unknown> };
+type PerformanceAnnotation = { id: string; timestamp_ms: number; category: string; content: string; status: "open" | "resolved"; author_display_name: string };
+type ReplayData = { duration_ms: number; events: TakeEvent[]; annotations: PerformanceAnnotation[]; playback_capabilities: Record<string, unknown> };
 type Take = {
   id: string; scene_run_id: string; cast_member_instance_id: string | null; take_number: number;
   title: string; status: "recording" | "finalized" | "selected" | "discarded";
@@ -58,6 +60,10 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const [eventInstanceId, setEventInstanceId] = useState("");
   const [durationInput, setDurationInput] = useState("30000");
   const [cameraPreset, setCameraPreset] = useState<CameraPreset>("wide");
+  const [replayData, setReplayData] = useState<ReplayData | null>(null);
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [annotationDraft, setAnnotationDraft] = useState("");
   const [controllerDrafts, setControllerDrafts] = useState<Record<string, { controller_type: ControllerType; controller_user_id: string; control_mode: ControlMode }>>({});
   const [leases, setLeases] = useState<Record<string, Lease>>({});
   const [itemDrafts, setItemDrafts] = useState<Record<string, EditItemDraft>>({});
@@ -99,6 +105,34 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
   const takeRun = selectedTake ? runs.find(item => item.id === selectedTake.scene_run_id) || null : null;
   const selectedSequence = sequences.find(item => item.id === selectedSequenceId) || null;
   const writable = canManage && phase === "production";
+
+  useEffect(() => {
+    let alive = true;
+    setIsPlaying(false); setPlayheadMs(0); setReplayData(null);
+    if (!selectedTake || !["finalized", "selected"].includes(selectedTake.status)) return;
+    api<ReplayData>(`${root(projectId)}/takes/${selectedTake.id}/replay`)
+      .then(data => { if (alive) setReplayData(data); })
+      .catch(err => { if (alive) setError(err instanceof Error ? err.message : "Could not load take replay."); });
+    return () => { alive = false; };
+  }, [projectId, selectedTake?.id, selectedTake?.status]);
+
+  useEffect(() => {
+    if (!isPlaying || !replayData) return;
+    let frame = 0;
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const delta = now - previous; previous = now;
+      setPlayheadMs(current => {
+        const next = Math.min(replayData.duration_ms, current + delta);
+        if (next >= replayData.duration_ms) setIsPlaying(false);
+        return next;
+      });
+      if (now < previous + 100000 && isPlaying) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [isPlaying, replayData]);
+
 
   useEffect(() => {
     if (selectedTake) {
@@ -376,7 +410,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       <section className="production-panel production-runtime-panel">
         <div className="casting-panel-heading"><div><div className="section-kicker">LIVE SET</div><h3>{selectedRun?.scene_title || "Select a scene run"}</h3></div><Camera size={17} /></div>
         {selectedRun ? <>
-          <ThreeSceneViewport castMembers={selectedRun.cast_members} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} />
+          <ThreeSceneViewport castMembers={selectedRun.cast_members} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} replayEvents={selectedTake?.scene_run_id === selectedRun.id ? replayData?.events || [] : []} playheadMs={playheadMs} />
           <label className="production-camera-select">Virtual camera<select value={cameraPreset} disabled={selectedRun.status !== "running"} onChange={event => changeCamera(event.target.value as CameraPreset)}>
             <option value="wide">Wide master</option><option value="close">Close-up</option><option value="overhead">Overhead</option><option value="reverse">Reverse angle</option>
           </select></label>
@@ -433,6 +467,39 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
         </div>}
         {selectedTake && <>
           <div className="take-metrics"><div><strong>{selectedTake.events.length}</strong><span>Events</span></div><div><strong>{selectedTake.duration_ms ?? "Recording"}</strong><span>Duration ms</span></div><div><strong>{selectedTake.status}</strong><span>Editorial state</span></div></div>
+          {replayData && <>
+            <div className="replay-panel">
+              <div className="section-kicker">M3.1 · PERFORMANCE PLAYBACK</div>
+              <div className="replay-controls">
+                <button type="button" className="secondary-button" onClick={() => { setIsPlaying(false); setPlayheadMs(0); }}>⟲ Start</button>
+                <button type="button" className="secondary-button" onClick={() => setIsPlaying(value => !value)}>{isPlaying ? "Pause" : "Play"}</button>
+                <button type="button" className="secondary-button" onClick={() => { setIsPlaying(false); setPlayheadMs(Math.max(0, [...replayData.events].filter(event => event.timestamp_ms < playheadMs).sort((a,b) => b.timestamp_ms-a.timestamp_ms)[0]?.timestamp_ms ?? 0)); }}>Previous event</button>
+                <button type="button" className="secondary-button" onClick={() => { setIsPlaying(false); setPlayheadMs([...replayData.events].find(event => event.timestamp_ms > playheadMs)?.timestamp_ms ?? replayData.duration_ms); }}>Next event</button>
+                <strong>{Math.round(playheadMs)} / {replayData.duration_ms} ms</strong>
+              </div>
+              <input aria-label="Replay position" className="replay-scrubber" type="range" min="0" max={Math.max(1,replayData.duration_ms)} value={Math.min(playheadMs,replayData.duration_ms)} onChange={event => { setIsPlaying(false); setPlayheadMs(Number(event.target.value)); }} />
+              <div className="replay-marker-row">{replayData.events.map(event => <button key={event.id} type="button" title={`${event.event_type} · ${event.timestamp_ms} ms`} style={{ left: `${replayData.duration_ms ? event.timestamp_ms / replayData.duration_ms * 100 : 0}%` }} onClick={() => { setIsPlaying(false); setPlayheadMs(event.timestamp_ms); }} />)}</div>
+              <div className="replay-event-strip">{replayData.events.map(event => <button key={event.id} type="button" className={playheadMs >= event.timestamp_ms ? "active" : ""} onClick={() => { setIsPlaying(false); setPlayheadMs(event.timestamp_ms); }}><small>{event.timestamp_ms} ms</small><strong>{event.event_type}</strong></button>)}</div>
+              <p className="muted-note">Recorded position, rotation, scale and camera preset events are reconstructed where payloads contain supported values. This is event playback, not a deterministic physics or skeletal-animation replay.</p>
+            </div>
+            <div className="replay-annotations">
+              <div className="section-kicker">DIRECTOR NOTES</div>
+              <form className="production-inline-form" onSubmit={async event => {
+                event.preventDefault();
+                if (!selectedTake || !annotationDraft.trim()) return;
+                await perform(async () => {
+                  await api(`${root(projectId)}/takes/${selectedTake.id}/annotations`, { method: "POST", body: JSON.stringify({ timestamp_ms: Math.round(playheadMs), content: annotationDraft, category: "note" }) });
+                  const refreshed = await api<ReplayData>(`${root(projectId)}/takes/${selectedTake.id}/replay`);
+                  setReplayData(refreshed); setAnnotationDraft("");
+                }, "Director note saved at the current playhead.");
+              }}>
+                <input value={annotationDraft} onChange={event => setAnnotationDraft(event.target.value)} placeholder="Add a note at the current time…" aria-label="Director note" />
+                <button className="secondary-button" disabled={busy || !annotationDraft.trim()}>Add note</button>
+              </form>
+              <div className="replay-note-list">{replayData.annotations.map(note => <article key={note.id}><small>{note.timestamp_ms} ms · {note.category} · {note.author_display_name} · {note.status}</small><p>{note.content}</p>{note.status === "open" && canManage && <button type="button" className="quiet-button" disabled={busy} onClick={() => perform(async () => { await api(`${root(projectId)}/takes/${selectedTake.id}/annotations/${note.id}`, { method: "PATCH", body: JSON.stringify({ status: "resolved" }) }); setReplayData(await api<ReplayData>(`${root(projectId)}/takes/${selectedTake.id}/replay`)); }, "Director note resolved.")}>Resolve</button>}</article>)}</div>
+            </div>
+          </>}
+
           {writable && selectedTake.status === "recording" && <form className="casting-form" onSubmit={recordEvent}>
             <div className="section-kicker">APPEND EVENT</div>
             <label>Event type<select value={eventType} onChange={event => setEventType(event.target.value as typeof eventType)}>
