@@ -8,7 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .audio import _project_access, _safe_path
+from .audio import _project_access, _safe_path, _sequence_or_404
 from .models import EditSequence, ProductionVideoAsset, VideoRenderJob
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import ProductionVideoAssetRead, VideoRenderJobRead
