@@ -5,6 +5,8 @@ import uuid
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.database import SessionLocal
+from app.models import Project, ProjectCharacter
 from test_audio_pipeline import _production_sequence
 
 client = TestClient(app)
@@ -18,9 +20,19 @@ def _glb():
 
 
 def _character(project_id):
-    created = client.post(f"/api/projects/{project_id}/storyboard/characters", json={"name": "Lead"})
-    assert created.status_code == 201, created.text
-    return created.json()["id"]
+    db = SessionLocal()
+    try:
+        project = db.get(Project, uuid.UUID(project_id))
+        character = ProjectCharacter(
+            project_id=project.id, name="Lead",
+            created_by_user_id=project.owner_user_id,
+        )
+        db.add(character)
+        db.commit()
+        db.refresh(character)
+        return str(character.id)
+    finally:
+        db.close()
 
 
 def test_upload_list_download_and_version_character_asset(monkeypatch, tmp_path):
