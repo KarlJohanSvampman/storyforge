@@ -10,7 +10,7 @@ client = TestClient(app)
 def test_finalized_take_replay_is_ordered_and_includes_snapshots_and_annotations():
     _, project_id, scene_id, _, _ = _scene_with_casting("Replay and notes")
     run = client.post(f"/api/projects/{project_id}/scene-runs", json={"scene_id": scene_id}).json()
-    take_id = _finalized_take(project_id, run["id"], "Replay take", 900)
+    take_id = _finalized_take(project_id, scene_id, run["id"], "Replay take", 900)
 
     replay = client.get(f"/api/projects/{project_id}/takes/{take_id}/replay")
     assert replay.status_code == 200, replay.text
@@ -45,7 +45,7 @@ def test_finalized_take_replay_is_ordered_and_includes_snapshots_and_annotations
 def test_replay_and_annotations_enforce_project_and_take_boundaries():
     _, project_id, scene_id, _, _ = _scene_with_casting("Replay boundaries")
     run = client.post(f"/api/projects/{project_id}/scene-runs", json={"scene_id": scene_id}).json()
-    take_id = _finalized_take(project_id, run["id"], "Bounded take", 500)
+    take_id = _finalized_take(project_id, scene_id, run["id"], "Bounded take", 500)
 
     invalid_event = client.post(
         f"/api/projects/{project_id}/takes/{take_id}/annotations",
