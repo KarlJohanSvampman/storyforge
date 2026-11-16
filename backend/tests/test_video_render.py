@@ -1,4 +1,4 @@
-import hashlib
+import uuid
 import json
 import shutil
 import subprocess
@@ -130,7 +130,7 @@ def test_video_render_worker_persists_mp4_asset_and_authenticated_download(monke
             "input_sha256": job.input_sha256, "created_by_user_id": str(job.created_by_user_id),
         }
 
-    process_job(__import__("uuid").UUID(job_data["id"]), snapshot)
+    process_job(uuid.UUID(job_data["id"]), snapshot)
 
     jobs = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/video-renders")
     assert jobs.status_code == 200
