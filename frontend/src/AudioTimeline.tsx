@@ -109,6 +109,17 @@ export default function AudioTimeline({ projectId, sequenceId, editable, videoDu
     return () => { alive = false; };
   }, [projectId, sequenceId]);
 
+  const hasActiveRender = renderJobs.some(job => job.status === "queued" || job.status === "running");
+  useEffect(() => {
+    if (!hasActiveRender) return;
+    const timer = window.setInterval(() => {
+      request<AudioRenderJob[]>(`${root(projectId)}/edit-sequences/${sequenceId}/audio-renders`)
+        .then(setRenderJobs)
+        .catch(err => setError(err instanceof Error ? err.message : "Could not refresh audio render status."));
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [projectId, sequenceId, hasActiveRender]);
+
   function stopSources() {
     sourcesRef.current.forEach(source => { try { source.stop(); } catch { /* already stopped */ } });
     sourcesRef.current = [];
