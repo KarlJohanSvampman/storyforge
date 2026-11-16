@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .audio import _media_root, _safe_path, _project_access, _sequence_or_404
+from .audio import _safe_path, _project_access, _sequence_or_404
 from .models import AudioClip, AudioRenderJob, AudioTrack, ProductionMediaAsset, Project
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import AudioRenderJobRead
