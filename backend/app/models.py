@@ -933,6 +933,73 @@ class PerformanceEvent(Base):
 
 
 
+class ProductionVideoAsset(Base):
+    """A finalized, project-owned video deliverable."""
+    __tablename__ = "production_video_assets"
+    __table_args__ = (
+        CheckConstraint("size_bytes > 0", name="ck_production_video_assets_size"),
+        CheckConstraint("duration_ms > 0", name="ck_production_video_assets_duration"),
+        CheckConstraint("width > 0 AND height > 0", name="ck_production_video_assets_dimensions"),
+        CheckConstraint("status IN ('active', 'archived')", name="ck_production_video_assets_status"),
+        UniqueConstraint("storage_key", name="uq_production_video_assets_storage_key"),
+        Index("ix_production_video_assets_project_created", "project_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    render_job_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("video_render_jobs.id", ondelete="CASCADE"), nullable=False, unique=True)
+    sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(100), default="video/mp4", nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VideoRenderJob(Base):
+    """Durable server-side transcode of a browser-captured sequence master."""
+    __tablename__ = "video_render_jobs"
+    __table_args__ = (
+        CheckConstraint("status IN ('queued', 'running', 'completed', 'failed')", name="ck_video_render_jobs_status"),
+        CheckConstraint("input_size_bytes > 0", name="ck_video_render_jobs_input_size"),
+        CheckConstraint("output_size_bytes IS NULL OR output_size_bytes > 0", name="ck_video_render_jobs_output_size"),
+        CheckConstraint("expected_duration_ms > 0", name="ck_video_render_jobs_expected_duration"),
+        Index("ix_video_render_jobs_project_created", "project_id", "created_at"),
+        Index("ix_video_render_jobs_status_created", "status", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("edit_sequences.id", ondelete="CASCADE"), nullable=False, index=True)
+    sequence_revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="queued", nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    source_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    input_storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    input_size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    expected_duration_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    output_size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    output_storage_key: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    output_content_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    width: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    height: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class EditSequence(Base):
     """A non-destructive editorial assembly for a project."""
     __tablename__ = "edit_sequences"

@@ -62,9 +62,19 @@ Jobs move through queued, running, completed or failed states. Failures retain a
 
 The Production Studio can render an ordered draft edit sequence in the browser. It loads replay data for each selected take, switches the persistent Three.js viewport between scenes, advances the take-local playhead through the selected source in/out range, reconstructs supported transform and camera events, and draws title overlays into the captured WebGL canvas.
 
-The canvas is captured at 30 fps through `HTMLCanvasElement.captureStream` and recorded with `MediaRecorder` to WebM. A completed offline WAV master can be decoded with Web Audio and attached as a synchronized audio stream in the same recording. The browser reports progress, supports cancellation, and downloads the resulting file locally; the video is not uploaded to the project server.
+The canvas is captured at 30 fps through `HTMLCanvasElement.captureStream` and recorded with `MediaRecorder` to WebM. A completed offline WAV master can be decoded with Web Audio and attached as a synchronized audio stream in the same recording. The browser reports capture progress and supports cancellation.
 
-Cuts are direct. Fade and dissolve edit instructions are currently approximated as fade-through-black. Effects metadata, deterministic physics, skeletal animation, persistent video assets, MP4/H.264 encoding, server-side rendering and true cross-dissolve compositing remain future work. Output resolution is based on the active viewport's drawing-buffer size, and export duration is real-time.
+The WebM master is uploaded to a durable `VideoRenderJob` tied to the exact edit-sequence revision. A dedicated Docker worker verifies the input SHA-256 and encodes H.264/yuv420p video with AAC audio into an MP4 using FFmpeg. FFprobe validates the result and extracts duration and dimensions. Completed files become immutable `ProductionVideoAsset` records with content hashes, size, dimensions, revision provenance and authenticated project-scoped download URLs. Jobs have queued, running, completed and failed states; stale jobs can be recovered after worker interruption.
+
+This milestone moves encoding and delivery to the server, but scene composition is still captured by the browser. It is not yet a headless EDL renderer. Cuts are direct; fade and dissolve edit instructions are approximated as fade-through-black. Effects metadata, deterministic physics, skeletal animation, native dissolve compositing, configurable render profiles and poster generation remain future work.
+
+## M4.1 — Persistent video export pipeline
+
+- `POST /api/projects/{project_id}/edit-sequences/{sequence_id}/video-renders` — upload a WebM master and queue server-side MP4 encoding. The request must match the current draft sequence revision.
+- `GET /api/projects/{project_id}/edit-sequences/{sequence_id}/video-renders` — list render jobs and their processing state.
+- `GET /api/projects/{project_id}/production/videos` — list completed project video assets.
+- `GET /api/projects/{project_id}/production/videos/{asset_id}/download` — download a stored MP4 asset.
+- `GET /api/projects/{project_id}/video-renders/{job_id}/download` — download the MP4 output for a completed render job.
 
 ## Main API routes
 

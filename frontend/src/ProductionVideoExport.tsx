@@ -22,6 +22,16 @@ type AudioRenderJob = {
   id: string; status: string; duration_ms: number | null; download_url: string | null;
   sequence_revision: number; output_size_bytes: number | null;
 };
+type VideoRenderJob = {
+  id: string; status: "queued" | "running" | "completed" | "failed";
+  sequence_revision: number; input_size_bytes: number; output_size_bytes: number | null;
+  output_sha256: string | null; duration_ms: number | null; width: number | null; height: number | null;
+  error_message: string; download_url: string | null; created_at: string; completed_at: string | null;
+};
+type VideoAsset = {
+  id: string; title: string; original_filename: string; size_bytes: number; duration_ms: number;
+  width: number; height: number; sequence_revision: number; download_url: string; created_at: string;
+};
 type Props = {
   projectId: string; sequenceId: string; sequenceName: string;
   sequenceRevision: number; items: EditItem[]; scenes: SceneOption[];
@@ -56,8 +66,9 @@ export default function ProductionVideoExport({
   const [rendering, setRendering] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState("");
-  const [renderedUrl, setRenderedUrl] = useState("");
   const [renderedSize, setRenderedSize] = useState(0);
+  const [videoJob, setVideoJob] = useState<VideoRenderJob | null>(null);
+  const [videoAssets, setVideoAssets] = useState<VideoAsset[]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const cancelRef = useRef(false);
 
@@ -91,6 +102,9 @@ export default function ProductionVideoExport({
 
   useEffect(() => {
     let alive = true;
+    api<VideoAsset[]>(`/api/projects/${projectId}/production/videos`)
+      .then(assets => { if (alive) setVideoAssets(assets); })
+      .catch(() => { /* existing exports are optional until the first successful render */ });
     const refreshAudioJobs = () => {
       api<AudioRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/audio-renders`)
         .then(jobs => {
@@ -107,9 +121,30 @@ export default function ProductionVideoExport({
     return () => { alive = false; window.clearInterval(timer); };
   }, [projectId, sequenceId]);
 
-  useEffect(() => () => {
-    if (renderedUrl) URL.revokeObjectURL(renderedUrl);
-  }, [renderedUrl]);
+  useEffect(() => {
+    if (!videoJob || (videoJob.status !== "queued" && videoJob.status !== "running")) return;
+    let alive = true;
+    const refreshVideoJob = async () => {
+      try {
+        const jobs = await api<VideoRenderJob[]>(`/api/projects/${projectId}/edit-sequences/${sequenceId}/video-renders`);
+        const latest = jobs.find(candidate => candidate.id === videoJob.id);
+        if (!latest || !alive) return;
+        setVideoJob(latest);
+        if (latest.status === "completed") {
+          setProgress(100);
+          const assets = await api<VideoAsset[]>(`/api/projects/${projectId}/production/videos`);
+          if (alive) setVideoAssets(assets);
+        } else if (latest.status === "failed") {
+          setError(latest.error_message || "Server-side MP4 encoding failed.");
+        }
+      } catch (err) {
+        if (alive) setError(err instanceof Error ? err.message : "Could not refresh video render status.");
+      }
+    };
+    const timer = window.setInterval(() => { void refreshVideoJob(); }, 2000);
+    void refreshVideoJob();
+    return () => { alive = false; window.clearInterval(timer); };
+  }, [projectId, sequenceId, videoJob?.id, videoJob?.status]);
 
   const transitionOpacity = (() => {
     if (!activeItem) return 0;
@@ -147,6 +182,7 @@ export default function ProductionVideoExport({
     }
 
     setRendering(true);
+    setVideoJob(null);
     setProgress(0);
     setError("");
     setRenderedSize(0);
@@ -156,7 +192,6 @@ export default function ProductionVideoExport({
     let videoStream: MediaStream | null = null;
     let combinedStream: MediaStream | null = null;
     let recorder: MediaRecorder | null = null;
-    let blobUrl = "";
 
     try {
       setActiveItemIndex(0);
@@ -230,22 +265,26 @@ export default function ProductionVideoExport({
       if (recorder.state !== "inactive") recorder.stop();
       const blob = await completed;
       if (!blob.size) throw new Error("The browser produced an empty video file.");
-      blobUrl = URL.createObjectURL(blob);
-      setRenderedUrl(previous => {
-        if (previous) URL.revokeObjectURL(previous);
-        return blobUrl;
-      });
       setRenderedSize(blob.size);
-      setProgress(100);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = `${safeName(sequenceName)}-r${sequenceRevision}.webm`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      setProgress(98);
+      const form = new FormData();
+      form.append("file", blob, `${safeName(sequenceName)}-r${sequenceRevision}.webm`);
+      form.append("title", sequenceName);
+      form.append("sequence_revision", String(sequenceRevision));
+      form.append("expected_duration_ms", String(totalDurationMs));
+      const upload = await fetch(
+        `/api/projects/${projectId}/edit-sequences/${sequenceId}/video-renders`,
+        { method: "POST", credentials: "same-origin", body: form },
+      );
+      if (!upload.ok) {
+        const body = await upload.json().catch(() => null);
+        throw new Error(body?.detail || `Could not queue server MP4 encoding (${upload.status}).`);
+      }
+      const job = await upload.json() as VideoRenderJob;
+      setVideoJob(job);
+      if (job.status === "failed") throw new Error(job.error_message || "Server-side MP4 encoding failed.");
     } catch (err) {
       if (recorder && recorder.state !== "inactive") recorder.stop();
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
       setError(err instanceof Error ? err.message : "Video export failed.");
     } finally {
       if (audioSource) { try { audioSource.stop(); } catch { /* source may not have started */ } }
@@ -265,7 +304,7 @@ export default function ProductionVideoExport({
       <div><div className="section-kicker">M4 · VIDEO EXPORT</div><h4>Sequence render</h4></div>
       <Film size={18} />
     </div>
-    <p className="muted-note">Renders the selected takes in sequence order from the Three.js scene viewport. A completed WAV master can be muxed into the WebM recording.</p>
+    <p className="muted-note">Captures the selected takes in the browser, then uploads the WebM master to the server for background H.264/AAC MP4 encoding and permanent project storage.</p>
     {error && <p className="production-error">{error}</p>}
     {loading && <p className="muted-note">Loading replay data for {orderedItems.length} clips…</p>}
     {!loading && orderedItems.length > 0 && <div className="video-export-preview">
@@ -292,15 +331,24 @@ export default function ProductionVideoExport({
       </select>
     </label>}
     <div className="video-export-actions">
-      <button type="button" className="primary-button" disabled={loading || rendering || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length} onClick={() => void renderSequence()}>
+      <button type="button" className="primary-button" disabled={loading || rendering || videoJob?.status === "queued" || videoJob?.status === "running" || orderedItems.length === 0 || Object.keys(replays).length !== orderedItems.length} onClick={() => void renderSequence()}>
         {rendering ? <LoaderCircle size={14} className="spin" /> : <Video size={14} />}
-        {rendering ? `Rendering ${progress}%` : "Render and download WebM"}
+        {rendering ? `Capturing ${progress}%` : videoJob?.status === "queued" || videoJob?.status === "running" ? "Encoding MP4…" : videoJob?.status === "completed" ? "MP4 ready — render again" : "Render and store MP4"}
       </button>
-      {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel</button>}
-      {renderedUrl && !rendering && <a className="secondary-button" href={renderedUrl} download={`${safeName(sequenceName)}-r${sequenceRevision}.webm`}><Download size={13} /> Download last render</a>}
-      {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB · WebM</small>}
+      {rendering && <button type="button" className="quiet-button" onClick={cancelRender}>Cancel capture</button>}
+      {videoJob?.status === "completed" && videoJob.download_url && <a className="secondary-button" href={videoJob.download_url}><Download size={13} /> Download MP4</a>}
+      {videoJob && (videoJob.status === "queued" || videoJob.status === "running") && <small>Server encoding: {videoJob.status}</small>}
+      {videoJob?.status === "failed" && <small className="production-error">{videoJob.error_message}</small>}
+      {renderedSize > 0 && <small>{(renderedSize / 1024 / 1024).toFixed(1)} MiB WebM source</small>}
     </div>
     {rendering && <div className="video-render-progress"><span style={{ width: progress + "%" }} /></div>}
-    <p className="muted-note">This is a real-time browser capture. Cuts and title overlays are included; fade/dissolve transitions are approximated as fade-through-black. The current procedural scene models do not yet provide skeletal animation or deterministic physics replay; per-clip effects metadata is not yet rendered.</p>
+    {videoAssets.length > 0 && <div className="video-asset-library">
+      <strong>Stored production videos</strong>
+      {videoAssets.map(asset => <div className="video-asset-row" key={asset.id}>
+        <span>{asset.title}<small>Revision {asset.sequence_revision} · {asset.width}×{asset.height} · {(asset.duration_ms / 1000).toFixed(1)} s · {(asset.size_bytes / 1024 / 1024).toFixed(1)} MiB</small></span>
+        <a className="secondary-button" href={asset.download_url}><Download size={12} /> MP4</a>
+      </div>)}
+    </div>}
+    <p className="muted-note">Scene composition is still captured from the browser viewport; the server performs durable MP4 encoding and storage. True headless scene rendering, deterministic physics, skeletal animation and native effect rendering remain later work.</p>
   </section>;
 }

@@ -146,6 +146,7 @@ Tagline: **Many minds. Many stories. Endless interpretations.**
 - **M3.1:** Non-destructive edit sequences support clip trims, ordering, transitions, title/effect metadata, and immutable JSON EDL export.
 - **M3.2:** Project audio assets, multitrack editing, source/timeline trims, gain, pan, mute/solo, fade automation, browser mix preview and audio-aware EDL v2 are implemented.
 - **M3.3:** Durable FFmpeg audio-render jobs produce downloadable 48 kHz stereo 24-bit WAV masters from immutable mix snapshots.
-- **M4.0:** The Production Studio can capture ordered selected takes from its Three.js viewport as WebM, reconstruct supported transform/camera events, draw title overlays and mux a completed WAV master. Server-side rendering, true dissolves, visual effects, persistent video assets and MP4 delivery remain future work.
+- **M4.0:** The Production Studio captures ordered selected takes from its Three.js viewport as WebM, reconstructs supported transform/camera events, draws title overlays and can mux a completed WAV master.
+- **M4.1:** Browser captures upload into durable project-scoped video jobs. A dedicated FFmpeg worker verifies source integrity, encodes H.264/AAC MP4, probes output metadata and stores immutable video assets with checksums and authenticated downloads. True headless scene rendering, effects and native dissolves remain future work.
 
 See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.

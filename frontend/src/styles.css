@@ -890,3 +890,13 @@ a { color: inherit; text-decoration: none; }
   .video-export-preview .production-viewport { min-height: 240px; height: 300px; }
   .video-audio-select { grid-template-columns: 1fr; }
 }
+
+
+.video-asset-library { display: grid; gap: 7px; margin-top: 12px; padding: 10px; border: 1px solid #465440; border-radius: 5px; background: #1b251d; }
+.video-asset-library > strong { color: #dce6d3; font-size: 9px; }
+.video-asset-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px; border: 1px solid #3d4939; border-radius: 4px; background: #202a21; }
+.video-asset-row > span { display: grid; gap: 4px; color: #d3dec9; font-size: 9px; }
+.video-asset-row small { color: #9eac93; font-size: 8px; }
+@media (max-width: 560px) {
+  .video-asset-row { align-items: flex-start; flex-direction: column; }
+}
