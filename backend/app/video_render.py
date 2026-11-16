@@ -246,7 +246,7 @@ def create_headless_scene_render(
     job = VideoRenderJob(
         project_id=project.id, sequence_id=sequence.id,
         sequence_revision=sequence.revision_number, status="queued",
-        render_source="headless_animatic", render_manifest=manifest,
+        render_source=("headless_3d" if renderer == "3d" else "headless_animatic"), render_manifest=manifest,
         title=sequence.name, source_filename=("storyforge-headless-3d" if renderer == "3d" else "storyforge-headless-animatic"),
         input_storage_key=None, input_size_bytes=None, input_sha256=None,
         input_content_type=None, expected_duration_ms=total_duration,
