@@ -87,5 +87,9 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Verify headless renderer page is included in production build
+        working-directory: frontend
+        run: test -s dist/headless-render.html
+
       - name: Validate Docker Compose configuration
         run: docker compose config --quiet
