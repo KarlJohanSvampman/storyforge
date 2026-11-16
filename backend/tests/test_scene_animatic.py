@@ -70,6 +70,7 @@ def test_headless_animatic_rejects_unsafe_frame_budget(tmp_path):
 def test_scene_render_endpoint_snapshots_selected_take_and_revision(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("Headless scene render")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
     response = client.post(
         f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/scene-renders"
     )
@@ -101,6 +102,7 @@ def test_scene_render_endpoint_snapshots_selected_take_and_revision(monkeypatch,
 def test_headless_scene_job_renders_mp4_and_persists_asset(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("Headless scene MP4")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
     queued = client.post(
         f"/api/projects/{project_id}/edit-sequences/{sequence['id']}/scene-renders"
     )
