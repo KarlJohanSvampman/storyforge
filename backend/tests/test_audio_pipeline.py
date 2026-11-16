@@ -23,7 +23,13 @@ def _production_sequence(label: str):
         json={"name": "Audio assembly"},
     )
     assert sequence.status_code == 201, sequence.text
-    return project_id, sequence.json()
+    sequence_data = sequence.json()
+    added_video = client.post(
+        f"/api/projects/{project_id}/edit-sequences/{sequence_data['id']}/items",
+        json={"take_id": take_id, "in_ms": 0, "out_ms": 1400},
+    )
+    assert added_video.status_code == 201, added_video.text
+    return project_id, sequence_data
 
 
 def test_audio_asset_track_clip_and_edl_export(monkeypatch, tmp_path):
