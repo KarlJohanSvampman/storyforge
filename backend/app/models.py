@@ -991,7 +991,6 @@ class VideoRenderJob(Base):
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     width: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    asset_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("production_video_assets.id", ondelete="SET NULL"), nullable=True)
     error_message: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
