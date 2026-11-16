@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import time
+import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -68,6 +69,79 @@ def _run_ffmpeg(input_path: Path, output_path: Path) -> None:
     os.replace(temporary, output_path)
 
 
+
+def _render_headless_video(manifest: dict, output_path: Path) -> None:
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as error:
+        raise RuntimeError("Playwright is not installed in the video renderer container.") from error
+
+    fps = int(manifest.get("fps", 30))
+    width = int(manifest.get("width", 1280))
+    height = int(manifest.get("height", 720))
+    duration_ms = int(manifest.get("duration_ms", 0))
+    if fps not in (24, 30) or width not in (1280, 1920) or height not in (720, 1080):
+        raise RuntimeError("The headless render profile is not supported.")
+    if duration_ms <= 0 or duration_ms > 15 * 60 * 1000:
+        raise RuntimeError("The headless render duration is outside the supported range.")
+
+    frontend_url = os.getenv("STORYFORGE_RENDER_FRONTEND_URL", "http://frontend:5173").rstrip("/")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="storyforge-frames-") as frame_dir:
+        frames = Path(frame_dir)
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(
+                headless=True,
+                executable_path=os.getenv("STORYFORGE_CHROMIUM_EXECUTABLE", playwright.chromium.executable_path),
+                args=[
+                    "--no-sandbox", "--disable-dev-shm-usage",
+                    "--enable-webgl", "--ignore-gpu-blocklist",
+                    "--use-gl=angle", "--use-angle=swiftshader",
+                    "--enable-unsafe-swiftshader",
+                ],
+            )
+            page = browser.new_page(
+                viewport={"width": width, "height": height},
+                device_scale_factor=1,
+            )
+            page.goto(f"{frontend_url}/headless-render.html", wait_until="networkidle", timeout=120000)
+            page.wait_for_function("typeof window.storyforgeRenderFrame === 'function'", timeout=120000)
+            page.evaluate("manifest => { window.__storyforgeManifest = manifest; }", manifest)
+            frame_count = int((duration_ms * fps + 999) // 1000)
+            canvas = page.locator("#frame")
+            for frame_number in range(frame_count):
+                timeline_ms = min(duration_ms, frame_number * 1000 / fps)
+                page.evaluate(
+                    "time => window.storyforgeRenderFrame(window.__storyforgeManifest, time)",
+                    timeline_ms,
+                )
+                canvas.screenshot(path=str(frames / f"frame-{frame_number:06d}.png"), animations="disabled")
+            browser.close()
+
+        ffmpeg = shutil.which("ffmpeg")
+        if not ffmpeg:
+            raise RuntimeError("FFmpeg is not installed in the video renderer container.")
+        temporary = output_path.with_name(output_path.stem + ".part.mp4")
+        command = [
+            ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+            "-framerate", str(fps), "-i", str(frames / "frame-%06d.png"),
+            "-frames:v", str(frame_count),
+            "-c:v", "libx264", "-preset", os.getenv("STORYFORGE_VIDEO_PRESET", "medium"),
+            "-crf", os.getenv("STORYFORGE_VIDEO_CRF", "20"),
+            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            "-metadata", f"title={manifest.get('title', 'StoryForge headless production export')}",
+            str(temporary),
+        ]
+        result = subprocess.run(command, capture_output=True, text=True, check=False, timeout=6 * 60 * 60)
+        if result.returncode != 0:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError((result.stderr or result.stdout or "Headless FFmpeg encoding failed.")[-3500:])
+        if not temporary.is_file() or temporary.stat().st_size == 0:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError("Headless render completed without producing an MP4.")
+        os.replace(temporary, output_path)
+
+
 def _probe_video(path: Path) -> dict:
     ffprobe = shutil.which("ffprobe")
     if not ffprobe:
@@ -111,6 +185,7 @@ def claim_next_job() -> tuple[uuid.UUID, dict] | None:
         snapshot = {
             "project_id": str(job.project_id), "sequence_id": str(job.sequence_id),
             "sequence_revision": job.sequence_revision, "title": job.title,
+            "render_mode": job.render_mode, "render_manifest": job.render_manifest,
             "source_filename": job.source_filename, "input_storage_key": job.input_storage_key,
             "input_sha256": job.input_sha256, "created_by_user_id": str(job.created_by_user_id),
         }
@@ -119,15 +194,21 @@ def claim_next_job() -> tuple[uuid.UUID, dict] | None:
 
 
 def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
-    input_path = _safe_path(snapshot["input_storage_key"])
     output_key = f"video-exports/final/{snapshot['project_id']}/{job_id}.mp4"
     output_path = _safe_path(output_key)
+    input_path = _safe_path(snapshot["input_storage_key"]) if snapshot.get("input_storage_key") else None
     try:
-        if not input_path.is_file():
-            raise RuntimeError("Uploaded WebM source is missing from shared storage.")
-        if _sha256(input_path) != snapshot["input_sha256"]:
-            raise RuntimeError("Uploaded WebM source failed its SHA-256 integrity check.")
-        _run_ffmpeg(input_path, output_path)
+        if snapshot.get("render_mode") == "headless":
+            manifest = snapshot.get("render_manifest")
+            if not manifest:
+                raise RuntimeError("The headless render job has no immutable EDL manifest.")
+            _render_headless_video(manifest, output_path)
+        else:
+            if input_path is None or not input_path.is_file():
+                raise RuntimeError("Uploaded WebM source is missing from shared storage.")
+            if _sha256(input_path) != snapshot["input_sha256"]:
+                raise RuntimeError("Uploaded WebM source failed its SHA-256 integrity check.")
+            _run_ffmpeg(input_path, output_path)
         metadata = _probe_video(output_path)
         size = output_path.stat().st_size
         digest = _sha256(output_path)
@@ -157,7 +238,8 @@ def process_job(job_id: uuid.UUID, snapshot: dict) -> None:
             job.error_message = ""
             job.completed_at = datetime.now(timezone.utc)
             db.commit()
-        input_path.unlink(missing_ok=True)
+        if input_path is not None:
+            input_path.unlink(missing_ok=True)
     except Exception as error:
         output_path.unlink(missing_ok=True)
         with SessionLocal() as db:
@@ -179,7 +261,7 @@ def recover_stale_jobs(stale_after_hours: int = 12) -> int:
             .with_for_update(skip_locked=True)
         ).all()
         for job in stale:
-            if _safe_path(job.input_storage_key).is_file():
+            if job.render_mode == "headless" or (job.input_storage_key and _safe_path(job.input_storage_key).is_file()):
                 job.status = "queued"
                 job.started_at = None
                 job.error_message = "Render was re-queued after an interrupted worker process."
