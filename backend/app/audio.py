@@ -1,7 +1,6 @@
 import hashlib
 import os
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
@@ -250,12 +249,13 @@ def update_audio_track(project_id: uuid.UUID, sequence_id: uuid.UUID, track_id: 
         raise HTTPException(status_code=409, detail="Only draft edit sequences can be changed.")
     track = _track_or_404(db, sequence.id, track_id)
     values = payload.model_dump(exclude_unset=True)
-    if "name" in values:
+    if values.get("name") is not None:
         values["name"] = values["name"].strip()
         if not values["name"]:
             raise HTTPException(status_code=422, detail="Audio track name cannot be blank.")
     for key, value in values.items():
-        setattr(track, key, value)
+        if value is not None:
+            setattr(track, key, value)
     sequence.revision_number += 1
     db.commit()
     db.refresh(track)
@@ -317,7 +317,7 @@ def update_audio_clip(project_id: uuid.UUID, sequence_id: uuid.UUID, track_id: u
     clip = db.scalar(select(AudioClip).where(AudioClip.id == clip_id, AudioClip.track_id == track.id))
     if clip is None:
         raise HTTPException(status_code=404, detail="Audio clip not found.")
-    values = payload.model_dump(exclude_unset=True)
+    values = {key: value for key, value in payload.model_dump(exclude_unset=True).items() if value is not None}
     source_in = values.get("source_in_ms", clip.source_in_ms)
     source_out = values.get("source_out_ms", clip.source_out_ms)
     fade_in = values.get("fade_in_ms", clip.fade_in_ms)
