@@ -227,6 +227,9 @@ function applyClip(bundle: SceneBundle, clip: RenderClip, sourceMs: number): voi
 }
 
 function renderFrame(manifest: RenderManifest, timelineMs: number): void {
+  if (renderer.domElement.width !== manifest.width || renderer.domElement.height !== manifest.height) {
+    renderer.setSize(manifest.width, manifest.height, false);
+  }
   const clips = manifest.clips;
   if (!clips.length) throw new Error("The render manifest contains no clips.");
   const time = Math.max(0, Math.min(manifest.duration_ms, timelineMs));
