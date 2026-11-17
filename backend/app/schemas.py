@@ -1405,6 +1405,7 @@ class SceneRunRead(BaseModel):
     storyboard_id: uuid.UUID
     scene_id: uuid.UUID
     scene_title: str
+    location_id: uuid.UUID | None = None
     narrative_version_id: uuid.UUID
     status: str
     authority_epoch: int
