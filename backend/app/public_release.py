@@ -39,6 +39,8 @@ def _public_payload(release: PublishedRelease) -> dict:
         "width": master.get("width"),
         "height": master.get("height"),
         "video_url": f"/api/public/releases/{release.slug}/video",
+        "poster_url": f"/api/public/releases/{release.slug}/poster" if manifest.get("poster") else None,
+        "trailer_url": f"/api/public/releases/{release.slug}/trailer" if manifest.get("trailer_video") else None,
         "credits": [{
             "category": item.get("category"),
             "role_label": item.get("role_label"),
@@ -59,6 +61,39 @@ def list_public_releases(db: DbSession):
         .limit(100)
     ).all()
     return [_public_payload(release) for release in releases]
+
+
+
+def _verified_snapshot_file(release: PublishedRelease, section: str):
+    snapshot = (release.manifest_json or {}).get(section)
+    if not isinstance(snapshot, dict) or not snapshot.get("storage_key") or not snapshot.get("sha256"):
+        raise HTTPException(status_code=404, detail="Release media not found.")
+    path = _safe_path(snapshot["storage_key"])
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Release media not found.")
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != snapshot["sha256"]:
+        raise HTTPException(status_code=409, detail="Release media failed integrity verification.")
+    return path, snapshot
+
+
+@router.get("/{slug}/poster")
+def public_release_poster(slug: str, db: DbSession):
+    release = _visible_release(db, slug)
+    path, snapshot = _verified_snapshot_file(release, "poster")
+    return FileResponse(path, media_type="image/jpeg", filename=f"{release.slug}-poster.jpg",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.get("/{slug}/trailer")
+def public_release_trailer(slug: str, db: DbSession):
+    release = _visible_release(db, slug)
+    path, snapshot = _verified_snapshot_file(release, "trailer_video")
+    return FileResponse(path, media_type="video/mp4", filename=f"{release.slug}-trailer.mp4",
+                        headers={"Cache-Control": "public, max-age=3600", "Accept-Ranges": "bytes"})
 
 
 @router.get("/{slug}/video")
