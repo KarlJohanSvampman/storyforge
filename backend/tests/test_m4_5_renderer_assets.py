@@ -28,7 +28,9 @@ def _glb():
 def test_headless_3d_manifest_snapshots_assigned_asset_version_and_transform(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_ASSET_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("M4.5 renderer asset snapshot")
-    scene_id = sequence["items"][0]["scene_id"]
+    sequence_detail = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}")
+    assert sequence_detail.status_code == 200, sequence_detail.text
+    scene_id = sequence_detail.json()["items"][0]["scene_id"]
 
     with SessionLocal() as db:
         run = db.scalar(select(SceneRun).where(SceneRun.scene_id == uuid.UUID(scene_id)))
