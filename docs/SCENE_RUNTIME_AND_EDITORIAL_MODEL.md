@@ -155,3 +155,8 @@ A project participant can create a named contributor or production credit, or op
 ## M4.2 — Release covers and trailers
 
 Publication generates a 16:9 JPEG cover from the selected master video. If the source cannot provide a decodable frame, the publisher creates a deterministic typographic cover from the release title and synopsis. The poster's storage key, SHA-256, content type, dimensions and size are stored in the immutable release manifest. A separate optional trailer can be selected from completed project-owned MP4 video assets; its source identity, checksum, duration and dimensions are snapshotted as well. Public poster and trailer routes verify the snapshotted file hash before delivery.
+
+
+## M4.2 — Release covers and trailers
+
+Publishing generates a 16:9 JPEG cover from the selected master video. If the source cannot provide a decodable frame, a deterministic typographic cover is generated from the release title and synopsis. The poster's storage key, SHA-256, content type, dimensions and size are stored in the immutable release manifest. A separate optional trailer can be selected from completed project-owned MP4 video assets; its source identity, checksum, duration and dimensions are snapshotted as well. Public poster and trailer routes verify the snapshotted file hash before delivery.
