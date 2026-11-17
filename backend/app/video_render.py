@@ -241,8 +241,8 @@ def create_headless_scene_render(
             } for member in cast],
             "production_assets": [
                 asset for asset in bound_assets
-                if (asset["target_type"] == "location" and asset["target_id"] == (str(scene.location_id) if scene.location_id else None))
-                or (asset["target_type"] == "character" and asset["target_id"] in {str(member.character_id) for member in cast})
+                if renderer == "3d" and ((asset["target_type"] == "location" and asset["target_id"] == (str(scene.location_id) if scene.location_id else None))
+                or (asset["target_type"] == "character" and asset["target_id"] in {str(member.character_id) for member in cast}))
             ],
             "events": [{
                 "timestamp_ms": event.timestamp_ms, "sequence_number": event.sequence_number,
