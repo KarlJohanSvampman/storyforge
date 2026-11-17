@@ -164,10 +164,20 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Reconstruct per-clip character transforms, camera snapshots/events, scene labels and title overlays in actual 3D geometry.
 - [x] Composite cuts, fade-through-black and cross-dissolves from rendered 3D frames before FFmpeg MP4 encoding.
 - [x] Preserve immutable EDL revision snapshots, durable job status, output checksums and authenticated production-asset delivery for 3D renders.
-- [ ] Load project-authored 3D character/location/prop assets and production rigs.
+- [x] Load project-authored character and location GLB/GLTF bindings in the interactive and headless Three.js renderers.
+- [x] Snapshot exact immutable asset versions, checksums and position/rotation/scale transforms into render manifests.
+- [x] Verify headless renderer asset bytes against the snapshotted SHA-256 before loading.
 - [ ] Add skeletal animation clips, retargeting, deterministic physics replay and animation blending.
 
 - [ ] Implement native cross-dissolves, effect processing, configurable render profiles and persistent thumbnails/posters.
+
+### M4.5 — Renderer asset integration
+
+- [x] Consume project-scoped immutable character and location GLB/GLTF bindings in the interactive viewport.
+- [x] Consume the same assigned models in headless Three.js renders.
+- [x] Store editable position, rotation and scale placement transforms on asset bindings.
+- [x] Snapshot exact asset versions and checksums in each headless render manifest.
+- [x] Verify asset integrity and restrict headless browser asset requests to the job snapshot.
 
 ## M4 — Publication and public work pages
 - [ ] Create immutable published releases from approved project versions.
