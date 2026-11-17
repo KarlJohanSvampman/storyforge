@@ -1826,7 +1826,10 @@ class ProjectCreditConsentCreate(BaseModel):
     @field_validator("role_label", "public_name")
     @classmethod
     def clean_credit_text(cls, value: str) -> str:
-        return value.strip()
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Credit name and role label cannot be blank.")
+        return cleaned
 
 
 class ProjectCreditConsentRead(BaseModel):
