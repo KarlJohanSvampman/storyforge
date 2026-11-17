@@ -15,7 +15,7 @@ type CastMember = {
   authority_epoch: number; instance_status: string;
 };
 type SceneRun = {
-  id: string; scene_id: string; scene_title: string; status: "prepared" | "running" | "paused" | "completed" | "aborted";
+  id: string; scene_id: string; scene_title: string; location_id: string | null; status: "prepared" | "running" | "paused" | "completed" | "aborted";
   authority_epoch: number; cast_members: CastMember[]; created_at: string; started_at: string | null; ended_at: string | null;
 };
 type TakeEvent = { id: string; sequence_number: number; timestamp_ms: number; event_type: string; cast_member_instance_id: string | null; authority_epoch: number | null; payload: Record<string, unknown> };
@@ -435,7 +435,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       <section className="production-panel production-runtime-panel">
         <div className="casting-panel-heading"><div><div className="section-kicker">LIVE SET</div><h3>{selectedRun?.scene_title || "Select a scene run"}</h3></div><Camera size={17} /></div>
         {selectedRun ? <>
-          <ThreeSceneViewport castMembers={selectedRun.cast_members} productionAssets={productionAssets} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} replayEvents={selectedTake?.scene_run_id === selectedRun.id ? replayData?.events || [] : []} playheadMs={playheadMs} />
+          <ThreeSceneViewport castMembers={selectedRun.cast_members} productionAssets={productionAssets} sceneLocationId={selectedRun.location_id} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} replayEvents={selectedTake?.scene_run_id === selectedRun.id ? replayData?.events || [] : []} playheadMs={playheadMs} />
           <label className="production-camera-select">Virtual camera<select value={cameraPreset} disabled={selectedRun.status !== "running"} onChange={event => changeCamera(event.target.value as CameraPreset)}>
             <option value="wide">Wide master</option><option value="close">Close-up</option><option value="overhead">Overhead</option><option value="reverse">Reverse angle</option>
           </select></label>
