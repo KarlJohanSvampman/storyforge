@@ -1228,3 +1228,28 @@ class ProductionAssetBinding(Base):
     transform_json: Mapped[dict] = mapped_column(JSON, default=lambda: {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]}, nullable=False)
     updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class PublishedRelease(Base):
+    """Immutable public-facing snapshot of one approved story and finished video master."""
+    __tablename__ = "published_releases"
+    __table_args__ = (
+        UniqueConstraint("project_id", "release_number", name="uq_published_releases_project_number"),
+        UniqueConstraint("slug", name="uq_published_releases_slug"),
+        CheckConstraint("release_number >= 1", name="ck_published_releases_positive_number"),
+        CheckConstraint("visibility IN ('private', 'unlisted', 'public')", name="ck_published_releases_visibility"),
+        Index("ix_published_releases_project_published", "project_id", "published_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    release_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    slug: Mapped[str] = mapped_column(String(220), nullable=False)
+    title: Mapped[str] = mapped_column(String(240), nullable=False)
+    synopsis: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False)
+    storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="RESTRICT"), nullable=False)
+    narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
+    video_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_video_assets.id", ondelete="RESTRICT"), nullable=False)
+    manifest_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    published_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
