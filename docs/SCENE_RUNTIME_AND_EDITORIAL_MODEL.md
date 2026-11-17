@@ -130,3 +130,14 @@ The interactive viewport loads the selected character/location models through th
 The headless renderer uses the same productionScene.ts loader and placement logic. The video-renderer container mounts the asset volume read-only. Playwright intercepts the internal asset URLs and fulfills only files explicitly named by the immutable manifest; the resolved path must remain inside the asset root and the file's SHA-256 must match the snapshot. GLB and self-contained GLTF data-URI resources are supported without external network or filesystem fetches.
 
 M4.5 covers static glTF scene graphs and root placement. It does not yet reconstruct glTF skeletal animation clips, retarget animation, simulate deterministic physics, place unbound props, or conform audio to the headless 3D render.
+
+
+## M4.1 — Immutable publication releases
+
+A release is an append-only publication record linked to a project, one storyboard interpretation, its exact approved narrative version, and one completed production video asset. Release creation is owner-only and is allowed while the project is in the production phase.
+
+The published_releases row stores a project-local release number, permanent unique slug, release title and synopsis, visibility snapshot, source IDs, publisher identity, publication timestamp, and a JSON manifest. The manifest freezes project metadata, narrative title/content/provider provenance, approval-decision identity, storyboard seasons and episodes, ordered scene plans, location descriptions, assigned story characters, and the latest structured screenplay revision and elements for each scene. It also freezes the chosen MP4's ID, SHA-256, dimensions, duration, source edit-sequence revision and render-job provenance.
+
+Before publication, the API verifies that the storyboard belongs to the project, its exact narrative version has an approved decision, the video asset belongs to the project and is active, its render job is completed and agrees with the asset's checksum/storage key, and the stored video bytes still match the recorded SHA-256. The selected sequence must also belong to the project.
+
+The release list/detail endpoints are currently membership-protected. There are intentionally no update or delete routes. Public and unlisted read/playback routes, posters/trailers and opt-in credits are deferred to M4.2/M4.3. Release visibility is copied at publication time; changing project visibility later cannot silently change an existing release's intended visibility.
