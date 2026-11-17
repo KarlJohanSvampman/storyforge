@@ -2913,4 +2913,4 @@ function WorkspaceApp() {
   );
 }
 
-export default App;
+function App() {\n  const match = window.location.pathname.match(/^\\/releases\\/([^/]+)\\/?$/);\n  return match ? <PublicRelease slug={decodeURIComponent(match[1])} /> : <WorkspaceApp />;\n}\n\nexport default App;
