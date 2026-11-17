@@ -1405,6 +1405,7 @@ class SceneRunRead(BaseModel):
     storyboard_id: uuid.UUID
     scene_id: uuid.UUID
     scene_title: str
+    location_id: uuid.UUID | None = None
     narrative_version_id: uuid.UUID
     status: str
     authority_epoch: int
@@ -1769,6 +1770,12 @@ class ProductionAssetRead(BaseModel):
     created_at: datetime
 
 
+class ProductionAssetTransformUpdate(BaseModel):
+    position: list[float] | None = Field(default=None, min_length=3, max_length=3)
+    rotation: list[float] | None = Field(default=None, min_length=3, max_length=3)
+    scale: list[float] | None = Field(default=None, min_length=3, max_length=3)
+
+
 class ProductionAssetBindingRead(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
@@ -1777,4 +1784,5 @@ class ProductionAssetBindingRead(BaseModel):
     target_id: uuid.UUID
     updated_by_user_id: uuid.UUID
     updated_at: datetime
+    transform_json: dict
     asset: ProductionAssetRead

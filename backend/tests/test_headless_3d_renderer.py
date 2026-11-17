@@ -14,6 +14,10 @@ class FakePage:
     def set_default_timeout(self, _timeout):
         pass
 
+    def route(self, pattern, handler):
+        self.route_pattern = pattern
+        self.route_handler = handler
+
     def goto(self, url, **_kwargs):
         self.visited = url
 

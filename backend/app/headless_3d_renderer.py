@@ -1,4 +1,5 @@
 """Playwright bridge for deterministic StoryForge Three.js frame rendering."""
+import hashlib
 import os
 from pathlib import Path
 from urllib.parse import urlparse
@@ -49,6 +50,41 @@ def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
         try:
             page = browser.new_page(viewport={"width": width, "height": height}, device_scale_factor=1)
             page.set_default_timeout(60_000)
+
+            # Serve only immutable asset files explicitly snapshotted in this job.
+            assets = {
+                asset.get("render_url"): asset
+                for clip in clips
+                for asset in clip.get("production_assets", [])
+                if asset.get("render_url")
+            }
+            asset_root = Path(os.getenv("STORYFORGE_ASSET_DIR", "/app/storage/assets")).resolve()
+
+            def fulfill_asset(route):
+                requested_path = urlparse(route.request.url).path
+                asset = assets.get(requested_path)
+                if asset is None:
+                    route.fulfill(status=404, body="Asset is not part of this render snapshot.")
+                    return
+                candidate = (asset_root / str(asset.get("storage_key", ""))).resolve()
+                if asset_root not in candidate.parents or not candidate.is_file():
+                    route.fulfill(status=404, body="Snapshotted asset is unavailable.")
+                    return
+                checksum = hashlib.sha256()
+                with candidate.open("rb") as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        checksum.update(chunk)
+                digest = checksum.hexdigest()
+                if digest != asset.get("sha256"):
+                    route.fulfill(status=409, body="Snapshotted asset failed SHA-256 verification.")
+                    return
+                route.fulfill(
+                    path=str(candidate),
+                    content_type=str(asset.get("content_type") or "model/gltf-binary"),
+                    headers={"Cache-Control": "no-store"},
+                )
+
+            page.route("**/__storyforge_assets__/*", fulfill_asset)
             page.goto(renderer_url, wait_until="networkidle", timeout=120_000)
             page.wait_for_function("() => Boolean(window.storyForgeRenderer)", timeout=60_000)
             initialized = page.evaluate("(manifest) => window.storyForgeRenderer.initialize(manifest)", manifest)

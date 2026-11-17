@@ -1,12 +1,14 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import { createCharacterRig } from "./productionScene";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { createCharacterRig, type SceneProductionAsset } from "./productionScene";
 
 type CastVisual = {
   id: string;
   character_name_snapshot: string;
   actor_name_snapshot: string;
+  character_id?: string;
 };
 
 type ReplayEvent = {
@@ -25,6 +27,8 @@ type Props = {
   titleOverlay?: string;
   fadeOpacity?: number;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
+  productionAssets?: SceneProductionAsset[];
+  sceneLocationId?: string | null;
 };
 
 const CAMERA_POSITIONS: Record<CameraPreset, [number, number, number]> = {
@@ -119,6 +123,8 @@ export default function ThreeSceneViewport({
   titleOverlay = "",
   fadeOpacity = 0,
   onCanvasReady,
+  productionAssets = [],
+  sceneLocationId = null,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -280,6 +286,52 @@ export default function ThreeSceneViewport({
     rigs.forEach((rig) => scene.add(rig));
     rigsRef.current = new Map(castMembers.map((member, index) => [member.id, rigs[index]]));
   }, [castMembers]);
+
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene || !productionAssets.length) return;
+    let alive = true;
+    const loader = new GLTFLoader();
+    const loaded: THREE.Object3D[] = [];
+    const applyTransform = (object: THREE.Object3D, transform: SceneProductionAsset["transform"]) => {
+      const position = transform.position || [0, 0, 0];
+      const rotation = transform.rotation || [0, 0, 0];
+      const scale = transform.scale || [1, 1, 1];
+      object.position.set(Number(position[0]), Number(position[1]), Number(position[2]));
+      object.rotation.set(Number(rotation[0]), Number(rotation[1]), Number(rotation[2]));
+      object.scale.set(Number(scale[0]), Number(scale[1]), Number(scale[2]));
+    };
+    Promise.all(productionAssets.map(async asset => {
+      const gltf = await loader.loadAsync(asset.download_url || asset.render_url);
+      const object = gltf.scene;
+      if (!alive) { disposeObject(object); return; }
+      object.name = "StoryForge asset " + asset.asset_id + " v" + asset.version;
+      object.userData.storyForgeAsset = asset;
+      object.traverse(child => {
+        if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; }
+      });
+      applyTransform(object, asset.transform || {});
+      if (asset.target_type === "character") {
+        const member = castMembers.find(item => item.character_id === asset.target_id);
+        const rig = member ? rigsRef.current.get(member.id) : null;
+        if (!rig) return;
+        rig.traverse(child => {
+          if (child instanceof THREE.Mesh && child.userData.isProceduralCharacterPart) child.visible = false;
+        });
+        rig.add(object);
+      } else if (asset.target_type === "location" && asset.target_id === sceneLocationId) {
+        scene.add(object);
+      }
+      loaded.push(object);
+    })).catch(() => undefined);
+    return () => {
+      alive = false;
+      loaded.forEach(object => { object.parent?.remove(object); disposeObject(object); });
+      rigsRef.current.forEach(rig => rig.traverse(child => {
+        if (child instanceof THREE.Mesh && child.userData.isProceduralCharacterPart) child.visible = true;
+      }));
+    };
+  }, [productionAssets, castMembers, sceneLocationId]);
 
   useEffect(() => {
     const camera = cameraRef.current;

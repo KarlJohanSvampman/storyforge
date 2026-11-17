@@ -26,7 +26,7 @@ def _scene_run_read(db: Session, run: SceneRun) -> SceneRunRead:
     cast_ids = {item.character_id for item in members}
     return SceneRunRead(
         id=run.id, project_id=run.project_id, storyboard_id=run.storyboard_id,
-        scene_id=run.scene_id, scene_title=scene.title,
+        scene_id=run.scene_id, scene_title=scene.title, location_id=scene.location_id,
         narrative_version_id=run.narrative_version_id, status=run.status,
         authority_epoch=run.authority_epoch, created_by_user_id=run.created_by_user_id,
         created_at=run.created_at, started_at=run.started_at, ended_at=run.ended_at,

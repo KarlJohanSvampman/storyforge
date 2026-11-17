@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from .models import ProductionAsset, ProductionAssetBinding, ProjectCharacter, ProjectLocation
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
-from .schemas import ProductionAssetBindingRead, ProductionAssetRead, ProductionAssetUpload
+from .schemas import ProductionAssetBindingRead, ProductionAssetRead, ProductionAssetTransformUpdate, ProductionAssetUpload
 
 router = APIRouter(prefix="/api/projects/{project_id}/production-assets", tags=["production assets"])
 
@@ -237,9 +237,51 @@ def list_bindings(project_id: uuid.UUID, db: DbSession, user: CurrentUser):
             id=binding.id, project_id=binding.project_id, asset_id=binding.asset_id,
             target_type=binding.target_type, target_id=binding.target_id,
             updated_by_user_id=binding.updated_by_user_id, updated_at=binding.updated_at,
+            transform_json=binding.transform_json or {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
             asset=_read(asset),
         ))
     return result
+
+
+@router.patch("/bindings/{binding_id}/transform", response_model=ProductionAssetBindingRead)
+def update_binding_transform(
+    project_id: uuid.UUID, binding_id: uuid.UUID, payload: ProductionAssetTransformUpdate,
+    db: DbSession, user: CurrentUser,
+):
+    import math
+
+    _project_access(db, project_id, user.id, write=True)
+    binding = db.scalar(select(ProductionAssetBinding).where(
+        ProductionAssetBinding.id == binding_id,
+        ProductionAssetBinding.project_id == project_id,
+    ))
+    if binding is None:
+        raise HTTPException(status_code=404, detail="Production asset binding not found.")
+    transform = dict(binding.transform_json or {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]})
+    for key in ("position", "rotation", "scale"):
+        value = getattr(payload, key)
+        if value is None:
+            continue
+        if not all(math.isfinite(component) for component in value):
+            raise HTTPException(status_code=422, detail=f"{key} values must be finite numbers.")
+        if key == "position" and any(abs(component) > 10000 for component in value):
+            raise HTTPException(status_code=422, detail="Position components must be within +/-10000 world units.")
+        if key == "rotation" and any(abs(component) > 6.28319 * 100 for component in value):
+            raise HTTPException(status_code=422, detail="Rotation components exceed the supported range.")
+        if key == "scale" and any(component < 0.001 or component > 100 for component in value):
+            raise HTTPException(status_code=422, detail="Scale components must be between 0.001 and 100.")
+        transform[key] = value
+    binding.transform_json = transform
+    binding.updated_by_user_id = user.id
+    db.commit()
+    db.refresh(binding)
+    asset = _asset_or_404(db, project_id, binding.asset_id)
+    return ProductionAssetBindingRead(
+        id=binding.id, project_id=binding.project_id, asset_id=binding.asset_id,
+        target_type=binding.target_type, target_id=binding.target_id,
+        updated_by_user_id=binding.updated_by_user_id, updated_at=binding.updated_at,
+        transform_json=binding.transform_json, asset=_read(asset),
+    )
 
 
 @router.delete("/{asset_id}/binding", status_code=status.HTTP_204_NO_CONTENT)
