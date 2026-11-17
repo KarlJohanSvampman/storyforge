@@ -70,7 +70,11 @@ def render_manifest_frames(manifest: dict, output_dir: Path) -> int:
                 if asset_root not in candidate.parents or not candidate.is_file():
                     route.fulfill(status=404, body="Snapshotted asset is unavailable.")
                     return
-                digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+                checksum = hashlib.sha256()
+                with candidate.open("rb") as source:
+                    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                        checksum.update(chunk)
+                digest = checksum.hexdigest()
                 if digest != asset.get("sha256"):
                     route.fulfill(status=409, body="Snapshotted asset failed SHA-256 verification.")
                     return
