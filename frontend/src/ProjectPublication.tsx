@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 type VideoAsset = { id: string; title: string; duration_ms: number; width: number; height: number; status: string };
 type Release = { id: string; release_number: number; slug: string; title: string; synopsis: string; visibility: string; published_at: string };
@@ -32,7 +32,7 @@ export default function ProjectPublication({ projectId, storyboardId, canPublish
   }
   useEffect(() => { refresh().catch(reason => setError(reason.message)); }, [projectId]);
 
-  async function publish(event: React.FormEvent) {
+  async function publish(event: FormEvent) {
     event.preventDefault();
     setBusy(true); setError("");
     try {
