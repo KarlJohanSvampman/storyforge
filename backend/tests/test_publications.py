@@ -74,6 +74,7 @@ def _approve_storyboard_narrative(project_id: str, owner_id: str):
 def test_publish_release_snapshots_approved_story_and_finished_video(monkeypatch, tmp_path):
     monkeypatch.setenv("STORYFORGE_PRODUCTION_MEDIA_DIR", str(tmp_path))
     project_id, sequence = _production_sequence("Immutable release snapshot")
+    sequence = client.get(f"/api/projects/{project_id}/edit-sequences/{sequence['id']}").json()
     asset_id, owner_id = _completed_video(project_id, sequence["id"], tmp_path)
     storyboard_id = _approve_storyboard_narrative(project_id, owner_id)
 
