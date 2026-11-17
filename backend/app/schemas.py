@@ -1801,6 +1801,7 @@ class PublishedReleaseCreate(BaseModel):
 
 
 class PublishedReleaseRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     project_id: uuid.UUID
     release_number: int
