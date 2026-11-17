@@ -1,3 +1,15 @@
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from app.database import SessionLocal
+from app.main import app
+from app.models import PublishedRelease
+from test_audio_pipeline import _production_sequence
+from test_publications import _completed_video, _approve_storyboard_narrative
+
+client = TestClient(app)
+
+
 
 
 
