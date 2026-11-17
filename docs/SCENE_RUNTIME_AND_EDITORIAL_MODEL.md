@@ -141,3 +141,12 @@ The published_releases row stores a project-local release number, permanent uniq
 Before publication, the API verifies that the storyboard belongs to the project, its exact narrative version has an approved decision, the video asset belongs to the project and is active, its render job is completed and agrees with the asset's checksum/storage key, and the stored video bytes still match the recorded SHA-256. The selected sequence must also belong to the project, must still be at the exact revision rendered into the chosen master, and every clip must reference a scene in the selected storyboard. The release manifest freezes the full ordered edit sequence, trims, transitions, titles, effect metadata, audio tracks, mix controls, audio clip timing, and referenced audio asset hashes.
 
 The release list/detail endpoints are currently membership-protected. There are intentionally no update or delete routes. Public and unlisted read/playback routes, posters/trailers and opt-in credits are deferred to M4.2/M4.3. Release visibility is copied at publication time; changing project visibility later cannot silently change an existing release's intended visibility.
+
+
+## M4.2 — Public release pages
+
+Each release has a permanent slug route. Public and unlisted releases can be read without project membership; private releases return the same not-found response as unknown slugs. Only public releases appear in the public index. The public DTO is an allowlist and does not expose the immutable production manifest, internal project IDs, private production endpoints, or contributor identities that were not explicitly credited. MP4 playback uses a dedicated public media route and verifies the stored asset checksum before serving. Poster/cover and separate trailer assets remain a follow-up; the current release page uses the finished master video.
+
+## M4.3 — Opt-in release credits
+
+A project participant can create a named contributor or production credit, or opt in one of their own active Actor profiles when it is actively cast in the project. Every consent stores its category, public name and role label. Participants can revoke their own consent, including after leaving the project. Revocation excludes the credit from future release snapshots but does not rewrite an already published release. At publication, only non-revoked consents are copied into the immutable release manifest; cast entries also snapshot the assigned character name. Public pages expose only the name, category, role and optional character name from those explicit snapshots.
