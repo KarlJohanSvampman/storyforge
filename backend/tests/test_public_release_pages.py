@@ -47,7 +47,7 @@ def test_public_release_visibility_and_media_delivery(monkeypatch, tmp_path):
     video = client.get(f"/api/public/releases/{slug}/video")
     assert video.status_code == 200
     assert video.headers["content-type"].startswith("video/mp4")
-    assert video.content == b"\\x00\\x00\\x00\\x18ftypmp42storyforge-test-video"
+    assert video.content == b"\x00\x00\x00\x18ftypmp42storyforge-test-video"
 
     with SessionLocal() as db:
         release = db.scalar(select(PublishedRelease).where(PublishedRelease.slug == slug))
