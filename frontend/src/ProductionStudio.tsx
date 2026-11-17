@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Activity, Camera, Check, ChevronDown, ChevronUp, Clapperboard, Download, Film, Lock, Pause, Play, Plus, Radio, Save, Square, UserRound, Video } from "lucide-react";
 import ThreeSceneViewport from "./ThreeSceneViewport";
+import type { SceneProductionAsset } from "./productionScene";
 import AudioTimeline from "./AudioTimeline";
 import ProductionVideoExport from "./ProductionVideoExport";
 
@@ -48,6 +49,7 @@ type CameraPreset = "wide" | "close" | "overhead" | "reverse";
 
 export default function ProductionStudio({ projectId, phase, scenes, members, currentUserId, canManage, onPhaseChanged }: Props) {
   const [runs, setRuns] = useState<SceneRun[]>([]);
+  const [productionAssets, setProductionAssets] = useState<SceneProductionAsset[]>([]);
   const [takes, setTakes] = useState<Take[]>([]);
   const [sequences, setSequences] = useState<EditSequence[]>([]);
   const [selectedRunId, setSelectedRunId] = useState("");
@@ -85,6 +87,27 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
     if (!selectedTakeId && takeRows.length) setSelectedTakeId(takeRows[0].id);
     if (!selectedSequenceId && sequenceRows.length) setSelectedSequenceId(sequenceRows[0].id);
   }
+
+  useEffect(() => {
+    let alive = true;
+    api<any[]>(root(projectId) + "/production-assets/bindings")
+      .then(rows => {
+        if (!alive) return;
+        setProductionAssets(rows.map(row => ({
+          asset_id: row.asset.id,
+          target_type: row.target_type,
+          target_id: row.target_id,
+          version: row.asset.version,
+          sha256: row.asset.sha256,
+          file_format: row.asset.file_format,
+          render_url: row.asset.download_url,
+          download_url: row.asset.download_url,
+          transform: row.transform_json || { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+        })));
+      })
+      .catch(() => { if (alive) setProductionAssets([]); });
+    return () => { alive = false; };
+  }, [projectId]);
 
   useEffect(() => {
     let alive = true;
@@ -412,7 +435,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       <section className="production-panel production-runtime-panel">
         <div className="casting-panel-heading"><div><div className="section-kicker">LIVE SET</div><h3>{selectedRun?.scene_title || "Select a scene run"}</h3></div><Camera size={17} /></div>
         {selectedRun ? <>
-          <ThreeSceneViewport castMembers={selectedRun.cast_members} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} replayEvents={selectedTake?.scene_run_id === selectedRun.id ? replayData?.events || [] : []} playheadMs={playheadMs} />
+          <ThreeSceneViewport castMembers={selectedRun.cast_members} productionAssets={productionAssets} sceneTitle={selectedRun.scene_title} cameraPreset={cameraPreset} replayEvents={selectedTake?.scene_run_id === selectedRun.id ? replayData?.events || [] : []} playheadMs={playheadMs} />
           <label className="production-camera-select">Virtual camera<select value={cameraPreset} disabled={selectedRun.status !== "running"} onChange={event => changeCamera(event.target.value as CameraPreset)}>
             <option value="wide">Wide master</option><option value="close">Close-up</option><option value="overhead">Overhead</option><option value="reverse">Reverse angle</option>
           </select></label>
