@@ -12,7 +12,7 @@ from .audio import _safe_path
 from .models import (
     AudioClip, AudioTrack, EditSequence, EditSequenceItem, NarrativeApprovalDecision,
     NarrativeDraft, NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
-    ProjectCharacter, ProjectLocation, PublishedRelease, SceneCharacterAssignment,
+    Actor, CastingAssignment, ProjectCharacter, ProjectLocation, ProjectCreditConsent, PublishedRelease, SceneCharacterAssignment,
     SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode, StoryboardScene,
     StoryboardSeason, VideoRenderJob,
 )
@@ -186,9 +186,28 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
     approval = db.scalar(select(NarrativeApprovalDecision).where(
         NarrativeApprovalDecision.version_id == narrative.id,
     ))
+    consent_rows = db.scalars(select(ProjectCreditConsent).where(
+        ProjectCreditConsent.project_id == project.id,
+        ProjectCreditConsent.revoked_at.is_(None),
+    ).order_by(ProjectCreditConsent.category, ProjectCreditConsent.role_label, ProjectCreditConsent.public_name)).all()
+    credits = []
+    for consent in consent_rows:
+        credit = {"category": consent.category, "role_label": consent.role_label, "public_name": consent.public_name}
+        if consent.category == "cast":
+            assignment = db.scalar(select(CastingAssignment).where(
+                CastingAssignment.project_id == project.id,
+                CastingAssignment.actor_id == consent.actor_id,
+                CastingAssignment.status == "active",
+            ))
+            if assignment is None:
+                continue
+            character = db.get(ProjectCharacter, assignment.character_id)
+            credit["character_name"] = character.name if character else None
+        credits.append(credit)
     return {
         "format_version": 1,
         "release_number": release_number,
+        "credits": credits,
         "project": {
             "id": str(project.id), "title": project.title,
             "description": project.description, "logline": project.logline,
