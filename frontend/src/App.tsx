@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import CastingWorkspace from "./CastingWorkspace";
+import ProjectCredits from "./ProjectCredits";
 import PublicRelease from "./PublicRelease";
 import ProductionStudio from "./ProductionStudio";
 import {
@@ -2849,6 +2850,8 @@ function WorkspaceApp() {
                   onPhaseChanged={() => openProject(selectedProject.id)}
                 />
               )}
+
+              <ProjectCredits projectId={selectedProject.id} />
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
