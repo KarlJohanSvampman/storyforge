@@ -28,6 +28,7 @@ type Props = {
   fadeOpacity?: number;
   onCanvasReady?: (canvas: HTMLCanvasElement | null) => void;
   productionAssets?: SceneProductionAsset[];
+  sceneLocationId?: string | null;
 };
 
 const CAMERA_POSITIONS: Record<CameraPreset, [number, number, number]> = {
@@ -123,6 +124,7 @@ export default function ThreeSceneViewport({
   fadeOpacity = 0,
   onCanvasReady,
   productionAssets = [],
+  sceneLocationId = null,
 }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -318,7 +320,7 @@ export default function ThreeSceneViewport({
           if (child instanceof THREE.Mesh && child.userData.isProceduralCharacterPart) child.visible = false;
         });
         rig.add(object);
-      } else {
+      } else if (asset.target_type === "location" && asset.target_id === sceneLocationId) {
         scene.add(object);
       }
       loaded.push(object);
@@ -332,7 +334,7 @@ export default function ThreeSceneViewport({
         if (child instanceof THREE.Mesh && child.userData.isProceduralCharacterPart) child.visible = true;
       }));
     };
-  }, [productionAssets, castMembers]);
+  }, [productionAssets, castMembers, sceneLocationId]);
 
   useEffect(() => {
     const camera = cameraRef.current;
