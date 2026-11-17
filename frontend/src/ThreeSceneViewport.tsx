@@ -129,7 +129,6 @@ export default function ThreeSceneViewport({
   const host = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rigsRef = useRef<Map<string, THREE.Group>>(new Map());
-  const assetObjectsRef = useRef<THREE.Object3D[]>([]);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const titleSpriteRef = useRef<THREE.Sprite | null>(null);
@@ -325,11 +324,9 @@ export default function ThreeSceneViewport({
       }
       loaded.push(object);
     })).catch(() => undefined);
-    assetObjectsRef.current = loaded;
     return () => {
       alive = false;
       loaded.forEach(object => { object.parent?.remove(object); disposeObject(object); });
-      assetObjectsRef.current = [];
       rigsRef.current.forEach(rig => rig.traverse(child => {
         if (child instanceof THREE.Mesh && child.userData.isProceduralCharacterPart) child.visible = true;
       }));
