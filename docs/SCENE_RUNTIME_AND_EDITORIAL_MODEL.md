@@ -114,3 +114,20 @@ This is a genuine headless Three.js/WebGL render path, using Chromium's software
 - Skeletal animation clips, retargeting, facial animation, and deterministic physics replay.
 - Audio conform that combines the completed WAV master with the headless 3D picture render.
 - Native effect processing, configurable render profiles, persistent thumbnails/posters, and scalable render scheduling.
+
+
+## M4.5 — Renderer asset integration
+
+The M4.4 asset registry is consumed by both Three.js render paths. A character or location binding selects one immutable ProductionAsset version. Binding placement is stored independently as a transform object:
+
+- position: three world/local coordinates in scene units.
+- rotation: three Euler angles in radians.
+- scale: three positive scale components.
+
+The binding transform endpoint accepts partial updates and validates finite values and supported ranges. A render request resolves the current bindings while its edit sequence is locked and copies the asset ID, kind, target, version, checksum, file format, content type, byte size, storage key and transform into each applicable clip. The render job never re-queries the mutable binding when it executes.
+
+The interactive viewport loads the selected character/location models through the authenticated project download endpoint. Character models follow their cast-member transform and replace the procedural body while preserving the cast label. Location models are loaded only for the active scene's location. Scenes without an assigned model retain the existing procedural stand-in.
+
+The headless renderer uses the same productionScene.ts loader and placement logic. The video-renderer container mounts the asset volume read-only. Playwright intercepts the internal asset URLs and fulfills only files explicitly named by the immutable manifest; the resolved path must remain inside the asset root and the file's SHA-256 must match the snapshot. GLB and self-contained GLTF data-URI resources are supported without external network or filesystem fetches.
+
+M4.5 covers static glTF scene graphs and root placement. It does not yet reconstruct glTF skeletal animation clips, retarget animation, simulate deterministic physics, place unbound props, or conform audio to the headless 3D render.
