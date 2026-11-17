@@ -191,9 +191,12 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local migration, authorization, release numbering, provenance snapshot, integrity, and persistence verification.
 
 ### M4.2 — Public release pages
-- [ ] Give each release a permanent public page with poster/cover, synopsis, trailer, release date, and media.
-- [ ] Respect snapshotted private, unlisted, and public visibility.
-- [ ] Provide public playback/download delivery without exposing project-private production endpoints.
+- [x] Give each release a permanent slug-based public page with a synopsis, publication date, poster/cover, trailer (when supplied), and finished media.
+- [x] Respect snapshotted private, unlisted, and public visibility; only public releases appear in the public index.
+- [x] Provide public playback and poster/trailer delivery through dedicated endpoints without exposing project-private production endpoints.
+- [x] Generate and snapshot an immutable 16:9 JPEG cover from the master video, with a typographic fallback when a frame cannot be extracted.
+- [x] Allow an optional completed project-owned MP4 trailer to be snapshotted and delivered separately.
+- [ ] Local end-to-end UI, visibility, media-range, and integrity verification.
 
 ### M4.3 — Credits and release presentation
 - [x] Allow contributors and production participants to opt in to named credits with role labels.
