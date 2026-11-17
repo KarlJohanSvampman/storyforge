@@ -177,6 +177,9 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
         "audio_tracks": track_snapshots,
     }
 
+    approval = db.scalar(select(NarrativeApprovalDecision).where(
+        NarrativeApprovalDecision.version_id == narrative.id,
+    ))
     return {
         "format_version": 1,
         "release_number": release_number,
@@ -196,9 +199,17 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             "narrative_origin": narrative.origin,
             "narrative_provider": narrative.provider_name,
             "narrative_model": narrative.model_name,
-            "approval_decision_id": str(db.scalar(select(NarrativeApprovalDecision).where(
-                NarrativeApprovalDecision.version_id == narrative.id,
-            )).id),
+            "approval_decision": ({
+                "id": str(approval.id), "outcome": approval.outcome,
+                "rule_mode": approval.rule_mode,
+                "eligible_voter_count": approval.eligible_voter_count,
+                "approve_count": approval.approve_count,
+                "reject_count": approval.reject_count,
+                "required_votes": approval.required_votes,
+                "note": approval.note,
+                "actor_user_id": str(approval.actor_user_id),
+                "created_at": approval.created_at.isoformat() if approval.created_at else None,
+            } if approval else None),
         },
         "storyboard": {"seasons": season_snapshots, "scenes": scene_snapshots},
         "edit_sequence": sequence_snapshot,
@@ -207,6 +218,7 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             "sequence_id": str(asset.sequence_id),
             "sequence_revision": asset.sequence_revision,
             "render_job_id": str(job.id), "render_source": job.render_source,
+            "render_manifest": job.render_manifest,
             "original_filename": asset.original_filename,
             "content_type": asset.content_type, "size_bytes": asset.size_bytes,
             "sha256": asset.sha256, "duration_ms": asset.duration_ms,
