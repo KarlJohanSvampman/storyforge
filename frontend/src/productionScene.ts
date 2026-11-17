@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 export type SceneCastMember = {
   id: string;
@@ -6,6 +7,7 @@ export type SceneCastMember = {
   actor_name?: string;
   character_name_snapshot?: string;
   actor_name_snapshot?: string;
+  character_id?: string;
 };
 export type SceneReplayEvent = {
   timestamp_ms: number;
@@ -21,6 +23,20 @@ export type SceneClip = {
   camera_snapshot?: Record<string, unknown>;
   cast_members?: SceneCastMember[];
   events?: SceneReplayEvent[];
+  location_id?: string | null;
+  production_assets?: SceneProductionAsset[];
+};
+
+export type SceneProductionAsset = {
+  asset_id: string;
+  target_type: "character" | "location";
+  target_id: string;
+  version: number;
+  sha256: string;
+  file_format: "glb" | "gltf";
+  render_url: string;
+  download_url?: string;
+  transform: { position?: number[]; rotation?: number[]; scale?: number[] };
 };
 export type ProductionStage = {
   scene: THREE.Scene;
@@ -30,6 +46,7 @@ export type ProductionStage = {
   titleSprite: THREE.Sprite;
   sceneLabel: THREE.Sprite;
   fadePlane: THREE.Mesh;
+  assetObjects: Map<string, THREE.Object3D>;
   width: number;
   height: number;
 };
@@ -129,6 +146,7 @@ export function createCharacterRig(index: number, total: number, label: string):
   const add = (geometry: THREE.BufferGeometry, material: THREE.Material, position: [number, number, number]) => {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(...position); mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.userData.isProceduralCharacterPart = true;
     group.add(mesh); return mesh;
   };
   add(new THREE.CylinderGeometry(.31, .4, .95, 12), cloth, [0, 1.35, 0]);
@@ -202,7 +220,42 @@ export function createProductionStage(width: number, height: number): Production
   renderer.setPixelRatio(1); renderer.setSize(width, height, false);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  return { scene, camera, renderer, rigs: new Map(), titleSprite: title, sceneLabel, fadePlane: fade, width, height };
+  return { scene, camera, renderer, rigs: new Map(), titleSprite: title, sceneLabel, fadePlane: fade, assetObjects: new Map(), width, height };
+}
+
+export async function loadProductionAssets(stage: ProductionStage, clips: SceneClip[]): Promise<void> {
+  const assets = new Map<string, SceneProductionAsset>();
+  for (const clip of clips) {
+    for (const asset of clip.production_assets || []) {
+      if (asset.asset_id && asset.render_url) assets.set(asset.asset_id, asset);
+    }
+  }
+  const loader = new GLTFLoader();
+  for (const asset of assets.values()) {
+    if (stage.assetObjects.has(asset.asset_id)) continue;
+    const gltf = await loader.loadAsync(asset.render_url);
+    const object = gltf.scene;
+    object.name = "StoryForge asset " + asset.asset_id + " v" + asset.version;
+    object.userData.storyForgeAsset = asset;
+    object.visible = false;
+    object.traverse(child => {
+      if (child instanceof THREE.Mesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+      }
+    });
+    stage.scene.add(object);
+    stage.assetObjects.set(asset.asset_id, object);
+  }
+}
+
+function applyAssetTransform(object: THREE.Object3D, transform: SceneProductionAsset["transform"]): void {
+  const position = vector(transform.position);
+  const rotation = vector(transform.rotation);
+  const scale = vector(transform.scale);
+  object.position.copy(position || new THREE.Vector3());
+  object.rotation.set(rotation?.x || 0, rotation?.y || 0, rotation?.z || 0);
+  object.scale.copy(scale || new THREE.Vector3(1, 1, 1));
 }
 
 function vector(value: unknown): THREE.Vector3 | null {
@@ -293,6 +346,38 @@ export function renderProductionClip(stage: ProductionStage, clip: SceneClip, lo
     rig.position.copy(position || basePosition);
     rig.rotation.set(rotation?.x ?? baseRotation.x, rotation?.y ?? baseRotation.y, rotation?.z ?? baseRotation.z);
     rig.scale.copy(scale || baseScale);
+  }
+  const clipAssets = clip.production_assets || [];
+  for (const object of stage.assetObjects.values()) object.visible = false;
+  for (const member of members) {
+    const model = clipAssets.find(asset => asset.target_type === "character" && asset.target_id === member.character_id);
+    const rig = stage.rigs.get(member.id);
+    if (!rig) continue;
+    rig.traverse(object => {
+      if (object instanceof THREE.Mesh && object.userData.isProceduralCharacterPart) object.visible = !model;
+    });
+    if (model) {
+      const object = stage.assetObjects.get(model.asset_id);
+      if (object) {
+        applyAssetTransform(object, model.transform);
+        object.position.add(rig.position);
+        object.rotation.set(
+          object.rotation.x + rig.rotation.x,
+          object.rotation.y + rig.rotation.y,
+          object.rotation.z + rig.rotation.z,
+        );
+        object.scale.multiply(rig.scale);
+        object.visible = true;
+      }
+    }
+  }
+  for (const asset of clipAssets) {
+    if (asset.target_type !== "location") continue;
+    const object = stage.assetObjects.get(asset.asset_id);
+    if (object && asset.target_id === clip.location_id) {
+      applyAssetTransform(object, asset.transform);
+      object.visible = true;
+    }
   }
   updateSceneLabel(stage.sceneLabel, String(clip.scene_title || "Scene"));
   updateTitle(stage.titleSprite, String(clip.title_overlay || ""));
