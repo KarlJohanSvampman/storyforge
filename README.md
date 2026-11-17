@@ -170,3 +170,12 @@ The interactive Three.js viewport and headless Three.js renderer now consume the
 Bindings store position, Euler rotation (radians) and scale. Owners and editors can update these values through the project production-assets binding transform endpoint. The interactive viewport loads the active bindings through authenticated project downloads; the headless renderer serves only files named in the immutable job manifest from its read-only asset volume and verifies their checksums before fulfilling browser requests.
 
 The procedural character/location stand-ins remain when no corresponding model is assigned. Imported character meshes replace the procedural body while retaining the cast label and recorded character transforms. Imported location models are scoped to scenes using that location. This milestone imports static glTF scene graphs; skeletal animation playback, retargeting, physics replay, prop placement, and audio conform remain future work.
+
+
+## Immutable publication releases (M4.1)
+
+A project owner can publish a numbered release from an approved storyboard interpretation and a completed MP4 production video. Publication validates the exact narrative approval decision, project ownership, completed render job, source sequence and video-file SHA-256 before creating a release.
+
+Each release stores an immutable manifest containing the project metadata snapshot, exact approved narrative version and content, storyboard seasons/episodes, ordered scenes, character and location descriptions, latest structured screenplay revision for each scene, and the selected finished video asset metadata/checksum. The release also receives a stable, globally unique slug and sequential project release number. Later project edits, story-bible changes, script revisions, or new renders do not rewrite existing release snapshots.
+
+Release creation is owner-only and restricted to projects in the production phase. Release list/detail endpoints currently require active project membership. Public and unlisted release pages, poster/trailer presentation, and contributor credits are the next publication increment; visibility is snapshotted now so public access can be introduced without mutating release history.
