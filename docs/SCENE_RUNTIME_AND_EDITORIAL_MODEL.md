@@ -96,7 +96,7 @@ The 3D job is processed by the dedicated video-renderer image, based on the Play
 
 frontend/src/productionScene.ts is the shared Three.js scene runtime. It creates the 3D set, lighting, camera, title overlay and procedural character rigs. ThreeSceneViewport uses the same character-rig builder as the headless renderer, keeping the visible interactive performers and offline render stand-ins consistent. The renderer reconstructs transform samples at source-trimmed frame times, applies camera snapshot/event state, and composites cut, fade-through-black and cross-dissolve transitions between rendered 3D frames.
 
-This is a genuine headless Three.js/WebGL render path, using Chromium's software WebGL implementation in the worker container. The current geometry and character bodies remain procedural blocking stand-ins: the project does not yet have a production asset registry, imported character meshes, skinned rigs, skeletal animation clips, retargeting, facial animation, physics replay, or audio conform. The 3D renderer supports 1280×720 at 24 fps from the current API manifest and retains the ten-minute frame budget. The 2D animatic path remains available as a lighter preview option.
+This is a genuine headless Three.js/WebGL render path, using Chromium's software WebGL implementation in the worker container. At M4.3 the current geometry and character bodies were procedural blocking stand-ins. M4.4 added the project-scoped GLB/GLTF asset registry, and M4.5 connects static character/location meshes to the interactive and headless renderers. Skinned rigs, skeletal animation clips, retargeting, facial animation, physics replay, and audio conform remain future work. The 3D renderer supports 1280×720 at 24 fps from the current API manifest and retains the ten-minute frame budget. The 2D animatic path remains available as a lighter preview option.
 
 ## Main API routes
 
@@ -110,7 +110,6 @@ This is a genuine headless Three.js/WebGL render path, using Chromium's software
 
 ## Next work
 
-- A project asset registry for imported locations, props, character meshes and skinned production rigs.
 - Skeletal animation clips, retargeting, facial animation, and deterministic physics replay.
 - Audio conform that combines the completed WAV master with the headless 3D picture render.
 - Native effect processing, configurable render profiles, persistent thumbnails/posters, and scalable render scheduling.
