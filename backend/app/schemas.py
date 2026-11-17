@@ -1791,6 +1791,7 @@ class ProductionAssetBindingRead(BaseModel):
 class PublishedReleaseCreate(BaseModel):
     video_asset_id: uuid.UUID
     storyboard_id: uuid.UUID
+    trailer_video_asset_id: uuid.UUID | None = None
     title: str | None = Field(default=None, min_length=1, max_length=240)
     synopsis: str | None = Field(default=None, max_length=20000)
 
