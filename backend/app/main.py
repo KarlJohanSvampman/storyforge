@@ -20,6 +20,7 @@ from .video_render import router as video_render_router
 from .production_assets import router as production_assets_router
 from .publications import router as publications_router
 from .public_release import router as public_release_router
+from .release_credits import router as release_credits_router
 from .projects import CurrentUser
 
 app = FastAPI(title="StoryForge API", description="Backend API for The StoryForge Collective.", version="0.15.0")
@@ -50,6 +51,7 @@ app.include_router(video_render_router)
 app.include_router(production_assets_router)
 app.include_router(publications_router)
 app.include_router(public_release_router)
+app.include_router(release_credits_router)
 
 
 @app.get("/api/me", tags=["users"])
