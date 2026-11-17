@@ -1,13 +1,14 @@
 """Public-facing release pages and media delivery."""
 
 import hashlib
-from fastapi import APIRouter, HTTPException
+from typing import Literal
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .audio import _safe_path
-from .models import ProductionVideoAsset, PublishedRelease
+from .models import ProductionVideoAsset, PublishedRelease, ReleaseRating
 from .projects import DbSession
 
 router = APIRouter(prefix="/api/public/releases", tags=["public releases"])
@@ -32,6 +33,7 @@ def _public_payload(release: PublishedRelease) -> dict:
         "visibility": release.visibility,
         "published_at": release.published_at,
         "project_title": project.get("title") or release.title,
+        "creator_name": release.creator_name,
         "format": project.get("format"),
         "category": project.get("category"),
         "genre": project.get("genre"),
@@ -53,14 +55,54 @@ def _public_payload(release: PublishedRelease) -> dict:
 
 
 @router.get("")
-def list_public_releases(db: DbSession):
-    releases = db.scalars(
-        select(PublishedRelease)
+def list_public_releases(
+    db: DbSession,
+    genre: str | None = Query(default=None, max_length=80),
+    category: Literal["fiction", "documentary"] | None = None,
+    format: Literal["movie", "tv_series"] | None = None,
+    creator: str | None = Query(default=None, max_length=160),
+    sort: Literal["recent", "popular", "top_rated"] = "recent",
+    limit: int = Query(default=40, ge=1, le=100),
+    offset: int = Query(default=0, ge=0, le=10000),
+):
+    ratings = select(
+        ReleaseRating.release_id.label("release_id"),
+        func.count(ReleaseRating.id).label("rating_count"),
+        func.avg(ReleaseRating.score).label("average_score"),
+    ).group_by(ReleaseRating.release_id).subquery()
+    statement = (
+        select(PublishedRelease, func.coalesce(ratings.c.rating_count, 0), ratings.c.average_score)
+        .outerjoin(ratings, ratings.c.release_id == PublishedRelease.id)
         .where(PublishedRelease.visibility == "public")
-        .order_by(PublishedRelease.published_at.desc())
-        .limit(100)
-    ).all()
-    return [_public_payload(release) for release in releases]
+    )
+    if genre and genre.strip():
+        statement = statement.where(PublishedRelease.genre.ilike(f"%{genre.strip()}%"))
+    if category:
+        statement = statement.where(PublishedRelease.category == category)
+    if format:
+        statement = statement.where(PublishedRelease.format == format)
+    if creator and creator.strip():
+        statement = statement.where(PublishedRelease.creator_name.ilike(f"%{creator.strip()}%"))
+    if sort == "popular":
+        statement = statement.order_by(
+            func.coalesce(ratings.c.rating_count, 0).desc(),
+            ratings.c.average_score.desc().nulls_last(),
+            PublishedRelease.published_at.desc(),
+        )
+    elif sort == "top_rated":
+        statement = statement.order_by(
+            ratings.c.average_score.desc().nulls_last(),
+            func.coalesce(ratings.c.rating_count, 0).desc(),
+            PublishedRelease.published_at.desc(),
+        )
+    else:
+        statement = statement.order_by(PublishedRelease.published_at.desc())
+    rows = db.execute(statement.limit(limit).offset(offset)).all()
+    return [
+        {**_public_payload(release), "rating_count": int(rating_count or 0),
+         "average_score": round(float(average_score), 2) if average_score is not None else None}
+        for release, rating_count, average_score in rows
+    ]
 
 
 
