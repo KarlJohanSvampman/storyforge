@@ -5,6 +5,7 @@ type PublicReleaseData = {
   published_at: string; project_title: string; format: string | null;
   category: string | null; genre: string | null; duration_ms: number | null;
   width: number | null; height: number | null; video_url: string;
+  credits: Array<{ category: string; role_label: string; public_name: string; character_name: string | null }>;
 };
 
 export default function PublicRelease({ slug }: { slug: string }) {
@@ -47,6 +48,7 @@ export default function PublicRelease({ slug }: { slug: string }) {
           <source src={release.video_url} type="video/mp4" />
           Your browser does not support HTML video.
         </video>
+        {release.credits?.length > 0 && <section style={{ maxWidth: 760, marginTop: 42 }}><h2 style={{ fontSize: 22 }}>Credits</h2><div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 16 }}>{(["cast", "contributor", "production"] as const).map(category => { const entries = release.credits.filter(credit => credit.category === category); return entries.length ? <div key={category}><h3 style={{ color: "#c9a77b", fontSize: 13, textTransform: "uppercase", letterSpacing: ".12em" }}>{category === "cast" ? "Cast" : category === "contributor" ? "Contributors" : "Production"}</h3>{entries.map((credit, index) => <p key={`${credit.public_name}-${index}`} style={{ margin: "8px 0", color: "#d0cdc7" }}><strong>{credit.public_name}</strong><br /><span style={{ color: "#99958e", fontSize: 13 }}>{credit.role_label}{credit.character_name ? ` · ${credit.character_name}` : ""}</span></p>)}</div> : null; })}</div></section>}
         {release.synopsis && <section style={{ maxWidth: 760, marginTop: 42 }}><h2 style={{ fontSize: 22 }}>Synopsis</h2><p style={{ color: "#d0cdc7", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{release.synopsis}</p></section>}
         <footer style={{ borderTop: "1px solid #343438", marginTop: 64, paddingTop: 22, color: "#85827d", fontSize: 12 }}>Published with StoryForge · {release.slug}</footer>
       </div>
