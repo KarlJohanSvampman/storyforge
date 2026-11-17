@@ -1786,3 +1786,31 @@ class ProductionAssetBindingRead(BaseModel):
     updated_at: datetime
     transform_json: dict
     asset: ProductionAssetRead
+
+
+class PublishedReleaseCreate(BaseModel):
+    video_asset_id: uuid.UUID
+    storyboard_id: uuid.UUID
+    title: str | None = Field(default=None, min_length=1, max_length=240)
+    synopsis: str | None = Field(default=None, max_length=20000)
+
+    @field_validator("title", "synopsis")
+    @classmethod
+    def clean_release_text(cls, value: str | None) -> str | None:
+        return value.strip() if value is not None else None
+
+
+class PublishedReleaseRead(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    release_number: int
+    slug: str
+    title: str
+    synopsis: str
+    visibility: Literal["private", "unlisted", "public"]
+    storyboard_id: uuid.UUID
+    narrative_version_id: uuid.UUID
+    video_asset_id: uuid.UUID
+    manifest_json: dict
+    published_by_user_id: uuid.UUID
+    published_at: datetime
