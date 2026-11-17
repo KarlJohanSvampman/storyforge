@@ -210,7 +210,9 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add written reviews with editing, spoiler controls, helpful reactions, and reporting.
 - [x] Display aggregate score, rating count, and rating distribution.
 - [x] Add one-report-per-user safeguards and automatically hide a review after three distinct reports, retaining report records.
-- [ ] Add discovery by genre, popularity, recency, and creator.
+- [x] Add public discovery filters for genre, category, and creator.
+- [x] Add recent, popular (rating count), and top-rated sorting with paginated results.
+- [ ] Add richer creator profiles and search facets.
 - [ ] Add moderation and anti-brigading safeguards.
 
 ## M6 — Actor profiles and production economics
