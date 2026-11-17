@@ -1225,5 +1225,6 @@ class ProductionAssetBinding(Base):
     asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_assets.id", ondelete="RESTRICT"), nullable=False, index=True)
     target_type: Mapped[str] = mapped_column(String(20), nullable=False)
     target_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    transform_json: Mapped[dict] = mapped_column(JSON, default=lambda: {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]}, nullable=False)
     updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
