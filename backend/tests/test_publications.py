@@ -93,6 +93,8 @@ def test_publish_release_snapshots_approved_story_and_finished_video(monkeypatch
     assert release["manifest_json"]["source"]["narrative_content"] == "Story"
     assert release["manifest_json"]["master_video"]["asset_id"] == asset_id
     assert release["manifest_json"]["master_video"]["sha256"]
+    assert release["manifest_json"]["edit_sequence"]["revision_number"] == sequence["revision_number"]
+    assert len(release["manifest_json"]["edit_sequence"]["items"]) == 1
 
     with SessionLocal() as db:
         project = db.get(Project, uuid.UUID(project_id))
@@ -134,6 +136,17 @@ def test_release_requires_approved_narrative_and_integral_finished_video(monkeyp
         "video_asset_id": asset_id, "storyboard_id": storyboard_id,
     })
     assert tampered.status_code == 409
+
+    video_path.write_bytes(b"\x00\x00\x00\x18ftypmp42storyforge-test-video")
+    with SessionLocal() as db:
+        from app.models import EditSequence
+        sequence = db.get(EditSequence, uuid.UUID(sequence["id"]))
+        sequence.revision_number += 1
+        db.commit()
+    stale_sequence = client.post(f"/api/projects/{project_id}/releases", json={
+        "video_asset_id": asset_id, "storyboard_id": storyboard_id,
+    })
+    assert stale_sequence.status_code == 409
 
 
 def test_release_requires_project_owner(monkeypatch, tmp_path):
