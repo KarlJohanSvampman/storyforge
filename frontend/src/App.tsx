@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import CastingWorkspace from "./CastingWorkspace";
+import PublicRelease from "./PublicRelease";
 import ProductionStudio from "./ProductionStudio";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
@@ -268,7 +269,7 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function App() {
+function WorkspaceApp() {
   const [health, setHealth] = useState<ApiHealth | null>(null);
   const [apiError, setApiError] = useState(false);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
