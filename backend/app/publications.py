@@ -16,7 +16,7 @@ from .models import (
     NarrativeDraft, NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
     Actor, CastingAssignment, ProjectCharacter, ProjectLocation, ProjectCreditConsent, PublishedRelease, SceneCharacterAssignment,
     SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode, StoryboardScene,
-    StoryboardSeason, VideoRenderJob,
+    StoryboardSeason, User, VideoRenderJob,
 )
 from .projects import CurrentUser, DbSession, _membership
 from .schemas import PublishedReleaseCreate, PublishedReleaseRead
