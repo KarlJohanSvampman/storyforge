@@ -1815,3 +1815,31 @@ class PublishedReleaseRead(BaseModel):
     manifest_json: dict
     published_by_user_id: uuid.UUID
     published_at: datetime
+
+
+class ProjectCreditConsentCreate(BaseModel):
+    category: Literal["contributor", "cast", "production"]
+    role_label: str = Field(min_length=1, max_length=100)
+    public_name: str = Field(min_length=1, max_length=160)
+    actor_id: uuid.UUID | None = None
+
+    @field_validator("role_label", "public_name")
+    @classmethod
+    def clean_credit_text(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Credit name and role label cannot be blank.")
+        return cleaned
+
+
+class ProjectCreditConsentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    project_id: uuid.UUID
+    user_id: uuid.UUID
+    category: Literal["contributor", "cast", "production"]
+    role_label: str
+    public_name: str
+    actor_id: uuid.UUID | None
+    consented_at: datetime
+    revoked_at: datetime | None

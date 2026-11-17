@@ -1230,6 +1230,25 @@ class ProductionAssetBinding(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class ProjectCreditConsent(Base):
+    """A user's revocable opt-in to a named credit on a specific project."""
+    __tablename__ = "project_credit_consents"
+    __table_args__ = (
+        CheckConstraint("category IN ('contributor', 'cast', 'production')", name="ck_project_credit_consents_category"),
+        CheckConstraint("(category = 'cast' AND actor_id IS NOT NULL) OR (category != 'cast' AND actor_id IS NULL)", name="ck_project_credit_consents_actor"),
+        Index("ix_project_credit_consents_project_active", "project_id", "revoked_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(20), nullable=False)
+    role_label: Mapped[str] = mapped_column(String(100), nullable=False)
+    public_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("actors.id", ondelete="RESTRICT"), nullable=True)
+    consented_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class PublishedRelease(Base):
     """Immutable public-facing snapshot of one approved story and finished video master."""
     __tablename__ = "published_releases"
