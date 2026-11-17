@@ -200,14 +200,24 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
         VideoRenderJob.project_id == project_id,
         VideoRenderJob.status == "completed",
     ))
-    if job is None or job.output_sha256 != asset.sha256 or job.output_storage_key != asset.storage_key:
-        raise HTTPException(status_code=409, detail="The selected video asset does not match a completed render job.")
+    if (
+        job is None
+        or job.output_sha256 != asset.sha256
+        or job.output_storage_key != asset.storage_key
+        or job.output_size_bytes != asset.size_bytes
+        or job.output_content_type != asset.content_type
+        or job.duration_ms != asset.duration_ms
+        or job.width != asset.width
+        or job.height != asset.height
+        or asset.content_type != "video/mp4"
+    ):
+        raise HTTPException(status_code=409, detail="The selected video asset does not match a completed MP4 render job.")
     sequence = db.scalar(select(EditSequence).where(
         EditSequence.id == asset.sequence_id,
         EditSequence.project_id == project_id,
     ))
-    if sequence is None or asset.sequence_revision < 1:
-        raise HTTPException(status_code=409, detail="The video asset's source edit sequence is unavailable.")
+    if sequence is None or asset.sequence_revision < 1 or asset.sequence_revision > sequence.revision_number:
+        raise HTTPException(status_code=409, detail="The video asset's source edit sequence revision is unavailable.")
 
     video_path = _safe_path(asset.storage_key)
     if not video_path.is_file() or _sha256_file(video_path) != asset.sha256:
