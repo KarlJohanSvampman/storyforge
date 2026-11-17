@@ -2,6 +2,8 @@
 
 import hashlib
 import re
+import subprocess
+import textwrap
 import uuid
 
 from fastapi import APIRouter, HTTPException, status
@@ -253,6 +255,78 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
     }
 
 
+
+def _create_release_poster(video_path, storage_key: str, title: str, synopsis: str) -> dict:
+    poster_path = _safe_path(storage_key)
+    poster_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        subprocess.run([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-ss", "1", "-i", str(video_path), "-frames:v", "1",
+            "-vf", "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+            "-q:v", "3", str(poster_path),
+        ], check=True, capture_output=True, timeout=60)
+        if not poster_path.is_file() or poster_path.stat().st_size < 1000:
+            raise RuntimeError("No usable video frame was produced.")
+    except (OSError, subprocess.SubprocessError, RuntimeError):
+        from PIL import Image, ImageDraw, ImageFont
+        image = Image.new("RGB", (1280, 720), (17, 19, 25))
+        draw = ImageDraw.Draw(image)
+        for y in range(720):
+            shade = int(20 + 20 * y / 720)
+            draw.line((0, y, 1280, y), fill=(shade, shade, shade + 8))
+        draw.rectangle((72, 72, 82, 648), fill=(201, 167, 123))
+        title_font = ImageFont.load_default(size=66)
+        body_font = ImageFont.load_default(size=26)
+        lines = textwrap.wrap(title, width=24)[:3]
+        y = 250 if len(lines) <= 2 else 210
+        for line in lines:
+            draw.text((130, y), line, font=title_font, fill=(246, 242, 234))
+            y += 82
+        if synopsis:
+            excerpt = textwrap.shorten(" ".join(synopsis.split()), width=110, placeholder="…")
+            draw.text((134, min(y + 28, 570)), excerpt, font=body_font, fill=(190, 187, 181))
+        image.save(poster_path, format="JPEG", quality=88, optimize=True)
+    digest = hashlib.sha256()
+    with poster_path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {"storage_key": storage_key, "sha256": digest.hexdigest(),
+            "content_type": "image/jpeg", "size_bytes": poster_path.stat().st_size,
+            "width": 1280, "height": 720}
+
+
+def _trailer_snapshot(db: Session, project_id: uuid.UUID, trailer_id: uuid.UUID | None) -> dict | None:
+    if trailer_id is None:
+        return None
+    asset = db.scalar(select(ProductionVideoAsset).where(
+        ProductionVideoAsset.id == trailer_id,
+        ProductionVideoAsset.project_id == project_id,
+        ProductionVideoAsset.status == "active",
+    ))
+    if asset is None:
+        raise HTTPException(status_code=404, detail="An active trailer video from this project is required.")
+    job = db.scalar(select(VideoRenderJob).where(
+        VideoRenderJob.id == asset.render_job_id,
+        VideoRenderJob.project_id == project_id,
+        VideoRenderJob.status == "completed",
+    ))
+    if (job is None or job.sequence_id != asset.sequence_id
+        or job.sequence_revision != asset.sequence_revision
+        or job.output_sha256 != asset.sha256 or job.output_storage_key != asset.storage_key
+        or job.output_size_bytes != asset.size_bytes or job.output_content_type != asset.content_type
+        or job.duration_ms != asset.duration_ms or job.width != asset.width or job.height != asset.height
+        or asset.content_type != "video/mp4"):
+        raise HTTPException(status_code=409, detail="The selected trailer does not match a completed MP4 render job.")
+    path = _safe_path(asset.storage_key)
+    if not path.is_file() or _sha256_file(path) != asset.sha256:
+        raise HTTPException(status_code=409, detail="The selected trailer is missing or failed integrity verification.")
+    return {"asset_id": str(asset.id), "title": asset.title, "storage_key": asset.storage_key,
+            "sha256": asset.sha256, "content_type": asset.content_type,
+            "size_bytes": asset.size_bytes, "duration_ms": asset.duration_ms,
+            "width": asset.width, "height": asset.height}
+
+
 @router.post("", response_model=PublishedReleaseRead, status_code=status.HTTP_201_CREATED)
 def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCreate, db: DbSession, user: CurrentUser):
     project = db.scalar(select(Project).where(Project.id == project_id).with_for_update())
@@ -328,6 +402,8 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
     release_number = latest_number + 1
     slug = f"{_slugify(title)}-{str(project_id)[:8]}-r{release_number}"
     manifest = _build_manifest(db, project, storyboard, narrative, sequence, asset, job, release_number)
+    manifest["poster"] = _create_release_poster(video_path, f"release-posters/{project_id}/{slug}.jpg", title, synopsis)
+    manifest["trailer_video"] = _trailer_snapshot(db, project_id, payload.trailer_video_asset_id)
     release = PublishedRelease(
         project_id=project_id, release_number=release_number, slug=slug,
         title=title, synopsis=synopsis, visibility=project.visibility,
