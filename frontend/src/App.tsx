@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import CastingWorkspace from "./CastingWorkspace";
 import ProjectCredits from "./ProjectCredits";
+import ProjectPublication from "./ProjectPublication";
 import PublicRelease from "./PublicRelease";
 import ProductionStudio from "./ProductionStudio";
 import {
@@ -2852,6 +2853,7 @@ function WorkspaceApp() {
               )}
 
               <ProjectCredits projectId={selectedProject.id} />
+              {storyboard && selectedProject.current_phase === "production" && <ProjectPublication projectId={selectedProject.id} storyboardId={storyboard.id} canPublish={myMembership?.role === "owner"} />}
 
               <section className="contributions-section">
                 <div className="section-heading contribution-heading">
