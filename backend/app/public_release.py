@@ -1,6 +1,6 @@
 """Public-facing release pages and media delivery."""
 
-import uuid
+import hashlib
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import select
@@ -57,11 +57,17 @@ def list_public_releases(db: DbSession):
 def public_release_video(slug: str, db: DbSession):
     release = _visible_release(db, slug)
     asset = db.get(ProductionVideoAsset, release.video_asset_id)
-    if asset is None or asset.status != "active":
+    if asset is None:
         raise HTTPException(status_code=404, detail="Release media not found.")
     path = _safe_path(asset.storage_key)
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Release media not found.")
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    if digest.hexdigest() != asset.sha256:
+        raise HTTPException(status_code=409, detail="Release media failed integrity verification.")
     return FileResponse(
         path,
         media_type="video/mp4",
