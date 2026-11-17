@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 type PublicReleaseData = {
   slug: string; title: string; synopsis: string; visibility: "public" | "unlisted";
@@ -22,7 +22,7 @@ export default function PublicRelease({ slug }: { slug: string }) {
     return () => { active = false; };
   }, [slug]);
 
-  const shell: React.CSSProperties = {
+  const shell: CSSProperties = {
     minHeight: "100vh", background: "#101114", color: "#f5f3ef",
     fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", padding: "clamp(24px, 6vw, 80px)",
     boxSizing: "border-box",
