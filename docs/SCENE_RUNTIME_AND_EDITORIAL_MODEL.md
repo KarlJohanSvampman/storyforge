@@ -150,3 +150,8 @@ Each release has a permanent slug route. Public and unlisted releases can be rea
 ## M4.3 — Opt-in release credits
 
 A project participant can create a named contributor or production credit, or opt in one of their own active Actor profiles when it is actively cast in the project. Every consent stores its category, public name and role label. Participants can revoke their own consent, including after leaving the project. Revocation excludes the credit from future release snapshots but does not rewrite an already published release. At publication, only non-revoked consents are copied into the immutable release manifest; cast entries also snapshot the assigned character name. Public pages expose only the name, category, role and optional character name from those explicit snapshots.
+
+
+## M4.2 — Release covers and trailers
+
+Publication generates a 16:9 JPEG cover from the selected master video. If the source cannot provide a decodable frame, the publisher creates a deterministic typographic cover from the release title and synopsis. The poster's storage key, SHA-256, content type, dimensions and size are stored in the immutable release manifest. A separate optional trailer can be selected from completed project-owned MP4 video assets; its source identity, checksum, duration and dimensions are snapshotted as well. Public poster and trailer routes verify the snapshotted file hash before delivery.
