@@ -7,8 +7,8 @@ from sqlalchemy import select
 from app.database import SessionLocal
 from app.main import app
 from app.models import (
-    NarrativeApprovalDecision, ProductionVideoAsset, Project, PublishedRelease,
-    Storyboard, VideoRenderJob,
+    EditSequence, NarrativeApprovalDecision, ProductionVideoAsset, Project,
+    ProjectMembership, PublishedRelease, Storyboard, User, VideoRenderJob,
 )
 from test_audio_pipeline import _production_sequence
 
@@ -20,7 +20,7 @@ def _completed_video(project_id: str, sequence_id: str, tmp_path):
         project = db.get(Project, uuid.UUID(project_id))
         assert project is not None
         owner_id = project.owner_user_id
-        sequence = db.get(__import__("app.models", fromlist=["EditSequence"]).EditSequence, uuid.UUID(sequence_id))
+        sequence = db.get(EditSequence, uuid.UUID(sequence_id))
         assert sequence is not None
         payload = b"\x00\x00\x00\x18ftypmp42storyforge-test-video"
         storage_key = f"video-exports/final/{project_id}/release-test.mp4"
@@ -141,7 +141,17 @@ def test_release_requires_project_owner(monkeypatch, tmp_path):
     project_id, sequence = _production_sequence("Release owner permission")
     asset_id, owner_id = _completed_video(project_id, sequence["id"], tmp_path)
     storyboard_id = _approve_storyboard_narrative(project_id, owner_id)
-    # The development identity is the project owner; a non-member cannot enumerate releases.
-    unknown_project = str(uuid.uuid4())
-    missing = client.get(f"/api/projects/{unknown_project}/releases")
-    assert missing.status_code == 404
+    with SessionLocal() as db:
+        editor = User(email="release-editor@example.test", display_name="Release Editor")
+        db.add(editor)
+        db.flush()
+        db.add(ProjectMembership(
+            project_id=uuid.UUID(project_id), user_id=editor.id,
+            role="editor", status="active",
+        ))
+        db.commit()
+    monkeypatch.setenv("STORYFORGE_DEV_USER_EMAIL", "release-editor@example.test")
+    denied = client.post(f"/api/projects/{project_id}/releases", json={
+        "video_asset_id": asset_id, "storyboard_id": storyboard_id,
+    })
+    assert denied.status_code == 403
