@@ -149,7 +149,7 @@ Tagline: **Many minds. Many stories. Endless interpretations.**
 - **M4.0:** The Production Studio captures ordered selected takes from its Three.js viewport as WebM, reconstructs supported transform/camera events, draws title overlays and can mux a completed WAV master.
 - **M4.1:** Browser captures upload into durable project-scoped video jobs. A dedicated FFmpeg worker verifies source integrity, encodes H.264/AAC MP4, probes output metadata and stores immutable video assets with checksums and authenticated downloads.
 - **M4.2:** A browser-independent 2D animatic renderer snapshots selected takes, scene/cast metadata and ordered performance events from an exact EDL revision. It reconstructs transforms and camera framing, composites titles and transitions, and stores an MP4 as a normal production video asset.
-- **M4.3:** A dedicated Playwright/Chromium worker renders immutable scene manifests through Three.js WebGL without using the user's browser. The interactive viewport and headless renderer share the same procedural character-rig builder; the headless stage includes 3D set geometry, lighting, camera reconstruction, transforms, titles and transitions. Production asset import, skeletal animation, physics replay and audio conform remain future work.
+- **M4.3:** A dedicated Playwright/Chromium worker renders immutable scene manifests through Three.js WebGL without using the user's browser. The interactive viewport and headless renderer share the same procedural character-rig builder; the headless stage includes 3D set geometry, lighting, camera reconstruction, transforms, titles and transitions. Skeletal animation, physics replay and audio conform remain future work.
 
 See [Scene Runtime and Editorial Model](docs/SCENE_RUNTIME_AND_EDITORIAL_MODEL.md) for the data contracts and boundaries.
 
@@ -161,3 +161,12 @@ Projects can store versioned, immutable glTF 2.0 assets in a project-scoped libr
 Character and location models can be assigned to project characters and locations. Prop models are retained as reusable library entries. Re-uploading an asset name creates a new immutable version and updates the current binding; prior versions remain available for reproducible render manifests. Asset list, metadata, binding and download endpoints are project-membership protected. Viewers may read assets but cannot upload, archive or change bindings.
 
 The current milestone establishes the registry, validation, storage and binding contracts. The next renderer integration milestone consumes the selected immutable asset versions in both the interactive and headless Three.js scene builders.
+
+
+## Renderer asset integration (M4.5)
+
+The interactive Three.js viewport and headless Three.js renderer now consume the same project-scoped character and location GLB/GLTF bindings. Each render job snapshots the exact immutable asset ID, version, SHA-256 checksum, file format and placement transform for every assigned asset used by its scenes. Replacing a library binding later cannot change a queued render.
+
+Bindings store position, Euler rotation (radians) and scale. Owners and editors can update these values through the project production-assets binding transform endpoint. The interactive viewport loads the active bindings through authenticated project downloads; the headless renderer serves only files named in the immutable job manifest from its read-only asset volume and verifies their checksums before fulfilling browser requests.
+
+The procedural character/location stand-ins remain when no corresponding model is assigned. Imported character meshes replace the procedural body while retaining the cast label and recorded character transforms. Imported location models are scoped to scenes using that location. This milestone imports static glTF scene graphs; skeletal animation playback, retargeting, physics replay, prop placement, and audio conform remain future work.
