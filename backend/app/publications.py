@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from .audio import _safe_path
 from .models import (
     AudioClip, AudioTrack, EditSequence, EditSequenceItem, NarrativeApprovalDecision,
-    NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
+    NarrativeDraft, NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
     ProjectCharacter, ProjectLocation, PublishedRelease, SceneCharacterAssignment,
     SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode, StoryboardScene,
     StoryboardSeason, VideoRenderJob,
@@ -45,8 +45,10 @@ def _sha256_file(path) -> str:
     return digest.hexdigest()
 
 
-def _scene_snapshot(db: Session, scene: StoryboardScene) -> dict:
+def _scene_snapshot(db: Session, project_id: uuid.UUID, scene: StoryboardScene) -> dict:
     location = db.get(ProjectLocation, scene.location_id) if scene.location_id else None
+    if location is not None and location.project_id != project_id:
+        raise HTTPException(status_code=409, detail="A storyboard scene references a location outside this project.")
     assignments = db.scalars(select(SceneCharacterAssignment).where(
         SceneCharacterAssignment.scene_id == scene.id,
     ).order_by(SceneCharacterAssignment.created_at)).all()
@@ -54,6 +56,8 @@ def _scene_snapshot(db: Session, scene: StoryboardScene) -> dict:
     for assignment in assignments:
         character = db.get(ProjectCharacter, assignment.character_id)
         if character is not None:
+            if character.project_id != project_id:
+                raise HTTPException(status_code=409, detail="A storyboard scene references a character outside this project.")
             characters.append({
                 "character_id": str(character.id),
                 "name": character.name,
@@ -105,7 +109,7 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
     scenes = db.scalars(select(StoryboardScene).where(
         StoryboardScene.storyboard_id == storyboard.id,
     ).order_by(StoryboardScene.scene_order, StoryboardScene.created_at)).all()
-    scene_snapshots = [_scene_snapshot(db, scene) for scene in scenes]
+    scene_snapshots = [_scene_snapshot(db, project.id, scene) for scene in scenes]
 
     seasons = db.scalars(select(StoryboardSeason).where(
         StoryboardSeason.storyboard_id == storyboard.id,
@@ -148,6 +152,8 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
         clip_snapshots = []
         for clip in clips:
             media = db.get(ProductionMediaAsset, clip.media_asset_id)
+            if media is None or media.project_id != project.id:
+                raise HTTPException(status_code=409, detail="The edit sequence references audio outside this project.")
             clip_snapshots.append({
                 "id": str(clip.id), "clip_order": clip.clip_order,
                 "source_in_ms": clip.source_in_ms, "source_out_ms": clip.source_out_ms,
@@ -246,10 +252,13 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
     if storyboard is None:
         raise HTTPException(status_code=404, detail="Storyboard not found in this project.")
     narrative = db.get(NarrativeDraftVersion, storyboard.narrative_version_id)
+    draft = db.get(NarrativeDraft, narrative.draft_id) if narrative is not None else None
     decision = db.scalar(select(NarrativeApprovalDecision).where(
         NarrativeApprovalDecision.version_id == storyboard.narrative_version_id,
     ))
-    if narrative is None or decision is None or decision.outcome != "approved":
+    if narrative is None or draft is None or draft.project_id != project_id:
+        raise HTTPException(status_code=409, detail="The storyboard's narrative source does not belong to this project.")
+    if decision is None or decision.outcome != "approved":
         raise HTTPException(status_code=409, detail="The storyboard's exact narrative version must have an approved decision before publication.")
 
     asset = db.scalar(select(ProductionVideoAsset).where(
@@ -266,6 +275,8 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
     ))
     if (
         job is None
+        or job.sequence_id != asset.sequence_id
+        or job.sequence_revision != asset.sequence_revision
         or job.output_sha256 != asset.sha256
         or job.output_storage_key != asset.storage_key
         or job.output_size_bytes != asset.size_bytes
