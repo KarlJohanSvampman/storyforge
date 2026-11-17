@@ -165,3 +165,8 @@ Publishing generates a 16:9 JPEG cover from the selected master video. If the so
 ## M5.1 — Release ratings and reviews
 
 Each authenticated user can maintain one 1–10 rating and one editable written review per release. Reviews have a spoiler flag and are shown behind an explicit reveal control when marked as containing spoilers. The feedback endpoint returns an aggregate average, rating count, a complete 1–10 distribution and the latest visible reviews. A review can receive one helpful reaction per user. A user can report a review once; the report record is retained, and three distinct reports automatically hide the review from public display. This is a basic exposure-reduction safeguard, not a substitute for a full moderator workflow or anti-brigading system.
+
+
+## M5.2 — Public discovery
+
+The public release index returns only releases whose snapshotted visibility is public. It supports case-insensitive genre and creator filters, category filtering, recent ordering, popularity ordering by rating volume, and top-rated ordering by average score with rating count as a tie-breaker. Result limits and offsets are bounded. Discovery metadata (genre, category, format and creator display name) is copied onto the release row at publication time so later project edits do not rewrite how an existing release is categorized or attributed.
