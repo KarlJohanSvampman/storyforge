@@ -40,7 +40,7 @@ def test_release_cover_and_optional_trailer_are_snapshotted_and_served(monkeypat
     poster = client.get(page.json()["poster_url"])
     assert poster.status_code == 200
     assert poster.headers["content-type"].startswith("image/jpeg")
-    assert poster.content[:3] == b"\\xff\\xd8\\xff"
+    assert poster.content[:3] == bytes([255, 216, 255])
     trailer = client.get(page.json()["trailer_url"])
     assert trailer.status_code == 200
     assert trailer.headers["content-type"].startswith("video/mp4")
