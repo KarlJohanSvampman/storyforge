@@ -1,3 +1,5 @@
+import uuid
+
 from fastapi.testclient import TestClient
 
 from app.database import SessionLocal
@@ -16,7 +18,7 @@ def test_release_cover_and_optional_trailer_are_snapshotted_and_served(monkeypat
     asset_id, owner_id = _completed_video(project_id, sequence["id"], tmp_path)
     storyboard_id = _approve_storyboard_narrative(project_id, owner_id)
     with SessionLocal() as db:
-        project = db.get(Project, __import__("uuid").UUID(project_id))
+        project = db.get(Project, uuid.UUID(project_id))
         project.visibility = "public"
         db.commit()
 
