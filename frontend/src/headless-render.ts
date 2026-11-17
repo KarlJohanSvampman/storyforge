@@ -1,5 +1,5 @@
 import {
-  createProductionStage, disposeProductionStage, renderProductionClip,
+  createProductionStage, disposeProductionStage, loadProductionAssets, renderProductionClip,
   type ProductionStage, type SceneClip,
 } from "./productionScene";
 
@@ -8,7 +8,7 @@ type RenderManifest = {
   clips: SceneClip[];
 };
 type RendererApi = {
-  initialize: (manifest: RenderManifest) => { frame_count: number };
+  initialize: (manifest: RenderManifest) => Promise<{ frame_count: number }>;
   renderFrame: (frameIndex: number) => void;
   dispose: () => void;
 };
@@ -83,7 +83,7 @@ function renderFrame(frameIndex: number): void {
 }
 
 window.storyForgeRenderer = {
-  initialize(manifest) {
+  async initialize(manifest) {
     if (manifest.renderer !== "storyforge-headless-3d-v1") throw new Error("Unsupported 3D renderer manifest.");
     if (!Array.isArray(manifest.clips) || manifest.clips.length === 0) throw new Error("Render manifest contains no clips.");
     width = Number(manifest.width); height = Number(manifest.height); fps = Number(manifest.fps);
@@ -103,6 +103,7 @@ window.storyForgeRenderer = {
     frameCount = Math.ceil(duration * fps / 1000);
     if (frameCount < 1 || frameCount > 14400) throw new Error("Render exceeds the ten-minute frame budget.");
     stage = createProductionStage(width, height);
+    await loadProductionAssets(stage, clips);
     return { frame_count: frameCount };
   },
   renderFrame,
