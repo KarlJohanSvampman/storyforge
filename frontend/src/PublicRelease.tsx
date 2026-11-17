@@ -38,7 +38,7 @@ export default function PublicRelease({ slug }: { slug: string }) {
       <div style={content}>
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, marginBottom: 56 }}>
           <a href="/" style={{ color: "#e8c99b", textDecoration: "none", letterSpacing: ".16em", fontSize: 13, fontWeight: 700 }}>STORYFORGE</a>
-          <span style={{ color: "#a9a6a0", fontSize: 12, textTransform: "uppercase", letterSpacing: ".12em" }}>{release.visibility} release</span>
+          <a href="/discover" style={{ color: "#a9a6a0", textDecoration: "none", fontSize: 13 }}>Discover works ↗</a>
         </header>
         <div style={{ color: "#c9a77b", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase" }}>{release.genre || release.category || "A published work"}</div>
         <h1 style={{ fontSize: "clamp(38px, 7vw, 76px)", lineHeight: 1.02, margin: "14px 0 18px", maxWidth: 900 }}>{release.title}</h1>
