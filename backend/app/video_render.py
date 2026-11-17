@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .audio import _project_access, _safe_path, _sequence_or_404
-from .models import CastMemberInstance, EditSequence, EditSequenceItem, PerformanceEvent, PerformanceTake, ProductionVideoAsset, SceneRun, StoryboardScene, VideoRenderJob
+from .models import CastMemberInstance, EditSequence, EditSequenceItem, PerformanceEvent, PerformanceTake, ProductionAsset, ProductionAssetBinding, ProductionVideoAsset, SceneRun, StoryboardScene, VideoRenderJob
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import ProductionVideoAssetRead, VideoRenderJobRead
 
@@ -174,6 +174,31 @@ def create_headless_scene_render(
     if not items:
         raise HTTPException(status_code=422, detail="Add at least one selected take before rendering.")
 
+    # Resolve current bindings while the sequence is locked. The resulting asset versions
+    # and placement transforms are copied into the immutable render manifest.
+    bindings = db.scalars(select(ProductionAssetBinding).where(
+        ProductionAssetBinding.project_id == project.id,
+    )).all()
+    bound_assets = []
+    for binding in bindings:
+        asset = db.scalar(select(ProductionAsset).where(
+            ProductionAsset.id == binding.asset_id,
+            ProductionAsset.project_id == project.id,
+            ProductionAsset.status == "active",
+        ))
+        if asset is None:
+            continue
+        bound_assets.append({
+            "asset_id": str(asset.id), "asset_kind": asset.asset_kind,
+            "target_type": binding.target_type, "target_id": str(binding.target_id),
+            "version": asset.version, "sha256": asset.sha256,
+            "file_format": asset.file_format, "content_type": asset.content_type,
+            "size_bytes": asset.size_bytes, "storage_key": asset.storage_key,
+            "render_url": f"/__storyforge_assets__/{asset.id}.{asset.file_format}",
+            "download_url": f"/api/projects/{project.id}/production-assets/{asset.id}/download",
+            "transform": binding.transform_json or {"position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1]},
+        })
+
     clips = []
     for item in items:
         row = db.execute(
@@ -202,16 +227,23 @@ def create_headless_scene_render(
         clips.append({
             "item_id": str(item.id), "take_id": str(take.id), "scene_id": str(scene.id),
             "scene_title": scene.title, "item_order": item.item_order,
+            "location_id": str(scene.location_id) if scene.location_id else None,
             "in_ms": item.in_ms, "out_ms": item.out_ms,
             "duration_ms": item.out_ms - item.in_ms,
             "transition": item.transition, "title_overlay": item.title_overlay,
             "effects": item.effects or {}, "camera_snapshot": take.camera_snapshot or {},
             "state_snapshot": take.state_snapshot or {},
             "cast_members": [{
-                "id": str(member.id), "actor_name": member.actor_name_snapshot,
+                "id": str(member.id), "character_id": str(member.character_id),
+                "actor_name": member.actor_name_snapshot,
                 "character_name": member.character_name_snapshot,
                 "role_label": member.role_label_snapshot,
             } for member in cast],
+            "production_assets": [
+                asset for asset in bound_assets
+                if (asset["target_type"] == "location" and asset["target_id"] == (str(scene.location_id) if scene.location_id else None))
+                or (asset["target_type"] == "character" and asset["target_id"] in {str(member.character_id) for member in cast})
+            ],
             "events": [{
                 "timestamp_ms": event.timestamp_ms, "sequence_number": event.sequence_number,
                 "event_type": event.event_type,
@@ -233,14 +265,15 @@ def create_headless_scene_render(
         raise HTTPException(status_code=422, detail="Headless scene renders are limited to 10 minutes per export.")
 
     manifest = {
-        "format_version": 1, "renderer": ("storyforge-headless-3d-v1" if renderer == "3d" else "storyforge-headless-animatic-v1"),
+        "format_version": 2, "renderer": ("storyforge-headless-3d-v1" if renderer == "3d" else "storyforge-headless-animatic-v1"),
+        "asset_snapshot_version": 1,
         "project_id": str(project.id), "sequence_id": str(sequence.id),
         "sequence_revision": sequence.revision_number, "width": 1280, "height": 720,
         "fps": 24, "duration_ms": total_duration, "clips": clips,
         "capabilities": {
             "transform_reconstruction": True, "camera_preset_framing": True,
             "title_overlays": True, "cut": True, "fade_through_black": True,
-            "cross_dissolve": True, "skeletal_animation": False, "full_3d_assets": False, "threejs_webgl_scene": renderer == "3d",
+            "cross_dissolve": True, "skeletal_animation": False, "full_3d_assets": renderer == "3d", "threejs_webgl_scene": renderer == "3d",
         },
     }
     job = VideoRenderJob(
