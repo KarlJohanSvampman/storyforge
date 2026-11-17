@@ -196,8 +196,11 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Provide public playback/download delivery without exposing project-private production endpoints.
 
 ### M4.3 — Credits and release presentation
-- [ ] Add opt-in contributor, cast, and production credits with role labels.
-- [ ] Preserve release snapshots when the underlying project continues evolving.
+- [x] Allow contributors and production participants to opt in to named credits with role labels.
+- [x] Allow actor owners to opt in cast profiles and associate them with active character assignments.
+- [x] Let participants revoke consent for future releases; existing release credit snapshots remain unchanged.
+- [x] Snapshot only active, explicit credit consents into the immutable release manifest and render them on public pages.
+- [ ] Local UI/API permission, consent/revocation, cast ownership, and release snapshot verification.
 
 ## M5 — Ratings, reviews, and discovery
 - [ ] Allow one editable 1–10 rating per user per release.
