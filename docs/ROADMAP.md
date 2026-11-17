@@ -180,8 +180,22 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Verify asset integrity and restrict headless browser asset requests to the job snapshot.
 
 ## M4 — Publication and public work pages
-- [ ] Create immutable published releases from approved project versions.
+
+### M4.1 — Immutable release snapshots
+- [x] Publish numbered releases from a specific approved storyboard/narrative version and a completed production video asset.
+- [x] Snapshot project metadata, approved narrative content, storyboard seasons/episodes/scenes, character/location descriptions, and latest structured screenplay revisions.
+- [x] Snapshot the exact video asset, source sequence revision, completed render job, checksum, duration, and dimensions.
+- [x] Verify the source video file against its SHA-256 before publication.
+- [x] Enforce owner-only publication and project/storyboard/video provenance boundaries.
+- [x] Keep release records append-only through the API and independent of later project edits.
+- [ ] Local migration, authorization, release numbering, provenance snapshot, integrity, and persistence verification.
+
+### M4.2 — Public release pages
 - [ ] Give each release a permanent public page with poster/cover, synopsis, trailer, release date, and media.
+- [ ] Respect snapshotted private, unlisted, and public visibility.
+- [ ] Provide public playback/download delivery without exposing project-private production endpoints.
+
+### M4.3 — Credits and release presentation
 - [ ] Add opt-in contributor, cast, and production credits with role labels.
 - [ ] Preserve release snapshots when the underlying project continues evolving.
 
