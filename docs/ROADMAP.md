@@ -206,9 +206,10 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [ ] Local UI/API permission, consent/revocation, cast ownership, and release snapshot verification.
 
 ## M5 — Ratings, reviews, and discovery
-- [ ] Allow one editable 1–10 rating per user per release.
-- [ ] Add written reviews, spoiler controls, reactions, and reporting.
-- [ ] Display aggregate score, rating count, and rating distribution.
+- [x] Allow one editable 1–10 rating per user per release.
+- [x] Add written reviews with editing, spoiler controls, helpful reactions, and reporting.
+- [x] Display aggregate score, rating count, and rating distribution.
+- [x] Add one-report-per-user safeguards and automatically hide a review after three distinct reports, retaining report records.
 - [ ] Add discovery by genre, popularity, recency, and creator.
 - [ ] Add moderation and anti-brigading safeguards.
 

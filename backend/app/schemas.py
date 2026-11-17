@@ -1844,3 +1844,32 @@ class ProjectCreditConsentRead(BaseModel):
     actor_id: uuid.UUID | None
     consented_at: datetime
     revoked_at: datetime | None
+
+
+class ReleaseRatingUpsert(BaseModel):
+    score: int = Field(ge=1, le=10)
+
+
+class ReleaseReviewUpsert(BaseModel):
+    body: str = Field(min_length=1, max_length=10000)
+    contains_spoilers: bool = False
+
+    @field_validator("body")
+    @classmethod
+    def clean_review_body(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Review text cannot be blank.")
+        return cleaned
+
+
+class ReleaseReviewReportCreate(BaseModel):
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_report_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 3:
+            raise ValueError("Please provide a short reason for the report.")
+        return cleaned

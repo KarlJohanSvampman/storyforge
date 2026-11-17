@@ -1230,6 +1230,69 @@ class ProductionAssetBinding(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class ReleaseRating(Base):
+    """One editable rating per user and published release."""
+    __tablename__ = "release_ratings"
+    __table_args__ = (
+        UniqueConstraint("release_id", "user_id", name="uq_release_ratings_release_user"),
+        CheckConstraint("score >= 1 AND score <= 10", name="ck_release_ratings_score"),
+        Index("ix_release_ratings_release_score", "release_id", "score"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    release_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("published_releases.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class ReleaseReview(Base):
+    """One editable, spoiler-aware public review per user and release."""
+    __tablename__ = "release_reviews"
+    __table_args__ = (
+        UniqueConstraint("release_id", "user_id", name="uq_release_reviews_release_user"),
+        CheckConstraint("status IN ('visible', 'hidden')", name="ck_release_reviews_status"),
+        Index("ix_release_reviews_release_visible", "release_id", "status", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    release_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("published_releases.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    contains_spoilers: Mapped[bool] = mapped_column(default=False, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="visible", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class ReleaseReviewReport(Base):
+    """A unique user report against a public review."""
+    __tablename__ = "release_review_reports"
+    __table_args__ = (
+        UniqueConstraint("review_id", "reporter_user_id", name="uq_release_review_reports_review_reporter"),
+        CheckConstraint("status IN ('open', 'resolved')", name="ck_release_review_reports_status"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    review_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("release_reviews.id", ondelete="CASCADE"), nullable=False, index=True)
+    reporter_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ReleaseReviewReaction(Base):
+    """A single helpful reaction per user and review."""
+    __tablename__ = "release_review_reactions"
+    __table_args__ = (
+        UniqueConstraint("review_id", "user_id", name="uq_release_review_reactions_review_user"),
+        CheckConstraint("reaction = 'helpful'", name="ck_release_review_reactions_kind"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    review_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("release_reviews.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reaction: Mapped[str] = mapped_column(String(20), default="helpful", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class ProjectCreditConsent(Base):
     """A user's revocable opt-in to a named credit on a specific project."""
     __tablename__ = "project_credit_consents"
