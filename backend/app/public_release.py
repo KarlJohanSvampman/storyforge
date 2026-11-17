@@ -39,6 +39,14 @@ def _public_payload(release: PublishedRelease) -> dict:
         "width": master.get("width"),
         "height": master.get("height"),
         "video_url": f"/api/public/releases/{release.slug}/video",
+        "credits": [{
+            "category": item.get("category"),
+            "role_label": item.get("role_label"),
+            "public_name": item.get("public_name"),
+            "character_name": item.get("character_name"),
+        } for item in manifest.get("credits", [])
+            if item.get("category") in {"contributor", "cast", "production"}
+            and item.get("public_name") and item.get("role_label")],
     }
 
 
