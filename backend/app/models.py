@@ -1321,6 +1321,11 @@ class PublishedRelease(Base):
         CheckConstraint("release_number >= 1", name="ck_published_releases_positive_number"),
         CheckConstraint("visibility IN ('private', 'unlisted', 'public')", name="ck_published_releases_visibility"),
         Index("ix_published_releases_project_published", "project_id", "published_at"),
+        Index("ix_published_releases_visibility_published", "visibility", "published_at"),
+        Index("ix_published_releases_genre", "genre"),
+        Index("ix_published_releases_category", "category"),
+        Index("ix_published_releases_format", "format"),
+        Index("ix_published_releases_creator", "creator_name"),
     )
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     project_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -1329,6 +1334,10 @@ class PublishedRelease(Base):
     title: Mapped[str] = mapped_column(String(240), nullable=False)
     synopsis: Mapped[str] = mapped_column(Text, default="", nullable=False)
     visibility: Mapped[str] = mapped_column(String(20), nullable=False)
+    genre: Mapped[str] = mapped_column(String(80), default="", nullable=False)
+    category: Mapped[str] = mapped_column(String(20), default="fiction", nullable=False)
+    format: Mapped[str] = mapped_column(String(20), default="movie", nullable=False)
+    creator_name: Mapped[str] = mapped_column(String(160), default="", nullable=False)
     storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="RESTRICT"), nullable=False)
     narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
     video_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_video_assets.id", ondelete="RESTRICT"), nullable=False)
