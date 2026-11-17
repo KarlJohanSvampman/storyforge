@@ -93,3 +93,34 @@ def test_asset_upload_rejects_invalid_glb(monkeypatch, tmp_path):
         files={"file": ("bad.glb", b"not a glb", "model/gltf-binary")},
     )
     assert response.status_code == 415
+
+
+def test_asset_binding_transform_is_validated_and_persisted(monkeypatch, tmp_path):
+    monkeypatch.setenv("STORYFORGE_ASSET_DIR", str(tmp_path))
+    project_id, _ = _production_sequence("Asset placement transform")
+    character_id = _character(project_id)
+    url = f"/api/projects/{project_id}/production-assets"
+    uploaded = client.post(url, data={
+        "name": "Placed lead", "asset_kind": "character", "target_id": character_id,
+    }, files={"file": ("lead.glb", _glb(), "model/gltf-binary")})
+    assert uploaded.status_code == 201, uploaded.text
+
+    bindings = client.get(url + "/bindings")
+    assert bindings.status_code == 200
+    binding = bindings.json()[0]
+    assert binding["transform_json"] == {
+        "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1],
+    }
+
+    changed = client.patch(url + f"/bindings/{binding['id']}/transform", json={
+        "position": [1.25, 0.5, -2], "rotation": [0, 1.570796, 0], "scale": [1.5, 1.5, 1.5],
+    })
+    assert changed.status_code == 200, changed.text
+    assert changed.json()["transform_json"] == {
+        "position": [1.25, 0.5, -2],
+        "rotation": [0, 1.570796, 0],
+        "scale": [1.5, 1.5, 1.5],
+    }
+
+    invalid = client.patch(url + f"/bindings/{binding['id']}/transform", json={"scale": [1, 0, 1]})
+    assert invalid.status_code == 422
