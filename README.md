@@ -160,7 +160,7 @@ Projects can store versioned, immutable glTF 2.0 assets in a project-scoped libr
 
 Character and location models can be assigned to project characters and locations. Prop models are retained as reusable library entries. Re-uploading an asset name creates a new immutable version and updates the current binding; prior versions remain available for reproducible render manifests. Asset list, metadata, binding and download endpoints are project-membership protected. Viewers may read assets but cannot upload, archive or change bindings.
 
-The current milestone establishes the registry, validation, storage and binding contracts. The next renderer integration milestone consumes the selected immutable asset versions in both the interactive and headless Three.js scene builders.
+The M4.4 milestone established the registry, validation, storage and binding contracts. M4.5 now consumes the selected immutable asset versions in both the interactive and headless Three.js renderers.
 
 
 ## Renderer asset integration (M4.5)
