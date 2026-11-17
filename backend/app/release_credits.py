@@ -75,7 +75,7 @@ def opt_in_to_credit(project_id: uuid.UUID, payload: ProjectCreditConsentCreate,
 @router.delete("/{consent_id}", response_model=ProjectCreditConsentRead)
 def revoke_credit_consent(project_id: uuid.UUID, consent_id: uuid.UUID, db: DbSession, user: CurrentUser):
     _project_or_404(db, project_id)
-    _membership(db, project_id, user.id)
+    # Consent is personal: allow revocation even if the participant has left the project.
     consent = db.scalar(select(ProjectCreditConsent).where(
         ProjectCreditConsent.id == consent_id,
         ProjectCreditConsent.project_id == project_id,
