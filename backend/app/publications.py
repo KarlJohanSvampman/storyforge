@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 
 from .audio import _safe_path
 from .models import (
-    EditSequence, NarrativeApprovalDecision, NarrativeDraftVersion, ProductionVideoAsset,
-    Project, ProjectCharacter, ProjectLocation, PublishedRelease, SceneCharacterAssignment,
+    AudioClip, AudioTrack, EditSequence, EditSequenceItem, NarrativeApprovalDecision,
+    NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
+    ProjectCharacter, ProjectLocation, PublishedRelease, SceneCharacterAssignment,
     SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode, StoryboardScene,
     StoryboardSeason, VideoRenderJob,
 )
@@ -99,7 +100,8 @@ def _scene_snapshot(db: Session, scene: StoryboardScene) -> dict:
 
 
 def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narrative: NarrativeDraftVersion,
-                    asset: ProductionVideoAsset, job: VideoRenderJob, release_number: int) -> dict:
+                    sequence: EditSequence, asset: ProductionVideoAsset, job: VideoRenderJob,
+                    release_number: int) -> dict:
     scenes = db.scalars(select(StoryboardScene).where(
         StoryboardScene.storyboard_id == storyboard.id,
     ).order_by(StoryboardScene.scene_order, StoryboardScene.created_at)).all()
@@ -126,6 +128,55 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             } for episode in episodes],
         })
 
+    sequence_items = db.scalars(select(EditSequenceItem).where(
+        EditSequenceItem.sequence_id == sequence.id,
+    ).order_by(EditSequenceItem.item_order)).all()
+    storyboard_scene_ids = {scene.id for scene in scenes}
+    if not sequence_items:
+        raise HTTPException(status_code=409, detail="The selected edit sequence has no clips.")
+    if any(item.scene_id not in storyboard_scene_ids for item in sequence_items):
+        raise HTTPException(status_code=409, detail="The selected edit sequence contains scenes outside the chosen storyboard.")
+
+    tracks = db.scalars(select(AudioTrack).where(
+        AudioTrack.sequence_id == sequence.id,
+    ).order_by(AudioTrack.track_order)).all()
+    track_snapshots = []
+    for track in tracks:
+        clips = db.scalars(select(AudioClip).where(
+            AudioClip.track_id == track.id,
+        ).order_by(AudioClip.clip_order)).all()
+        clip_snapshots = []
+        for clip in clips:
+            media = db.get(ProductionMediaAsset, clip.media_asset_id)
+            clip_snapshots.append({
+                "id": str(clip.id), "clip_order": clip.clip_order,
+                "source_in_ms": clip.source_in_ms, "source_out_ms": clip.source_out_ms,
+                "timeline_start_ms": clip.timeline_start_ms, "gain": clip.gain,
+                "fade_in_ms": clip.fade_in_ms, "fade_out_ms": clip.fade_out_ms,
+                "media_asset": ({
+                    "id": str(media.id), "title": media.title,
+                    "content_type": media.content_type, "size_bytes": media.size_bytes,
+                    "sha256": media.sha256, "duration_ms": media.duration_ms,
+                } if media else None),
+            })
+        track_snapshots.append({
+            "id": str(track.id), "name": track.name, "role": track.role,
+            "track_order": track.track_order, "gain": track.gain, "pan": track.pan,
+            "muted": track.muted, "solo": track.solo, "clips": clip_snapshots,
+        })
+    sequence_snapshot = {
+        "id": str(sequence.id), "name": sequence.name,
+        "revision_number": sequence.revision_number,
+        "items": [{
+            "id": str(item.id), "take_id": str(item.take_id),
+            "scene_id": str(item.scene_id), "item_order": item.item_order,
+            "in_ms": item.in_ms, "out_ms": item.out_ms,
+            "transition": item.transition, "title_overlay": item.title_overlay,
+            "effects": item.effects or {}, "audio_cue": item.audio_cue,
+        } for item in sequence_items],
+        "audio_tracks": track_snapshots,
+    }
+
     return {
         "format_version": 1,
         "release_number": release_number,
@@ -150,6 +201,7 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             )).id),
         },
         "storyboard": {"seasons": season_snapshots, "scenes": scene_snapshots},
+        "edit_sequence": sequence_snapshot,
         "master_video": {
             "asset_id": str(asset.id), "title": asset.title,
             "sequence_id": str(asset.sequence_id),
@@ -216,8 +268,8 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
         EditSequence.id == asset.sequence_id,
         EditSequence.project_id == project_id,
     ))
-    if sequence is None or asset.sequence_revision < 1 or asset.sequence_revision > sequence.revision_number:
-        raise HTTPException(status_code=409, detail="The video asset's source edit sequence revision is unavailable.")
+    if sequence is None or asset.sequence_revision != sequence.revision_number:
+        raise HTTPException(status_code=409, detail="The edit sequence has changed since this video was rendered. Render the current sequence before publishing.")
 
     video_path = _safe_path(asset.storage_key)
     if not video_path.is_file() or _sha256_file(video_path) != asset.sha256:
@@ -233,7 +285,7 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
     )) or 0
     release_number = latest_number + 1
     slug = f"{_slugify(title)}-{str(project_id)[:8]}-r{release_number}"
-    manifest = _build_manifest(db, project, storyboard, narrative, asset, job, release_number)
+    manifest = _build_manifest(db, project, storyboard, narrative, sequence, asset, job, release_number)
     release = PublishedRelease(
         project_id=project_id, release_number=release_number, slug=slug,
         title=title, synopsis=synopsis, visibility=project.visibility,
