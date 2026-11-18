@@ -4,6 +4,7 @@ import ProjectCredits from "./ProjectCredits";
 import ProjectPublication from "./ProjectPublication";
 import PublicRelease from "./PublicRelease";
 import PublicDiscovery from "./PublicDiscovery";
+import PublicCreator from "./PublicCreator";
 import ProductionStudio from "./ProductionStudio";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
@@ -2921,6 +2922,8 @@ function WorkspaceApp() {
 
 function App() {
   if (window.location.pathname === "/discover" || window.location.pathname === "/discover/") return <PublicDiscovery />;
+  const creatorMatch = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
+  if (creatorMatch) return <PublicCreator creatorName={decodeURIComponent(creatorMatch[1])} />;
   const match = window.location.pathname.match(/^\/releases\/([^/]+)\/?$/);
   return match ? <PublicRelease slug={decodeURIComponent(match[1])} /> : <WorkspaceApp />;
 }

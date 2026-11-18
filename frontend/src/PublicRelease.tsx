@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 
 type PublicReleaseData = {
   slug: string; title: string; synopsis: string; visibility: "public" | "unlisted";
-  published_at: string; project_title: string; format: string | null;
+  published_at: string; project_title: string; creator_name: string; format: string | null;
   category: string | null; genre: string | null; duration_ms: number | null;
   width: number | null; height: number | null; video_url: string;
   poster_url: string | null; trailer_url: string | null;
@@ -42,9 +42,10 @@ export default function PublicRelease({ slug }: { slug: string }) {
         </header>
         <div style={{ color: "#c9a77b", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase" }}>{release.genre || release.category || "A published work"}</div>
         <h1 style={{ fontSize: "clamp(38px, 7vw, 76px)", lineHeight: 1.02, margin: "14px 0 18px", maxWidth: 900 }}>{release.title}</h1>
-        <p style={{ color: "#b7b3ad", fontSize: 15, margin: "0 0 28px" }}>
+        <p style={{ color: "#b7b3ad", fontSize: 15, margin: "0 0 8px" }}>
           {release.project_title}{release.format ? ` · ${release.format === "tv_series" ? "TV series" : "Film"}` : ""} · Published {new Date(release.published_at).toLocaleDateString()}
         </p>
+        <p style={{ margin: "0 0 28px", color: "#99958e", fontSize: 13 }}>Created by <a href={`/creators/${encodeURIComponent(release.creator_name)}`} style={{ color: "#c9a77b", textDecoration: "none" }}>{release.creator_name}</a></p>
         <video controls playsInline preload="metadata" poster={release.poster_url || undefined} style={{ width: "100%", maxHeight: "70vh", background: "#050505", borderRadius: 8, display: "block" }}>
           <source src={release.video_url} type="video/mp4" />
           Your browser does not support HTML video.
