@@ -106,6 +106,39 @@ def list_public_releases(
 
 
 
+@router.get("/creators/{creator_name}")
+def public_creator_profile(creator_name: str, db: DbSession):
+    """Creator profile assembled from public release snapshots only."""
+    name = creator_name.strip()
+    if not name:
+        raise HTTPException(status_code=404, detail="Creator not found.")
+    releases = db.scalars(
+        select(PublishedRelease).where(
+            PublishedRelease.visibility == "public",
+            PublishedRelease.creator_name == name,
+        ).order_by(PublishedRelease.published_at.desc()).limit(100)
+    ).all()
+    if not releases:
+        raise HTTPException(status_code=404, detail="Creator not found.")
+    release_ids = [item.id for item in releases]
+    ratings = db.execute(
+        select(ReleaseRating.release_id, func.count(ReleaseRating.id), func.avg(ReleaseRating.score))
+        .where(ReleaseRating.release_id.in_(release_ids)).group_by(ReleaseRating.release_id)
+    ).all()
+    rating_counts = {release_id: int(count) for release_id, count, _ in ratings}
+    averages = {release_id: round(float(avg), 2) if avg is not None else None for release_id, _, avg in ratings}
+    count = sum(rating_counts.values())
+    total = sum((averages[item.id] or 0) * rating_counts.get(item.id, 0) for item in releases)
+    return {
+        "creator_name": name,
+        "published_works": len(releases),
+        "rating_count": count,
+        "average_score": round(total / count, 2) if count else None,
+        "releases": [{**_public_payload(item), "rating_count": rating_counts.get(item.id, 0),
+                      "average_score": averages.get(item.id)} for item in releases],
+    }
+
+
 def _verified_snapshot_file(release: PublishedRelease, section: str):
     snapshot = (release.manifest_json or {}).get(section)
     if not isinstance(snapshot, dict) or not snapshot.get("storage_key") or not snapshot.get("sha256"):
