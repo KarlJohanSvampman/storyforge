@@ -2923,7 +2923,7 @@ function WorkspaceApp() {
 function App() {
   if (window.location.pathname === "/discover" || window.location.pathname === "/discover/") return <PublicDiscovery />;
   const creatorMatch = window.location.pathname.match(/^\/creators\/([^/]+)\/?$/);
-  if (creatorMatch) return <PublicCreator creatorName={decodeURIComponent(creatorMatch[1]} />;
+  if (creatorMatch) return <PublicCreator creatorName={decodeURIComponent(creatorMatch[1])} />;
   const match = window.location.pathname.match(/^\/releases\/([^/]+)\/?$/);
   return match ? <PublicRelease slug={decodeURIComponent(match[1])} /> : <WorkspaceApp />;
 }
