@@ -16,7 +16,7 @@ from .models import (
     NarrativeDraft, NarrativeDraftVersion, ProductionMediaAsset, ProductionVideoAsset, Project,
     Actor, CastingAssignment, ProjectCharacter, ProjectLocation, ProjectCreditConsent, PublishedRelease, SceneCharacterAssignment,
     SceneScriptElement, SceneScriptVersion, Storyboard, StoryboardEpisode, StoryboardScene,
-    StoryboardSeason, VideoRenderJob,
+    StoryboardSeason, User, VideoRenderJob,
 )
 from .projects import CurrentUser, DbSession, _membership
 from .schemas import PublishedReleaseCreate, PublishedReleaseRead
@@ -206,6 +206,7 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             character = db.get(ProjectCharacter, assignment.character_id)
             credit["character_name"] = character.name if character else None
         credits.append(credit)
+    owner = db.get(User, project.owner_user_id)
     return {
         "format_version": 1,
         "release_number": release_number,
@@ -215,6 +216,7 @@ def _build_manifest(db: Session, project: Project, storyboard: Storyboard, narra
             "description": project.description, "logline": project.logline,
             "genre": project.genre, "format": project.format,
             "category": project.category, "visibility": project.visibility,
+            "creator_name": owner.display_name if owner else "Unknown creator",
         },
         "source": {
             "storyboard_id": str(storyboard.id),
@@ -407,6 +409,8 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
     release = PublishedRelease(
         project_id=project_id, release_number=release_number, slug=slug,
         title=title, synopsis=synopsis, visibility=project.visibility,
+        genre=project.genre, category=project.category, format=project.format,
+        creator_name=(db.get(User, project.owner_user_id).display_name if db.get(User, project.owner_user_id) else "Unknown creator"),
         storyboard_id=storyboard.id, narrative_version_id=narrative.id,
         video_asset_id=asset.id, manifest_json=manifest,
         published_by_user_id=user.id,

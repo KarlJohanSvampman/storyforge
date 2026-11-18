@@ -3,6 +3,7 @@ import CastingWorkspace from "./CastingWorkspace";
 import ProjectCredits from "./ProjectCredits";
 import ProjectPublication from "./ProjectPublication";
 import PublicRelease from "./PublicRelease";
+import PublicDiscovery from "./PublicDiscovery";
 import ProductionStudio from "./ProductionStudio";
 import {
   ArrowLeft, ArrowUpRight, BookOpen, CheckCircle2, Clapperboard, Compass,
@@ -2919,6 +2920,7 @@ function WorkspaceApp() {
 }
 
 function App() {
+  if (window.location.pathname === "/discover" || window.location.pathname === "/discover/") return <PublicDiscovery />;
   const match = window.location.pathname.match(/^\/releases\/([^/]+)\/?$/);
   return match ? <PublicRelease slug={decodeURIComponent(match[1])} /> : <WorkspaceApp />;
 }
