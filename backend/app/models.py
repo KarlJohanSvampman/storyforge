@@ -14,6 +14,25 @@ class User(Base):
     memberships: Mapped[list["ProjectMembership"]] = relationship(back_populates="user")
 
 
+class CreatorProfile(Base):
+    """Persistent public identity owned by one StoryForge user."""
+    __tablename__ = "creator_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_creator_profiles_user"),
+        UniqueConstraint("public_slug", name="uq_creator_profiles_public_slug"),
+        CheckConstraint("length(trim(public_slug)) > 0", name="ck_creator_profiles_slug_nonempty"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    public_slug: Mapped[str] = mapped_column(String(180), nullable=False)
+    bio: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    website_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+    user: Mapped["User"] = relationship()
+
+
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (
