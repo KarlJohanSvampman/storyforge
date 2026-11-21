@@ -162,3 +162,19 @@ Do not skip the storytelling foundation to build the Studio first.
 6. Later: AI performance planning, perception/reactions, dialogue integration, collaborative control, takes, timeline, and recording refinement.
 
 Keep each stage as a runnable vertical slice. Avoid empty abstractions for future systems until a concrete milestone needs them.
+
+
+## 12. Motion capture and avateering
+
+Motion capture is delivered as a separate performance input pipeline, not as a replacement for semantic performance commands or existing take/event capture.
+
+- Actor capture zones define a physical floor coordinate frame, actor-facing direction, physical dimensions, virtual dimensions, root-translation mapping and safety inset.
+- Root movement mapping must not alter skeleton limb lengths or facial geometry. Any non-1:1 mapping is explicit and previewable.
+- Quest head/hand tracking is an initial upper-body input source, not full-body capture. Missing legs and inferred joints must be identified as such.
+- Body and facial performances are separate, independently replaceable animation layers.
+- Facial capture can be performed after a body take by using that take as a performance reference. Both passes align to the same scene-time clock.
+- Raw capture, reconstructed animation, retargeted animation and edited animation revisions remain separately attributable and non-destructive.
+- High-frequency capture samples are stored in chunked stream/object storage, not as one database row per frame.
+- The director can inspect capture telemetry and safety boundaries. The performer owns the physical capture zone only for the duration of the capture session.
+
+See [MOTION_CAPTURE_ARCHITECTURE.md](MOTION_CAPTURE_ARCHITECTURE.md) for the full delivery plan and acceptance test.
