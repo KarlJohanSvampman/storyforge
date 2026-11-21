@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import * as THREE from "three";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -65,6 +66,10 @@ function percent(value: number, extent: number): number {
 }
 
 export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const zoneGroupRef = useRef<THREE.Group | null>(null);
+  const markerRefs = useRef<{ head: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh } | null>(null);
   const sessionRef = useRef<XRSessionLike | null>(null);
   const referenceSpaceRef = useRef<XRSpaceLike | null>(null);
   const calibrationRef = useRef<Calibration | null>(null);
@@ -79,6 +84,80 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const [virtualDepth, setVirtualDepth] = useState(2.5);
   const [status, setStatus] = useState("Not connected");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const host = viewportRef.current;
+    if (!host) return;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x111711);
+    const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+    camera.position.set(0, 2.2, 5.5);
+    camera.lookAt(0, 1, 0);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(host.clientWidth || 640, 260);
+    renderer.xr.enabled = true;
+    renderer.xr.setReferenceSpaceType("local-floor");
+    host.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
+
+    scene.add(new THREE.HemisphereLight(0xdde8d6, 0x343c32, 2));
+    const key = new THREE.DirectionalLight(0xffe6c1, 2.2);
+    key.position.set(-3, 7, 4);
+    scene.add(key);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x222b22, roughness: 1 }));
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = -0.015;
+    scene.add(floor);
+    const zone = new THREE.Group();
+    scene.add(zone);
+    zoneGroupRef.current = zone;
+
+    const addBoundary = (width: number, depth: number, color: number, y: number) => {
+      const points = [
+        new THREE.Vector3(-width / 2, y, -depth / 2),
+        new THREE.Vector3(width / 2, y, -depth / 2),
+        new THREE.Vector3(width / 2, y, depth / 2),
+        new THREE.Vector3(-width / 2, y, depth / 2),
+      ];
+      const line = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color }));
+      zone.add(line);
+      return line;
+    };
+    addBoundary(physicalWidth, physicalDepth, 0x9fc56e, 0.025);
+    addBoundary(virtualWidth, virtualDepth, 0x65b5e8, 0.04);
+    const grid = new THREE.GridHelper(12, 24, 0x53634d, 0x354334);
+    grid.position.y = 0.005;
+    zone.add(grid);
+    const marker = (color: number, radius: number) => {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 }));
+      zone.add(mesh);
+      return mesh;
+    };
+    const headMarker = marker(0xf0cf79, 0.13);
+    const leftMarker = marker(0x70b9e8, 0.09);
+    const rightMarker = marker(0xc18be8, 0.09);
+    markerRefs.current = { head: headMarker, left: leftMarker, right: rightMarker };
+    renderer.setAnimationLoop(() => renderer.render(scene, camera));
+
+    const resize = () => {
+      if (!host.clientWidth) return;
+      camera.aspect = host.clientWidth / 260;
+      camera.updateProjectionMatrix();
+      renderer.setSize(host.clientWidth, 260);
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(host);
+    return () => {
+      observer.disconnect();
+      renderer.setAnimationLoop(null);
+      renderer.dispose();
+      host.removeChild(renderer.domElement);
+      rendererRef.current = null;
+      zoneGroupRef.current = null;
+      markerRefs.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -106,6 +185,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         optionalFeatures: ["hand-tracking"],
       });
       const referenceSpace = await session.requestReferenceSpace("local-floor");
+      await rendererRef.current?.xr.setSession(session as never);
       sessionRef.current = session;
       referenceSpaceRef.current = referenceSpace;
       setStatus("Headset connected · waiting for tracking");
@@ -113,6 +193,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         if (sessionRef.current === session) sessionRef.current = null;
         referenceSpaceRef.current = null;
         latestRef.current = EMPTY;
+        setCalibrated(false);
         setTracking(EMPTY);
         setStatus("Disconnected");
       }, { once: true });
@@ -160,6 +241,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     sessionRef.current = null;
     referenceSpaceRef.current = null;
     if (session) await session.end().catch(() => undefined);
+    await rendererRef.current?.xr.setSession(null);
     latestRef.current = EMPTY;
     setTracking(EMPTY);
     setStatus("Disconnected");
@@ -173,6 +255,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     const { x, y, z, w } = orientation;
     const yaw = Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
     calibrationRef.current = { origin: { x: head.x, y: 0, z: head.z }, yaw };
+    zoneGroupRef.current?.position.set(head.x, 0, head.z);
+    zoneGroupRef.current?.rotation.set(0, yaw, 0);
     setCalibrated(true);
     setError("");
     setStatus("Actor zone calibrated · move within the marked square");
@@ -183,6 +267,17 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const left = mapPoint(tracking.leftWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
   const right = mapPoint(tracking.rightWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
   const outOfBounds = calibrated && head && !insideZone(head, virtualWidth, virtualDepth);
+
+  useEffect(() => {
+    const markers = markerRefs.current;
+    if (!markers) return;
+    markers.head.visible = !!head;
+    markers.left.visible = !!left;
+    markers.right.visible = !!right;
+    if (head) markers.head.position.set(head.x, head.y, head.z);
+    if (left) markers.left.position.set(left.x, left.y, left.z);
+    if (right) markers.right.position.set(right.x, right.y, right.z);
+  }, [tracking, calibrated, physicalWidth, physicalDepth, virtualWidth, virtualDepth]);
 
   return <section className="production-panel motion-capture-panel">
     <div className="casting-panel-heading">
@@ -205,8 +300,9 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         <label>Virtual width (m)<input type="number" min="1" max="30" step="0.1" value={virtualWidth} onChange={event => setVirtualWidth(Math.max(1, Math.min(30, Number(event.target.value) || 1)))} /></label>
         <label>Virtual depth (m)<input type="number" min="1" max="30" step="0.1" value={virtualDepth} onChange={event => setVirtualDepth(Math.max(1, Math.min(30, Number(event.target.value) || 1)))} /></label>
       </div>
+      <div className="motion-capture-preview" ref={viewportRef} aria-label="Live room-scale capture preview" />
       <div className="motion-capture-zone">
-        <div className="motion-capture-zone-heading"><strong>Actor floor zone</strong><span>{physicalWidth.toFixed(1)} × {physicalDepth.toFixed(1)} m</span></div>
+        <div className="motion-capture-zone-heading"><strong>Actor floor zone · top view</strong><span>{physicalWidth.toFixed(1)} × {physicalDepth.toFixed(1)} m</span></div>
         <div className="motion-capture-zone-map" aria-label="Top-down actor capture zone">
           <span className="zone-axis zone-axis-x">X</span><span className="zone-axis zone-axis-z">Z</span>
           <span className="zone-centre" />
