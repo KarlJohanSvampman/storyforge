@@ -23,6 +23,7 @@ type XRSystemLike = {
 
 type TrackingState = {
   head: Vec3 | null;
+  headOrientation: Quaternion | null;
   leftWrist: Vec3 | null;
   rightWrist: Vec3 | null;
   leftIndex: Vec3 | null;
@@ -33,7 +34,7 @@ type Calibration = { origin: Vec3; yaw: number };
 type MappedPoint = { x: number; y: number; z: number };
 
 const EMPTY: TrackingState = {
-  head: null, leftWrist: null, rightWrist: null,
+  head: null, headOrientation: null, leftWrist: null, rightWrist: null,
   leftIndex: null, rightIndex: null, tracking: false,
 };
 
@@ -68,6 +69,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const referenceSpaceRef = useRef<XRSpaceLike | null>(null);
   const calibrationRef = useRef<Calibration | null>(null);
   const latestRef = useRef<TrackingState>(EMPTY);
+  const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
   const [calibrated, setCalibrated] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -120,7 +122,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         const space = referenceSpaceRef.current;
         const viewer = space ? frame.getViewerPose(space) : null;
         if (viewer && space) {
-          const next: TrackingState = { ...EMPTY, tracking: true, head: viewer.transform.position };
+          const next: TrackingState = { ...EMPTY, tracking: true, head: viewer.transform.position, headOrientation: viewer.transform.orientation };
           for (const source of Array.from(session.inputSources)) {
             if (!source.hand) continue;
             const side = source.handedness === "left" ? "left" : source.handedness === "right" ? "right" : null;
@@ -138,7 +140,10 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
             }
           }
           latestRef.current = next;
-          setTracking(next);
+          if (_time - lastUiUpdateRef.current >= 80) {
+            lastUiUpdateRef.current = _time;
+            setTracking(next);
+          }
           setStatus(next.leftWrist || next.rightWrist ? "Head and hand tracking active" : "Head tracking active · enable hand tracking");
         }
         session.requestAnimationFrame(tick);
@@ -163,14 +168,14 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   function calibrate() {
     const head = latestRef.current.head;
     if (!head) { setError("Head tracking has not supplied a pose yet."); return; }
-    // The actor's initial headset position defines the zone centre. Its facing direction
-    // is captured separately so the square follows the actor's forward orientation.
-    const xr = (navigator as Navigator & { xr?: XRSystemLike }).xr;
-    const session = sessionRef.current;
-    const space = referenceSpaceRef.current;
-    if (!xr || !session || !space) return;
-    setError("Recenter calibration by reconnecting is not yet supported.");
-    setStatus("Calibration origin captured only after facing reference is added.");
+    const orientation = latestRef.current.headOrientation;
+    if (!orientation) { setError("Head orientation is not available yet."); return; }
+    const { x, y, z, w } = orientation;
+    const yaw = Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
+    calibrationRef.current = { origin: { x: head.x, y: 0, z: head.z }, yaw };
+    setCalibrated(true);
+    setError("");
+    setStatus("Actor zone calibrated · move within the marked square");
   }
 
   const calibration = calibrationRef.current;
@@ -193,6 +198,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         <span className="muted-note">{supported === null ? "Checking WebXR support…" : supported ? status : "Immersive WebXR is not available here."}</span>
       </div>
       {error && <div className="casting-alert error">{error}</div>}
+      <div className="motion-capture-calibration-actions"><button type="button" className="secondary-button" onClick={calibrate} disabled={!tracking.head}>Calibrate zone from current position</button><button type="button" className="quiet-button" onClick={() => { calibrationRef.current = null; setCalibrated(false); }}>Reset calibration</button><span className="muted-note">{calibrated ? "Calibrated to actor-facing direction" : "Calibration required before measuring boundaries"}</span></div>
       <div className="motion-capture-dimensions">
         <label>Physical width (m)<input type="number" min="1" max="8" step="0.1" value={physicalWidth} onChange={event => setPhysicalWidth(Math.max(1, Math.min(8, Number(event.target.value) || 1)))} /></label>
         <label>Physical depth (m)<input type="number" min="1" max="8" step="0.1" value={physicalDepth} onChange={event => setPhysicalDepth(Math.max(1, Math.min(8, Number(event.target.value) || 1)))} /></label>
@@ -210,6 +216,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         </div>
         <div className="motion-capture-legend"><span>Head</span><span>Left wrist</span><span>Right wrist</span></div>
       </div>
+      {outOfBounds && <div className="casting-alert error">Actor has moved outside the configured virtual performance area.</div>}
       <div className="motion-capture-readings">
         <div><small>Head tracking</small><strong>{tracking.head ? "Available" : "Waiting"}</strong></div>
         <div><small>Left hand</small><strong>{tracking.leftWrist ? "Available" : "Not tracked"}</strong></div>
