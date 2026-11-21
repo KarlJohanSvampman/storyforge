@@ -68,6 +68,7 @@ function percent(value: number, extent: number): number {
 export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const zoneGroupRef = useRef<THREE.Group | null>(null);
   const markerRefs = useRef<{ head: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh } | null>(null);
   const boundaryRefs = useRef<{ physical: THREE.LineLoop; virtual: THREE.LineLoop } | null>(null);
@@ -94,6 +95,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
     camera.position.set(0, 2.2, 5.5);
     camera.lookAt(0, 1, 0);
+    cameraRef.current = camera;
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(host.clientWidth || 640, 260);
@@ -134,6 +136,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     zone.add(grid);
     const marker = (color: number, radius: number) => {
       const mesh = new THREE.Mesh(new THREE.SphereGeometry(radius, 16, 12), new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.15 }));
+      mesh.visible = false;
       zone.add(mesh);
       return mesh;
     };
@@ -157,6 +160,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
       renderer.dispose();
       host.removeChild(renderer.domElement);
       rendererRef.current = null;
+      cameraRef.current = null;
       zoneGroupRef.current = null;
       markerRefs.current = null;
       boundaryRefs.current = null;
@@ -189,6 +193,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         optionalFeatures: ["hand-tracking"],
       });
       const referenceSpace = await session.requestReferenceSpace("local-floor");
+      cameraRef.current?.position.set(0, 0, 0);
+      cameraRef.current?.rotation.set(0, 0, 0);
       await rendererRef.current?.xr.setSession(session as never);
       sessionRef.current = session;
       referenceSpaceRef.current = referenceSpace;
@@ -198,6 +204,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         referenceSpaceRef.current = null;
         latestRef.current = EMPTY;
         setCalibrated(false);
+        cameraRef.current?.position.set(0, 2.2, 5.5);
+        cameraRef.current?.lookAt(0, 1, 0);
         setTracking(EMPTY);
         setStatus("Disconnected");
       }, { once: true });
@@ -246,6 +254,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     referenceSpaceRef.current = null;
     if (session) await session.end().catch(() => undefined);
     await rendererRef.current?.xr.setSession(null);
+    cameraRef.current?.position.set(0, 2.2, 5.5);
+    cameraRef.current?.lookAt(0, 1, 0);
     latestRef.current = EMPTY;
     setTracking(EMPTY);
     setStatus("Disconnected");
