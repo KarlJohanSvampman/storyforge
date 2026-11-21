@@ -451,7 +451,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       </section>
     </div>
 
-    {selectedRun && <MotionCaptureSetup sceneRunId={selectedRun.id} />}
+    {selectedRun && <MotionCaptureSetup sceneRunId={selectedRun.id} castMembers={selectedRun.cast_members} />}
 
     {selectedRun && <section className="production-panel production-cast-runtime">
       <div className="casting-panel-heading"><div><div className="section-kicker">CAST MEMBER INSTANCES</div><h3>Who is performing each role?</h3></div><UserRound size={17} /></div>
