@@ -92,7 +92,10 @@ function createAvatar(name: string): AvatarParts {
 function updateAvatar(parts: AvatarParts, props: Props): void {
   const rootX = props.head?.x ?? 0;
   const rootZ = props.head?.z ?? 0;
-  parts.root.position.set(rootX, 0, rootZ);
+  parts.root.position.set(0, 0, 0);
+  parts.torso.position.set(rootX, 1.13, rootZ);
+  parts.pelvis.position.set(rootX, 0.78, rootZ);
+  parts.label.position.set(rootX, 2.45, rootZ);
   const headPosition = props.head
     ? new THREE.Vector3(props.head.x, props.head.y, props.head.z)
     : new THREE.Vector3(rootX, 1.68, rootZ);
@@ -179,7 +182,7 @@ export default function LiveAvatarPreview(props: Props) {
       controls.dispose();
       scene.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Sprite) {
-          object.geometry?.dispose?.();
+          if (object instanceof THREE.Mesh) object.geometry.dispose();
           const material = object.material;
           if (Array.isArray(material)) material.forEach(item => item.dispose());
           else if (material) material.dispose();
