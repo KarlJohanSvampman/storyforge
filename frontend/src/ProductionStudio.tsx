@@ -4,6 +4,7 @@ import ThreeSceneViewport from "./ThreeSceneViewport";
 import type { SceneProductionAsset } from "./productionScene";
 import AudioTimeline from "./AudioTimeline";
 import ProductionVideoExport from "./ProductionVideoExport";
+import MotionCaptureSetup from "./MotionCaptureSetup";
 
 type SceneOption = { id: string; title: string };
 type Member = { id: string; user_id: string | null; display_name: string | null; email: string | null; role: string; status: string };
@@ -449,6 +450,8 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
         </> : <div className="production-viewport-empty"><Clapperboard size={26} /><span>Choose or prepare a scene run to load the set.</span></div>}
       </section>
     </div>
+
+    {selectedRun && <MotionCaptureSetup sceneRunId={selectedRun.id} castMembers={selectedRun.cast_members} />}
 
     {selectedRun && <section className="production-panel production-cast-runtime">
       <div className="casting-panel-heading"><div><div className="section-kicker">CAST MEMBER INSTANCES</div><h3>Who is performing each role?</h3></div><UserRound size={17} /></div>

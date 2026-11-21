@@ -133,6 +133,20 @@ Work in small, demonstrable increments. Each milestone should produce something 
 - [x] Add timecoded director annotations with author identity, event/performer anchors, and resolution state.
 - [ ] Add side-by-side take comparison, higher-frequency capture, deterministic physics replay, and skeletal animation reconstruction.
 
+### M2.3 — Motion capture and avateering
+- [x] Add Quest WebXR connection and room-scale actor-zone setup panel.
+- [x] Configure physical and virtual capture-area dimensions.
+- [x] Calibrate actor-zone origin and facing direction from headset pose.
+- [x] Display live head/wrist telemetry and mapped zone boundary state.
+- [ ] Persist capture-zone calibration profiles and per-take snapshots.
+- [ ] Build live humanoid avateering with IK and explicit inferred-joint indicators.
+- [ ] Record timestamped body capture streams and replay skeletal animation.
+- [ ] Add editable body-action and movement refinement.
+- [ ] Add external-camera facial capture as a separate animation layer.
+- [ ] Build Performance Composer for synchronized body, face, gaze and dialogue tracks.
+
+See [docs/MOTION_CAPTURE_ARCHITECTURE.md](MOTION_CAPTURE_ARCHITECTURE.md) for capture-zone mapping, body/face separation, provenance and acceptance criteria.
+
 ## M3 — Editing and finished-film workflow
 - [x] Select takes and arrange non-destructive scene clips in an editable sequence.
 - [x] Support source trims, clip reordering, cut/fade/dissolve transitions, title overlays, effect metadata, and audio cues.
