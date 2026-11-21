@@ -126,7 +126,6 @@ function updateAvatar(parts: AvatarParts, props: Props): void {
 export default function LiveAvatarPreview(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const partsRef = useRef<AvatarParts | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -134,7 +133,6 @@ export default function LiveAvatarPreview(props: Props) {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x151d17);
     scene.fog = new THREE.Fog(0x151d17, 7, 18);
-    sceneRef.current = scene;
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
     camera.position.set(2.7, 2.35, 4.8);
     camera.lookAt(0, 1.15, 0);
@@ -191,7 +189,6 @@ export default function LiveAvatarPreview(props: Props) {
       renderer.dispose();
       if (host.contains(renderer.domElement)) host.removeChild(renderer.domElement);
       partsRef.current = null;
-      sceneRef.current = null;
     };
     // The viewport is recreated only when the component mounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps

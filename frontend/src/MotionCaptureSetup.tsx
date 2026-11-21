@@ -354,6 +354,7 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
       <div className="motion-capture-avatar-preview">
         <div className="motion-capture-zone-heading"><strong>Live avatar preview</strong><span>{tracking.tracking ? "Live tracking" : "Waiting for tracking"}</span></div>
         <LiveAvatarPreview
+          key={selectedCastMemberId}
           characterName={castMembers.find(member => member.id === selectedCastMemberId)?.character_name_snapshot || "Performer"}
           head={head}
           headOrientation={tracking.headOrientation}
