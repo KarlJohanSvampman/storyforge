@@ -18,6 +18,7 @@ type TrackingState = {
   tracking: boolean;
 };
 type Calibration = { origin: Vec3; yaw: number };
+type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
 
 const EMPTY: TrackingState = {
@@ -51,7 +52,7 @@ function percent(value: number, extent: number): number {
   return Math.max(0, Math.min(100, 50 + value / extent * 100));
 }
 
-export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string }) {
+export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneRunId: string; castMembers: CaptureCastMember[] }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -61,6 +62,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const sessionRef = useRef<XRSessionLike | null>(null);
   const referenceSpaceRef = useRef<XRSpaceLike | null>(null);
   const calibrationRef = useRef<Calibration | null>(null);
+  const calibrationsByCastMemberRef = useRef<Record<string, Calibration>>({});
+  const [selectedCastMemberId, setSelectedCastMemberId] = useState(castMembers[0]?.id || "");
   const latestRef = useRef<TrackingState>(EMPTY);
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
@@ -192,6 +195,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         referenceSpaceRef.current = null;
         latestRef.current = EMPTY;
         calibrationRef.current = null;
+        calibrationsByCastMemberRef.current = {};
         setCalibrated(false);
         cameraRef.current?.position.set(0, 2.2, 5.5);
         cameraRef.current?.lookAt(0, 1, 0);
@@ -265,11 +269,21 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     const { x, y, z, w } = orientation;
     const yaw = Math.atan2(2 * (w * y + x * z), 1 - 2 * (y * y + z * z));
     calibrationRef.current = { origin: { x: head.x, y: 0, z: head.z }, yaw };
+    if (selectedCastMemberId) calibrationsByCastMemberRef.current[selectedCastMemberId] = calibrationRef.current;
     zoneGroupRef.current?.position.set(head.x, 0, head.z);
     zoneGroupRef.current?.rotation.set(0, yaw, 0);
     setCalibrated(true);
     setError("");
     setStatus("Actor zone calibrated · move within the marked square");
+  }
+
+  function selectCastMember(id: string) {
+    setSelectedCastMemberId(id);
+    const saved = calibrationsByCastMemberRef.current[id] || null;
+    calibrationRef.current = saved;
+    setCalibrated(!!saved);
+    zoneGroupRef.current?.position.set(saved?.origin.x || 0, 0, saved?.origin.z || 0);
+    zoneGroupRef.current?.rotation.set(0, saved?.yaw || 0, 0);
   }
 
   const calibration = calibrationRef.current;
@@ -319,7 +333,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         <span className="muted-note">{supported === null ? "Checking WebXR support…" : supported ? status : "Immersive WebXR is not available here."}</span>
       </div>
       {error && <div className="casting-alert error">{error}</div>}
-      <div className="motion-capture-calibration-actions"><button type="button" className="secondary-button" onClick={calibrate} disabled={!tracking.head}>Calibrate zone from current position</button><button type="button" className="quiet-button" onClick={() => { calibrationRef.current = null; setCalibrated(false); }}>Reset calibration</button><span className="muted-note">{calibrated ? "Calibrated to actor-facing direction" : "Calibration required before measuring boundaries"}</span></div>
+      <label className="motion-capture-actor-select">Actor / character<select value={selectedCastMemberId} onChange={event => selectCastMember(event.target.value)}><option value="">Choose a cast member…</option>{castMembers.map(member => <option key={member.id} value={member.id}>{member.character_name_snapshot} · {member.actor_name_snapshot}</option>)}</select></label>
+      <div className="motion-capture-calibration-actions"><button type="button" className="secondary-button" onClick={calibrate} disabled={!tracking.head || !selectedCastMemberId} disabled={!tracking.head}>Calibrate zone from current position</button><button type="button" className="quiet-button" onClick={() => { calibrationRef.current = null; if (selectedCastMemberId) delete calibrationsByCastMemberRef.current[selectedCastMemberId]; setCalibrated(false); zoneGroupRef.current?.position.set(0, 0, 0); zoneGroupRef.current?.rotation.set(0, 0, 0); }}>Reset calibration</button><span className="muted-note">{calibrated ? "Calibrated to actor-facing direction" : "Calibration required before measuring boundaries"}</span></div>
       <div className="motion-capture-dimensions">
         <label>Physical width (m)<input type="number" min="1" max="8" step="0.1" value={physicalWidth} onChange={event => setPhysicalWidth(Math.max(1, Math.min(8, Number(event.target.value) || 1)))} /></label>
         <label>Physical depth (m)<input type="number" min="1" max="8" step="0.1" value={physicalDepth} onChange={event => setPhysicalDepth(Math.max(1, Math.min(8, Number(event.target.value) || 1)))} /></label>
