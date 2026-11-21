@@ -4,9 +4,6 @@ import * as THREE from "three";
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
 type XRSpaceLike = XRReferenceSpace;
-type XRJointLike = XRJointSpace;
-type XRHandLike = XRHand;
-type XRInputSourceLike = XRInputSource;
 type XRFrameLike = XRFrame;
 type XRSessionLike = XRSession;
 type XRSystemLike = XRSystem;
@@ -176,11 +173,13 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     setError("");
     const xr = (navigator as Navigator & { xr?: XRSystemLike }).xr;
     if (!xr) { setError("WebXR is unavailable in this browser. Open StoryForge in a WebXR-compatible browser on the headset."); return; }
+    let pendingSession: XRSessionLike | null = null;
     try {
       const session = await xr.requestSession("immersive-vr", {
         requiredFeatures: ["local-floor"],
         optionalFeatures: ["hand-tracking"],
       });
+      pendingSession = session;
       const referenceSpace = await session.requestReferenceSpace("local-floor");
       cameraRef.current?.position.set(0, 0, 0);
       cameraRef.current?.rotation.set(0, 0, 0);
@@ -192,6 +191,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
         if (sessionRef.current === session) sessionRef.current = null;
         referenceSpaceRef.current = null;
         latestRef.current = EMPTY;
+        calibrationRef.current = null;
         setCalibrated(false);
         cameraRef.current?.position.set(0, 2.2, 5.5);
         cameraRef.current?.lookAt(0, 1, 0);
@@ -211,8 +211,9 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
             if (!side) continue;
             const wrist = source.hand.get("wrist");
             const index = source.hand.get("index-finger-tip");
-            const wristPose = wrist ? frame.getJointPose(wrist, space) : null;
-            const indexPose = index ? frame.getJointPose(index, space) : null;
+            const getJointPose = typeof frame.getJointPose === "function" ? frame.getJointPose.bind(frame) : null;
+            const wristPose = wrist && getJointPose ? getJointPose(wrist, space) : null;
+            const indexPose = index && getJointPose ? getJointPose(index, space) : null;
             if (side === "left") {
               next.leftWrist = wristPose?.transform.position || null;
               next.leftIndex = indexPose?.transform.position || null;
@@ -232,6 +233,10 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
       };
       session.requestAnimationFrame(tick);
     } catch (cause) {
+      if (pendingSession) await pendingSession.end().catch(() => undefined);
+      await rendererRef.current?.xr.setSession(null).catch(() => undefined);
+      cameraRef.current?.position.set(0, 2.2, 5.5);
+      cameraRef.current?.lookAt(0, 1, 0);
       setError(cause instanceof Error ? cause.message : "Could not start the WebXR session.");
       setStatus("Connection failed");
     }
@@ -246,6 +251,8 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
     cameraRef.current?.position.set(0, 2.2, 5.5);
     cameraRef.current?.lookAt(0, 1, 0);
     latestRef.current = EMPTY;
+    calibrationRef.current = null;
+    setCalibrated(false);
     setTracking(EMPTY);
     setStatus("Disconnected");
   }
