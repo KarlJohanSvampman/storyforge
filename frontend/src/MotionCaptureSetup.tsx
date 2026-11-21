@@ -3,24 +3,13 @@ import * as THREE from "three";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
-type XRSpaceLike = object;
-type XRJointLike = object;
-type XRHandLike = { get(name: string): XRJointLike | undefined };
-type XRInputSourceLike = { hand?: XRHandLike; handedness?: string };
-type XRFrameLike = {
-  getViewerPose(space: XRSpaceLike): { transform: { position: Vec3; orientation: Quaternion } } | null;
-  getJointPose(joint: XRJointLike, space: XRSpaceLike): { transform: { position: Vec3 } } | null;
-};
-type XRSessionLike = EventTarget & {
-  inputSources: ArrayLike<XRInputSourceLike>;
-  requestReferenceSpace(type: string): Promise<XRSpaceLike>;
-  requestAnimationFrame(callback: (time: number, frame: XRFrameLike) => void): number;
-  end(): Promise<void>;
-};
-type XRSystemLike = {
-  isSessionSupported?(mode: string): Promise<boolean>;
-  requestSession(mode: string, options: { requiredFeatures: string[]; optionalFeatures: string[] }): Promise<XRSessionLike>;
-};
+type XRSpaceLike = XRReferenceSpace;
+type XRJointLike = XRJointSpace;
+type XRHandLike = XRHand;
+type XRInputSourceLike = XRInputSource;
+type XRFrameLike = XRFrame;
+type XRSessionLike = XRSession;
+type XRSystemLike = XRSystem;
 
 type TrackingState = {
   head: Vec3 | null;
