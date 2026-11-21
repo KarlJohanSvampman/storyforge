@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import LiveAvatarPreview from "./LiveAvatarPreview";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -350,6 +351,17 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
         <label>Virtual depth (m)<input type="number" min="1" max="30" step="0.1" value={virtualDepth} onChange={event => setVirtualDepth(Math.max(1, Math.min(30, Number(event.target.value) || 1)))} /></label>
       </div>
       <div className="motion-capture-preview" ref={viewportRef} aria-label="Live room-scale capture preview" />
+      <div className="motion-capture-avatar-preview">
+        <div className="motion-capture-zone-heading"><strong>Live avatar preview</strong><span>{tracking.tracking ? "Live tracking" : "Waiting for tracking"}</span></div>
+        <LiveAvatarPreview
+          characterName={castMembers.find(member => member.id === selectedCastMemberId)?.character_name_snapshot || "Performer"}
+          head={head}
+          headOrientation={tracking.headOrientation}
+          leftWrist={left}
+          rightWrist={right}
+        />
+        <p className="muted-note">Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
+      </div>
       <div className="motion-capture-zone">
         <div className="motion-capture-zone-heading"><strong>Actor floor zone · top view</strong><span>{physicalWidth.toFixed(1)} × {physicalDepth.toFixed(1)} m</span></div>
         <div className="motion-capture-zone-map" aria-label="Top-down actor capture zone">
