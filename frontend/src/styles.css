@@ -931,3 +931,6 @@ a { color: inherit; text-decoration: none; }
 .motion-capture-readings small { color: #858b7b; font-size: 9px; }
 .motion-capture-readings strong { font-size: 11px; }
 @media (max-width: 700px) { .motion-capture-dimensions, .motion-capture-readings { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.motion-capture-preview { width: 100%; height: 260px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: #111711; }
+.motion-capture-preview canvas { display: block; width: 100%; height: 100%; }
