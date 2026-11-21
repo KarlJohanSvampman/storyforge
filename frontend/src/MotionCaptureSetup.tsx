@@ -232,6 +232,13 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
             setTracking(next);
           }
           setStatus(next.leftWrist || next.rightWrist ? "Head and hand tracking active" : "Head tracking active · enable hand tracking");
+        } else {
+          latestRef.current = EMPTY;
+          if (_time - lastUiUpdateRef.current >= 80) {
+            lastUiUpdateRef.current = _time;
+            setTracking(EMPTY);
+          }
+          setStatus("Head tracking temporarily unavailable");
         }
         session.requestAnimationFrame(tick);
       };
@@ -256,6 +263,7 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
     cameraRef.current?.lookAt(0, 1, 0);
     latestRef.current = EMPTY;
     calibrationRef.current = null;
+    calibrationsByCastMemberRef.current = {};
     setCalibrated(false);
     setTracking(EMPTY);
     setStatus("Disconnected");
