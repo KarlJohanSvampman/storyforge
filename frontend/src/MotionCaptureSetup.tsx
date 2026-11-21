@@ -70,6 +70,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const zoneGroupRef = useRef<THREE.Group | null>(null);
   const markerRefs = useRef<{ head: THREE.Mesh; left: THREE.Mesh; right: THREE.Mesh } | null>(null);
+  const boundaryRefs = useRef<{ physical: THREE.LineLoop; virtual: THREE.LineLoop } | null>(null);
   const sessionRef = useRef<XRSessionLike | null>(null);
   const referenceSpaceRef = useRef<XRSpaceLike | null>(null);
   const calibrationRef = useRef<Calibration | null>(null);
@@ -124,8 +125,10 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
       zone.add(line);
       return line;
     };
-    addBoundary(physicalWidth, physicalDepth, 0x9fc56e, 0.025);
-    addBoundary(virtualWidth, virtualDepth, 0x65b5e8, 0.04);
+    boundaryRefs.current = {
+      physical: addBoundary(physicalWidth, physicalDepth, 0x9fc56e, 0.025),
+      virtual: addBoundary(virtualWidth, virtualDepth, 0x65b5e8, 0.04),
+    };
     const grid = new THREE.GridHelper(12, 24, 0x53634d, 0x354334);
     grid.position.y = 0.005;
     zone.add(grid);
@@ -156,6 +159,7 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
       rendererRef.current = null;
       zoneGroupRef.current = null;
       markerRefs.current = null;
+      boundaryRefs.current = null;
     };
   }, []);
 
@@ -267,6 +271,22 @@ export default function MotionCaptureSetup({ sceneRunId }: { sceneRunId: string 
   const left = mapPoint(tracking.leftWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
   const right = mapPoint(tracking.rightWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
   const outOfBounds = calibrated && head && !insideZone(head, virtualWidth, virtualDepth);
+
+  useEffect(() => {
+    const boundaries = boundaryRefs.current;
+    if (!boundaries) return;
+    const update = (line: THREE.LineLoop, width: number, depth: number) => {
+      line.geometry.dispose();
+      line.geometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-width / 2, line === boundaries.physical ? 0.025 : 0.04, -depth / 2),
+        new THREE.Vector3(width / 2, line === boundaries.physical ? 0.025 : 0.04, -depth / 2),
+        new THREE.Vector3(width / 2, line === boundaries.physical ? 0.025 : 0.04, depth / 2),
+        new THREE.Vector3(-width / 2, line === boundaries.physical ? 0.025 : 0.04, depth / 2),
+      ]);
+    };
+    update(boundaries.physical, physicalWidth, physicalDepth);
+    update(boundaries.virtual, virtualWidth, virtualDepth);
+  }, [physicalWidth, physicalDepth, virtualWidth, virtualDepth]);
 
   useEffect(() => {
     const markers = markerRefs.current;
