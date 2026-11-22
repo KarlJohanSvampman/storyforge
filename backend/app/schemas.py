@@ -1457,6 +1457,27 @@ class PerformanceCaptureChunkCreate(BaseModel):
                 )
             ):
                 raise ValueError("head_orientation must be a quaternion or null.")
+            skeleton = sample.get("skeleton")
+            if skeleton is not None:
+                if not isinstance(skeleton, dict) or (
+                    skeleton.get("format") != "storyforge.humanoid"
+                    or skeleton.get("version") != 1
+                    or skeleton.get("coordinate_space") != "actor-local-meters"
+                ):
+                    raise ValueError("skeleton must use storyforge.humanoid v1 in actor-local metres.")
+                joints = skeleton.get("joints")
+                if not isinstance(joints, dict) or not joints:
+                    raise ValueError("skeleton.joints must be a non-empty joint map.")
+                for joint_name, joint in joints.items():
+                    if not isinstance(joint_name, str) or not isinstance(joint, dict) or any(
+                        not isinstance(joint.get(axis), (int, float)) or not math.isfinite(joint.get(axis))
+                        for axis in ("x", "y", "z")
+                    ):
+                        raise ValueError("Every canonical skeleton joint must contain finite x, y and z coordinates.")
+                for field_name in ("tracked", "inferred"):
+                    labels = skeleton.get(field_name)
+                    if not isinstance(labels, list) or any(not isinstance(label, str) for label in labels):
+                        raise ValueError(f"skeleton.{field_name} must be a list of joint names.")
         return samples
 
 
