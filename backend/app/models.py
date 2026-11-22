@@ -1357,6 +1357,7 @@ class PublishedRelease(Base):
     category: Mapped[str] = mapped_column(String(20), default="fiction", nullable=False)
     format: Mapped[str] = mapped_column(String(20), default="movie", nullable=False)
     creator_name: Mapped[str] = mapped_column(String(160), default="", nullable=False)
+    creator_user_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     storyboard_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("storyboards.id", ondelete="RESTRICT"), nullable=False)
     narrative_version_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("narrative_draft_versions.id", ondelete="RESTRICT"), nullable=False)
     video_asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_video_assets.id", ondelete="RESTRICT"), nullable=False)
