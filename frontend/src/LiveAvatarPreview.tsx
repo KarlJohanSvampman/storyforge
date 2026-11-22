@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { reconstructCanonicalSkeleton } from "./canonicalSkeleton";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 type Point = { x: number; y: number; z: number } | null;
@@ -90,37 +91,35 @@ function createAvatar(name: string): AvatarParts {
 }
 
 function updateAvatar(parts: AvatarParts, props: Props): void {
-  const rootX = props.head?.x ?? 0;
-  const rootZ = props.head?.z ?? 0;
-  parts.root.position.set(0, 0, 0);
-  parts.torso.position.set(rootX, 1.13, rootZ);
-  parts.pelvis.position.set(rootX, 0.78, rootZ);
-  parts.label.position.set(rootX, 2.45, rootZ);
-  const headPosition = props.head
-    ? new THREE.Vector3(props.head.x, props.head.y, props.head.z)
-    : new THREE.Vector3(rootX, 1.68, rootZ);
-  parts.head.position.copy(headPosition);
+  const skeleton = reconstructCanonicalSkeleton(props.head, props.leftWrist, props.rightWrist);
+  const joints = skeleton.joints;
+  const v = (name: keyof typeof joints) => {
+    const p = joints[name]!;
+    return new THREE.Vector3(p.x, p.y, p.z);
+  };
+  const pelvis = v("pelvis"), spine = v("spine"), chest = v("chest");
+  const head = v("head");
+  parts.torso.position.copy(chest);
+  parts.torso.position.y = (pelvis.y + chest.y) / 2;
+  parts.torso.position.x = chest.x;
+  parts.torso.position.z = chest.z;
+  parts.pelvis.position.copy(pelvis);
+  parts.head.position.copy(head);
   if (props.headOrientation) {
     parts.head.quaternion.set(props.headOrientation.x, props.headOrientation.y, props.headOrientation.z, props.headOrientation.w);
   }
-  const leftShoulder = new THREE.Vector3(rootX - 0.25, 1.42, rootZ);
-  const rightShoulder = new THREE.Vector3(rootX + 0.25, 1.42, rootZ);
-  const leftWrist = props.leftWrist
-    ? new THREE.Vector3(props.leftWrist.x, props.leftWrist.y, props.leftWrist.z)
-    : new THREE.Vector3(rootX - 0.48, 1.12, rootZ + 0.04);
-  const rightWrist = props.rightWrist
-    ? new THREE.Vector3(props.rightWrist.x, props.rightWrist.y, props.rightWrist.z)
-    : new THREE.Vector3(rootX + 0.48, 1.12, rootZ + 0.04);
-  const leftElbow = leftShoulder.clone().lerp(leftWrist, 0.52).add(new THREE.Vector3(-0.08, 0.03, 0.08));
-  const rightElbow = rightShoulder.clone().lerp(rightWrist, 0.52).add(new THREE.Vector3(0.08, 0.03, 0.08));
-  placeSegment(parts.leftUpperArm, leftShoulder, leftElbow);
-  placeSegment(parts.leftLowerArm, leftElbow, leftWrist);
-  placeSegment(parts.rightUpperArm, rightShoulder, rightElbow);
-  placeSegment(parts.rightLowerArm, rightElbow, rightWrist);
+  const leftShoulder=v("left_shoulder"), rightShoulder=v("right_shoulder");
+  const leftElbow=v("left_elbow"), rightElbow=v("right_elbow");
+  const leftWrist=v("left_wrist"), rightWrist=v("right_wrist");
+  placeSegment(parts.leftUpperArm,leftShoulder,leftElbow);
+  placeSegment(parts.leftLowerArm,leftElbow,leftWrist);
+  placeSegment(parts.rightUpperArm,rightShoulder,rightElbow);
+  placeSegment(parts.rightLowerArm,rightElbow,rightWrist);
   parts.leftHand.position.copy(leftWrist);
   parts.rightHand.position.copy(rightWrist);
-  placeSegment(parts.leftLeg, new THREE.Vector3(rootX - 0.14, 0.76, rootZ), new THREE.Vector3(rootX - 0.14, 0.12, rootZ));
-  placeSegment(parts.rightLeg, new THREE.Vector3(rootX + 0.14, 0.76, rootZ), new THREE.Vector3(rootX + 0.14, 0.12, rootZ));
+  placeSegment(parts.leftLeg,v("left_hip"),v("left_ankle"));
+  placeSegment(parts.rightLeg,v("right_hip"),v("right_ankle"));
+  parts.label.position.set(pelvis.x, 2.45, pelvis.z);
 }
 
 export default function LiveAvatarPreview(props: Props) {
