@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import LiveAvatarPreview from "./LiveAvatarPreview";
+import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -21,7 +22,7 @@ type TrackingState = {
 type Calibration = { origin: Vec3; yaw: number };
 type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
-type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null };
+type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton: CanonicalSkeleton };
 type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
 type CaptureChunk = { id: string; chunk_index: number; download_url: string };
 
@@ -135,7 +136,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
           title: `Quest performance · ${new Date().toLocaleString()}`,
           cast_member_instance_id: selectedCastMemberId,
           state_snapshot: {
-            capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,
+            capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,\n            skeleton_format: "storyforge.humanoid", skeleton_version: 1, coordinate_space: "actor-local-meters",
             calibration: calibrationRef.current,
             physical_zone_m: { width: physicalWidth, depth: physicalDepth },
             virtual_zone_m: { width: virtualWidth, depth: virtualDepth },
@@ -372,6 +373,11 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
               head_orientation: next.headOrientation,
               left_wrist: mapPoint(next.leftWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
               right_wrist: mapPoint(next.rightWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              skeleton: reconstructCanonicalSkeleton(
+                mapPoint(next.head, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+                mapPoint(next.leftWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+                mapPoint(next.rightWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              ),
             });
           }
           if (_time - lastUiUpdateRef.current >= 80) {
