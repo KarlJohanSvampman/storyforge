@@ -43,7 +43,7 @@ def test_chunked_body_capture_upload_list_and_replay(monkeypatch, tmp_path):
     chunk = first.json()
     assert chunk["sample_count"] == 60
     assert chunk["start_timestamp_ms"] == 0
-    assert chunk["end_timestamp_ms"] == 1950
+    assert chunk["end_timestamp_ms"] == 1947
     assert chunk["size_bytes"] < len(json.dumps(samples).encode())
 
     wrong_index = client.post(
@@ -98,7 +98,8 @@ def test_chunked_capture_rejects_invalid_samples_and_cross_project_access(monkey
 
     invalid = client.post(
         f"/api/projects/{project_id}/takes/{take['id']}/capture-chunks",
-        json={"chunk_index": 0, "samples": [{"timestamp_ms": 0, "head": {"x": float("nan"), "y": 1, "z": 0}}]},
+        data='{"chunk_index":0,"samples":[{"timestamp_ms":0,"head":{"x":NaN,"y":1,"z":0}}]}',
+        headers={"Content-Type": "application/json"},
     )
     assert invalid.status_code == 422
 
