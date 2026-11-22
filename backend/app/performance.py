@@ -1,15 +1,21 @@
+import gzip
+import hashlib
+import json
+import os
 import uuid
+from pathlib import Path
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from .models import CastMemberInstance, ControllerAssignmentEvent, PerformanceEvent, PerformanceTake, Project, SceneRun
+from .models import CastMemberInstance, ControllerAssignmentEvent, PerformanceCaptureChunk, PerformanceEvent, PerformanceTake, Project, SceneRun
 from .projects import CurrentUser, DbSession, _membership, _project_or_404
 from .schemas import (
     PerformanceEventCreate, PerformanceTakeCreate, PerformanceTakeFinalize,
-    PerformanceTakeRead, PerformanceEventRead,
+    PerformanceTakeRead, PerformanceEventRead, PerformanceCaptureChunkCreate,
+    PerformanceCaptureChunkRead, PerformanceCaptureTakeRead,
 )
 
 router = APIRouter(tags=["performance capture"])
@@ -37,6 +43,157 @@ def _take_read(db: Session, take: PerformanceTake) -> PerformanceTakeRead:
         finalized_at=take.finalized_at,
         events=[PerformanceEventRead.model_validate(event, from_attributes=True) for event in events],
     )
+
+
+
+def _capture_root() -> Path:
+    return Path(os.getenv("STORYFORGE_CAPTURE_DIR", "/app/storage/captures")).resolve()
+
+
+def _capture_path(storage_key: str) -> Path:
+    root = _capture_root()
+    candidate = (root / storage_key).resolve()
+    if root not in candidate.parents:
+        raise HTTPException(status_code=500, detail="Invalid capture storage key.")
+    return candidate
+
+
+def _capture_chunk_read(chunk: PerformanceCaptureChunk, take: PerformanceTake, project_id: uuid.UUID) -> PerformanceCaptureChunkRead:
+    return PerformanceCaptureChunkRead(
+        id=chunk.id, chunk_index=chunk.chunk_index, sample_count=chunk.sample_count,
+        start_timestamp_ms=chunk.start_timestamp_ms, end_timestamp_ms=chunk.end_timestamp_ms,
+        size_bytes=chunk.size_bytes, sha256=chunk.sha256, created_at=chunk.created_at,
+        download_url=f"/api/projects/{project_id}/takes/{take.id}/capture-chunks/{chunk.id}",
+    )
+
+
+@router.get("/api/projects/{project_id}/capture-takes", response_model=list[PerformanceCaptureTakeRead])
+def list_capture_takes(project_id: uuid.UUID, db: DbSession, user: CurrentUser):
+    _project_or_404(db, project_id)
+    _membership(db, project_id, user.id)
+    rows = db.execute(
+        select(PerformanceTake, func.coalesce(func.sum(PerformanceCaptureChunk.sample_count), 0))
+        .join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+        .outerjoin(PerformanceCaptureChunk, PerformanceCaptureChunk.take_id == PerformanceTake.id)
+        .where(SceneRun.project_id == project_id)
+        .group_by(PerformanceTake.id)
+        .having(func.coalesce(func.sum(PerformanceCaptureChunk.sample_count), 0) > 0)
+        .order_by(PerformanceTake.created_at.desc())
+    ).all()
+    return [
+        PerformanceCaptureTakeRead(
+            id=take.id, scene_run_id=take.scene_run_id,
+            cast_member_instance_id=take.cast_member_instance_id,
+            take_number=take.take_number, title=take.title, status=take.status,
+            duration_ms=take.duration_ms, created_at=take.created_at, sample_count=count,
+        ) for take, count in rows
+    ]
+
+
+@router.post(
+    "/api/projects/{project_id}/takes/{take_id}/capture-chunks",
+    response_model=PerformanceCaptureChunkRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def append_capture_chunk(
+    project_id: uuid.UUID, take_id: uuid.UUID, payload: PerformanceCaptureChunkCreate,
+    db: DbSession, user: CurrentUser,
+):
+    _require_editor(db, project_id, user.id)
+    take = db.scalar(
+        select(PerformanceTake).join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+        .where(PerformanceTake.id == take_id, SceneRun.project_id == project_id)
+    )
+    if take is None:
+        raise HTTPException(status_code=404, detail="Performance take not found.")
+    if take.status != "recording":
+        raise HTTPException(status_code=409, detail="Capture samples cannot be appended after a take is finalized.")
+    previous = db.scalar(
+        select(PerformanceCaptureChunk).where(PerformanceCaptureChunk.take_id == take.id)
+        .order_by(PerformanceCaptureChunk.chunk_index.desc()).limit(1)
+    )
+    expected_index = previous.chunk_index + 1 if previous else 0
+    if payload.chunk_index != expected_index:
+        raise HTTPException(status_code=409, detail=f"Expected capture chunk index {expected_index}.")
+    timestamps = [sample["timestamp_ms"] for sample in payload.samples]
+    if previous and timestamps[0] < previous.end_timestamp_ms:
+        raise HTTPException(status_code=422, detail="Capture timestamps must be monotonic across chunks.")
+    if take.duration_ms is not None and timestamps[-1] > take.duration_ms:
+        raise HTTPException(status_code=422, detail="Capture sample exceeds the take duration.")
+
+    raw = json.dumps(payload.samples, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    if len(raw) > 256 * 1024:
+        raise HTTPException(status_code=413, detail="A capture chunk cannot exceed 256 KiB uncompressed.")
+    compressed = gzip.compress(raw, compresslevel=6)
+    chunk_id = uuid.uuid4()
+    storage_key = f"{project_id}/{take.id}/{chunk_id}.json.gz"
+    destination = _capture_path(storage_key)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(compressed)
+    chunk = PerformanceCaptureChunk(
+        id=chunk_id, take_id=take.id, chunk_index=payload.chunk_index,
+        storage_key=storage_key, sha256=hashlib.sha256(compressed).hexdigest(),
+        size_bytes=len(compressed), sample_count=len(payload.samples),
+        start_timestamp_ms=timestamps[0], end_timestamp_ms=timestamps[-1],
+    )
+    try:
+        db.add(chunk)
+        db.commit()
+        db.refresh(chunk)
+    except Exception:
+        db.rollback()
+        destination.unlink(missing_ok=True)
+        raise
+    return _capture_chunk_read(chunk, take, project_id)
+
+
+@router.get("/api/projects/{project_id}/takes/{take_id}/capture-chunks", response_model=list[PerformanceCaptureChunkRead])
+def list_capture_chunks(project_id: uuid.UUID, take_id: uuid.UUID, db: DbSession, user: CurrentUser):
+    _project_or_404(db, project_id)
+    _membership(db, project_id, user.id)
+    take = db.scalar(
+        select(PerformanceTake).join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+        .where(PerformanceTake.id == take_id, SceneRun.project_id == project_id)
+    )
+    if take is None:
+        raise HTTPException(status_code=404, detail="Performance take not found.")
+    chunks = db.scalars(
+        select(PerformanceCaptureChunk).where(PerformanceCaptureChunk.take_id == take.id)
+        .order_by(PerformanceCaptureChunk.chunk_index)
+    ).all()
+    return [_capture_chunk_read(chunk, take, project_id) for chunk in chunks]
+
+
+@router.get("/api/projects/{project_id}/takes/{take_id}/capture-chunks/{chunk_id}")
+def read_capture_chunk(
+    project_id: uuid.UUID, take_id: uuid.UUID, chunk_id: uuid.UUID,
+    db: DbSession, user: CurrentUser,
+):
+    _project_or_404(db, project_id)
+    _membership(db, project_id, user.id)
+    chunk = db.scalar(
+        select(PerformanceCaptureChunk)
+        .join(PerformanceTake, PerformanceTake.id == PerformanceCaptureChunk.take_id)
+        .join(SceneRun, SceneRun.id == PerformanceTake.scene_run_id)
+        .where(
+            PerformanceCaptureChunk.id == chunk_id,
+            PerformanceCaptureChunk.take_id == take_id,
+            SceneRun.project_id == project_id,
+        )
+    )
+    if chunk is None:
+        raise HTTPException(status_code=404, detail="Capture chunk not found.")
+    path = _capture_path(chunk.storage_key)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Capture chunk file is missing from storage.")
+    try:
+        compressed = path.read_bytes()
+        if hashlib.sha256(compressed).hexdigest() != chunk.sha256:
+            raise HTTPException(status_code=500, detail="Capture chunk integrity check failed.")
+        samples = json.loads(gzip.decompress(compressed).decode("utf-8"))
+    except (OSError, gzip.BadGzipFile, EOFError, UnicodeDecodeError, json.JSONDecodeError):
+        raise HTTPException(status_code=500, detail="Capture chunk could not be decoded.")
+    return {"chunk_index": chunk.chunk_index, "samples": samples}
 
 
 @router.post("/api/projects/{project_id}/scene-runs/{run_id}/takes", response_model=PerformanceTakeRead, status_code=status.HTTP_201_CREATED)

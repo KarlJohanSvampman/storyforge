@@ -931,6 +931,28 @@ class PerformanceTake(Base):
     finalized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class PerformanceCaptureChunk(Base):
+    """Compressed high-frequency body tracking samples stored outside relational event rows."""
+    __tablename__ = "performance_capture_chunks"
+    __table_args__ = (
+        UniqueConstraint("take_id", "chunk_index", name="uq_performance_capture_chunks_take_index"),
+        CheckConstraint("chunk_index >= 0", name="ck_performance_capture_chunks_index"),
+        CheckConstraint("sample_count > 0", name="ck_performance_capture_chunks_sample_count"),
+        CheckConstraint("size_bytes > 0", name="ck_performance_capture_chunks_size"),
+        Index("ix_performance_capture_chunks_take_index", "take_id", "chunk_index"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    take_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("performance_takes.id", ondelete="CASCADE"), nullable=False)
+    chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False, unique=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    sample_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    start_timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_timestamp_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class PerformanceEvent(Base):
     """Timestamped, ordered control/performance event within a take."""
     __tablename__ = "performance_events"
