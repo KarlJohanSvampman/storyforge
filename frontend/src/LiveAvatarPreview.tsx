@@ -97,7 +97,7 @@ function updateAvatar(parts: AvatarParts, props: Props): void {
     const p = joints[name]!;
     return new THREE.Vector3(p.x, p.y, p.z);
   };
-  const pelvis = v("pelvis"), spine = v("spine"), chest = v("chest");
+  const pelvis = v("pelvis"), chest = v("chest");
   const head = v("head");
   parts.torso.position.copy(chest);
   parts.torso.position.y = (pelvis.y + chest.y) / 2;
