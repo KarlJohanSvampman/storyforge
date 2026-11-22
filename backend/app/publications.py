@@ -411,6 +411,7 @@ def create_published_release(project_id: uuid.UUID, payload: PublishedReleaseCre
         title=title, synopsis=synopsis, visibility=project.visibility,
         genre=project.genre, category=project.category, format=project.format,
         creator_name=(db.get(User, project.owner_user_id).display_name if db.get(User, project.owner_user_id) else "Unknown creator"),
+        creator_user_id=project.owner_user_id,
         storyboard_id=storyboard.id, narrative_version_id=narrative.id,
         video_asset_id=asset.id, manifest_json=manifest,
         published_by_user_id=user.id,
