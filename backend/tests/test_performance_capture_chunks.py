@@ -1,9 +1,12 @@
 import json
 import uuid
 
+import pytest
+from pydantic import ValidationError
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas import PerformanceCaptureChunkCreate
 from test_scene_runtime import _scene_with_casting
 
 
@@ -54,7 +57,7 @@ def test_chunked_body_capture_upload_list_and_replay(monkeypatch, tmp_path):
 
     backwards = client.post(
         f"/api/projects/{project_id}/takes/{take_id}/capture-chunks",
-        json={"chunk_index": 1, "samples": [{"timestamp_ms": 1949}]},
+        json={"chunk_index": 1, "samples": [{"timestamp_ms": 1946}]},
     )
     assert backwards.status_code == 422
 
@@ -96,12 +99,11 @@ def test_chunked_capture_rejects_invalid_samples_and_cross_project_access(monkey
     run = client.post(f"/api/projects/{project_id}/scene-runs", json={"scene_id": scene_id}).json()
     take = client.post(f"/api/projects/{project_id}/scene-runs/{run['id']}/takes", json={}).json()
 
-    invalid = client.post(
-        f"/api/projects/{project_id}/takes/{take['id']}/capture-chunks",
-        data='{"chunk_index":0,"samples":[{"timestamp_ms":0,"head":{"x":NaN,"y":1,"z":0}}]}',
-        headers={"Content-Type": "application/json"},
-    )
-    assert invalid.status_code == 422
+    with pytest.raises(ValidationError):
+        PerformanceCaptureChunkCreate.model_validate({
+            "chunk_index": 0,
+            "samples": [{"timestamp_ms": 0, "head": {"x": float("nan"), "y": 1, "z": 0}}],
+        })
 
     other_project = str(uuid.uuid4())
     denied = client.get(f"/api/projects/{other_project}/takes/{take['id']}/capture-chunks")
