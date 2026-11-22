@@ -1,3 +1,4 @@
+import math
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -1427,6 +1428,60 @@ class PerformanceEventCreate(BaseModel):
     cast_member_instance_id: uuid.UUID | None = None
     authority_epoch: int | None = Field(default=None, ge=1)
     payload: dict = Field(default_factory=dict)
+
+
+class PerformanceCaptureChunkCreate(BaseModel):
+    chunk_index: int = Field(ge=0)
+    samples: list[dict] = Field(min_length=1, max_length=120)
+
+    @field_validator("samples")
+    @classmethod
+    def validate_capture_samples(cls, samples: list[dict]) -> list[dict]:
+        previous = -1
+        for sample in samples:
+            timestamp = sample.get("timestamp_ms")
+            if not isinstance(timestamp, int) or timestamp < 0 or timestamp < previous:
+                raise ValueError("Capture sample timestamps must be non-negative, integer and monotonic.")
+            previous = timestamp
+            for key in ("head", "left_wrist", "right_wrist"):
+                value = sample.get(key)
+                if value is not None:
+                    if not isinstance(value, dict) or any(
+                        not isinstance(value.get(axis), (int, float)) or not math.isfinite(value.get(axis)) for axis in ("x", "y", "z")
+                    ):
+                        raise ValueError(f"{key} must be a 3D position or null.")
+            orientation = sample.get("head_orientation")
+            if orientation is not None and (
+                not isinstance(orientation, dict) or any(
+                    not isinstance(orientation.get(axis), (int, float)) or not math.isfinite(orientation.get(axis)) for axis in ("x", "y", "z", "w")
+                )
+            ):
+                raise ValueError("head_orientation must be a quaternion or null.")
+        return samples
+
+
+class PerformanceCaptureChunkRead(BaseModel):
+    id: uuid.UUID
+    chunk_index: int
+    sample_count: int
+    start_timestamp_ms: int
+    end_timestamp_ms: int
+    size_bytes: int
+    sha256: str
+    created_at: datetime
+    download_url: str
+
+
+class PerformanceCaptureTakeRead(BaseModel):
+    id: uuid.UUID
+    scene_run_id: uuid.UUID
+    cast_member_instance_id: uuid.UUID | None
+    take_number: int
+    title: str
+    status: str
+    duration_ms: int | None
+    created_at: datetime
+    sample_count: int = 0
 
 
 class PerformanceTakeCreate(BaseModel):

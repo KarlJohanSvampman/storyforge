@@ -23,6 +23,7 @@ services:
       - storyforge_documentary_media:/app/storage/documentary
       - storyforge_production_media:/app/storage/production-audio
       - storyforge_assets:/app/storage/assets
+      - storyforge_captures:/app/storage/captures
     environment:
       DATABASE_URL: postgresql+psycopg://storyforge:change-me-locally@db:5432/storyforge
       STORYFORGE_AUTH_MODE: development
@@ -31,6 +32,7 @@ services:
       STORYFORGE_MEDIA_DIR: /app/storage/documentary
       STORYFORGE_PRODUCTION_MEDIA_DIR: /app/storage/production-audio
       STORYFORGE_ASSET_DIR: /app/storage/assets
+      STORYFORGE_CAPTURE_DIR: /app/storage/captures
     depends_on:
       db:
         condition: service_healthy
@@ -114,3 +116,4 @@ volumes:
   storyforge_documentary_media:
   storyforge_production_media:
   storyforge_assets:
+  storyforge_captures:

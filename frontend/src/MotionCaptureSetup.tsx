@@ -21,6 +21,9 @@ type TrackingState = {
 type Calibration = { origin: Vec3; yaw: number };
 type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
+type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null };
+type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
+type CaptureChunk = { id: string; chunk_index: number; download_url: string };
 
 const EMPTY: TrackingState = {
   head: null, headOrientation: null, leftWrist: null, rightWrist: null,
@@ -53,7 +56,22 @@ function percent(value: number, extent: number): number {
   return Math.max(0, Math.min(100, 50 + value / extent * 100));
 }
 
-export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneRunId: string; castMembers: CaptureCastMember[] }) {
+export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers }: { projectId: string; sceneRunId: string; castMembers: CaptureCastMember[] }) {
+  const [captureTakeId, setCaptureTakeId] = useState("");
+  const [captureStatus, setCaptureStatus] = useState<"idle" | "recording" | "uploading">("idle");
+  const [captureTakes, setCaptureTakes] = useState<CaptureTake[]>([]);
+  const [replaySamples, setReplaySamples] = useState<CaptureSample[]>([]);
+  const [replaySample, setReplaySample] = useState<CaptureSample | null>(null);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  const [replayPlayhead, setReplayPlayhead] = useState(0);
+  const captureTakeRef = useRef("");
+  const captureStartedRef = useRef(0);
+  const captureLastSampleRef = useRef(0);
+  const captureBufferRef = useRef<CaptureSample[]>([]);
+  const captureChunkIndexRef = useRef(0);
+  const uploadChainRef = useRef<Promise<void>>(Promise.resolve());
+  const uploadErrorRef = useRef("");
+  const recordingRef = useRef(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -76,6 +94,123 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
   const [virtualDepth, setVirtualDepth] = useState(2.5);
   const [status, setStatus] = useState("Not connected");
   const [error, setError] = useState("");
+  async function captureApi<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await fetch(path, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new Error(body?.detail || `Capture request failed (${response.status})`);
+    }
+    return response.json() as Promise<T>;
+  }
+  async function refreshCaptureTakes() {
+    setCaptureTakes(await captureApi<CaptureTake[]>(`/api/projects/${projectId}/capture-takes`));
+  }
+  function enqueueCaptureChunk(samples: CaptureSample[]) {
+    if (!samples.length || !captureTakeRef.current) return;
+    const chunkIndex = captureChunkIndexRef.current++;
+    const takeId = captureTakeRef.current;
+    uploadChainRef.current = uploadChainRef.current.then(async () => {
+      await captureApi(`/api/projects/${projectId}/takes/${takeId}/capture-chunks`, {
+        method: "POST", body: JSON.stringify({ chunk_index: chunkIndex, samples }),
+      });
+    }).catch(cause => {
+      uploadErrorRef.current = cause instanceof Error ? cause.message : "Could not upload capture samples.";
+      setError(uploadErrorRef.current);
+    });
+  }
+  function queueCaptureSample(sample: CaptureSample) {
+    captureBufferRef.current.push(sample);
+    if (captureBufferRef.current.length >= 60) enqueueCaptureChunk(captureBufferRef.current.splice(0, 60));
+  }
+  async function beginCapture() {
+    if (!sessionRef.current || !tracking.tracking || !calibrated || !selectedCastMemberId) {
+      setError("Connect Quest, select an actor and calibrate the capture zone before Action.");
+      return;
+    }
+    setError("");
+    try {
+      const take = await captureApi<{ id: string }>(`/api/projects/${projectId}/scene-runs/${sceneRunId}/takes`, {
+        method: "POST",
+        body: JSON.stringify({
+          title: `Quest performance · ${new Date().toLocaleString()}`,
+          cast_member_instance_id: selectedCastMemberId,
+          state_snapshot: {
+            capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,
+            calibration: calibrationRef.current,
+            physical_zone_m: { width: physicalWidth, depth: physicalDepth },
+            virtual_zone_m: { width: virtualWidth, depth: virtualDepth },
+            captured: ["head_pose", "head_orientation", "left_wrist", "right_wrist"],
+            estimated: ["elbows", "pelvis", "legs"],
+          },
+        }),
+      });
+      captureTakeRef.current = take.id;
+      setCaptureTakeId(take.id);
+      captureStartedRef.current = performance.now();
+      captureLastSampleRef.current = 0;
+      captureBufferRef.current = [];
+      captureChunkIndexRef.current = 0;
+      uploadErrorRef.current = "";
+      uploadChainRef.current = Promise.resolve();
+      recordingRef.current = true;
+      setReplaySamples([]); setReplaySample(null); setReplayPlaying(false);
+      setCaptureStatus("recording");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not start the performance take.");
+    }
+  }
+  async function cutCapture() {
+    if (!recordingRef.current || !captureTakeRef.current) return;
+    recordingRef.current = false;
+    setCaptureStatus("uploading");
+    enqueueCaptureChunk(captureBufferRef.current.splice(0));
+    try {
+      await uploadChainRef.current;
+      if (uploadErrorRef.current) throw new Error(uploadErrorRef.current);
+      const duration = Math.max(0, Math.round(performance.now() - captureStartedRef.current));
+      await captureApi(`/api/projects/${projectId}/takes/${captureTakeRef.current}/finalize`, {
+        method: "POST", body: JSON.stringify({ duration_ms: duration }),
+      });
+      await refreshCaptureTakes();
+      setCaptureStatus("idle"); setStatus("Take saved · ready for playback");
+    } catch (cause) {
+      setCaptureStatus("idle");
+      setError(cause instanceof Error ? cause.message : "Could not finalize the performance take.");
+    }
+  }
+  async function loadCaptureTake(takeId: string) {
+    if (!takeId) return;
+    setError(""); setReplayPlaying(false);
+    try {
+      const chunks = await captureApi<CaptureChunk[]>(`/api/projects/${projectId}/takes/${takeId}/capture-chunks`);
+      const groups = await Promise.all(chunks.map(chunk => captureApi<{ samples: CaptureSample[] }>(chunk.download_url)));
+      const samples = groups.flatMap(group => group.samples).sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+      setReplaySamples(samples); setReplaySample(samples[0] || null); setReplayPlayhead(0); setCaptureTakeId(takeId);
+      if (!samples.length) setError("This take contains no body capture samples.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not load the recorded take.");
+    }
+  }
+  useEffect(() => {
+    void refreshCaptureTakes().catch(cause => setError(cause instanceof Error ? cause.message : "Could not load saved capture takes."));
+  }, [projectId]);
+  useEffect(() => {
+    if (!replayPlaying || !replaySamples.length) return;
+    const lastTimestamp = replaySamples[replaySamples.length - 1].timestamp_ms;
+    const startedAt = performance.now() - replayPlayhead;
+    const timer = window.setInterval(() => {
+      const elapsed = Math.min(lastTimestamp, performance.now() - startedAt);
+      let low = 0, high = replaySamples.length - 1;
+      while (low < high) {
+        const middle = Math.floor((low + high + 1) / 2);
+        if (replaySamples[middle].timestamp_ms <= elapsed) low = middle; else high = middle - 1;
+      }
+      setReplayPlayhead(elapsed); setReplaySample(replaySamples[low]);
+      if (elapsed >= lastTimestamp) setReplayPlaying(false);
+    }, 33);
+    return () => window.clearInterval(timer);
+  }, [replayPlaying, replaySamples]);
+
 
   useEffect(() => {
     const host = viewportRef.current;
@@ -168,6 +303,7 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
   }, []);
 
   useEffect(() => () => {
+    recordingRef.current = false;
     const session = sessionRef.current;
     sessionRef.current = null;
     if (session) void session.end().catch(() => undefined);
@@ -228,6 +364,16 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
             }
           }
           latestRef.current = next;
+          if (recordingRef.current && calibrationRef.current && _time - captureLastSampleRef.current >= 1000 / 30) {
+            captureLastSampleRef.current = _time;
+            queueCaptureSample({
+              timestamp_ms: Math.max(0, Math.round(_time - captureStartedRef.current)),
+              head: mapPoint(next.head, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              head_orientation: next.headOrientation,
+              left_wrist: mapPoint(next.leftWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              right_wrist: mapPoint(next.rightWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+            });
+          }
           if (_time - lastUiUpdateRef.current >= 80) {
             lastUiUpdateRef.current = _time;
             setTracking(next);
@@ -296,9 +442,12 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
   }
 
   const calibration = calibrationRef.current;
-  const head = mapPoint(tracking.head, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
-  const left = mapPoint(tracking.leftWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
-  const right = mapPoint(tracking.rightWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
+  const liveHead = mapPoint(tracking.head, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
+  const liveLeft = mapPoint(tracking.leftWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
+  const liveRight = mapPoint(tracking.rightWrist, calibration, physicalWidth, physicalDepth, virtualWidth, virtualDepth);
+  const head = replaySample ? replaySample.head : liveHead;
+  const left = replaySample ? replaySample.left_wrist : liveLeft;
+  const right = replaySample ? replaySample.right_wrist : liveRight;
   const outOfBounds = calibrated && head && !insideZone(head, virtualWidth, virtualDepth);
 
   useEffect(() => {
@@ -357,11 +506,32 @@ export default function MotionCaptureSetup({ sceneRunId, castMembers }: { sceneR
           key={selectedCastMemberId}
           characterName={castMembers.find(member => member.id === selectedCastMemberId)?.character_name_snapshot || "Performer"}
           head={head}
-          headOrientation={tracking.headOrientation}
+          headOrientation={replaySample ? replaySample.head_orientation : tracking.headOrientation}
           leftWrist={left}
           rightWrist={right}
         />
         <p className="muted-note">Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
+      <div className="motion-capture-recording">
+        <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
+        <div className="motion-capture-actions">
+          {captureStatus === "recording"
+            ? <button type="button" className="primary-button" onClick={() => void cutCapture()}>■ Cut · Save take</button>
+            : <button type="button" className="primary-button" onClick={() => void beginCapture()} disabled={!tracking.tracking || !calibrated || !selectedCastMemberId || captureStatus === "uploading" || replayPlaying}>● Action · Record</button>}
+          <span className="muted-note">{captureTakeId ? `Take ${captureTakeId.slice(0, 8)}` : "No active take"}</span>
+        </div>
+        <label className="motion-capture-actor-select">Saved body takes
+          <select value={captureTakeId} onChange={event => { setCaptureTakeId(event.target.value); void loadCaptureTake(event.target.value); }}>
+            <option value="">Choose a recorded take…</option>
+            {captureTakes.map(take => <option key={take.id} value={take.id}>Take {take.take_number} · {take.title} · {take.sample_count} samples</option>)}
+          </select>
+        </label>
+        <div className="motion-capture-actions">
+          <button type="button" className="secondary-button" disabled={!replaySamples.length || replayPlaying} onClick={() => { setReplayPlayhead(0); setReplaySample(replaySamples[0]); setReplayPlaying(true); }}>▶ Play</button>
+          <button type="button" className="quiet-button" disabled={!replayPlaying} onClick={() => setReplayPlaying(false)}>Pause</button>
+          <button type="button" className="quiet-button" disabled={!replaySamples.length} onClick={() => { setReplayPlaying(false); setReplayPlayhead(0); setReplaySample(replaySamples[0] || null); }}>Reset</button>
+          <span className="muted-note">{replaySamples.length ? `${Math.round(replayPlayhead)} / ${replaySamples[replaySamples.length - 1].timestamp_ms} ms · ${replaySamples.length} samples` : "Load a saved take to replay it on the avatar."}</span>
+        </div>
+      </div>
       </div>
       <div className="motion-capture-zone">
         <div className="motion-capture-zone-heading"><strong>Actor floor zone · top view</strong><span>{physicalWidth.toFixed(1)} × {physicalDepth.toFixed(1)} m</span></div>

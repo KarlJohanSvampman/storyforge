@@ -944,3 +944,10 @@ a { color: inherit; text-decoration: none; }
 .live-avatar-preview { width: 100%; height: 360px; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: radial-gradient(ellipse at 50% 35%, #29372e, #101510 72%); }
 .live-avatar-preview canvas { display: block; width: 100%; height: 100%; }
 @media (max-width: 700px) { .live-avatar-preview { height: 300px; } }
+
+
+/* M2.3.3 timestamped body capture and replay */
+.motion-capture-recording { display: grid; gap: 10px; border: 1px solid #3a4937; border-radius: 7px; background: #1b211a; padding: 13px; }
+.motion-capture-recording .primary-button { cursor: pointer; }
+.motion-capture-recording .primary-button:disabled, .motion-capture-recording .secondary-button:disabled, .motion-capture-recording .quiet-button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 760px) { .motion-capture-dimensions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
