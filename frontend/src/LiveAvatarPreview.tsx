@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { reconstructCanonicalSkeleton } from "./canonicalSkeleton";
+import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 type Point = { x: number; y: number; z: number } | null;
@@ -11,6 +11,7 @@ type Props = {
   headOrientation: Quaternion;
   leftWrist: Point;
   rightWrist: Point;
+  skeleton?: CanonicalSkeleton | null;
 };
 
 type AvatarParts = {
@@ -91,7 +92,7 @@ function createAvatar(name: string): AvatarParts {
 }
 
 function updateAvatar(parts: AvatarParts, props: Props): void {
-  const skeleton = reconstructCanonicalSkeleton(props.head, props.leftWrist, props.rightWrist);
+  const skeleton = props.skeleton ?? reconstructCanonicalSkeleton(props.head, props.leftWrist, props.rightWrist);
   const joints = skeleton.joints;
   const v = (name: keyof typeof joints) => {
     const p = joints[name]!;
@@ -196,7 +197,7 @@ export default function LiveAvatarPreview(props: Props) {
   useEffect(() => {
     const parts = partsRef.current;
     if (parts) updateAvatar(parts, props);
-  }, [props.characterName, props.head, props.headOrientation, props.leftWrist, props.rightWrist]);
+  }, [props.characterName, props.head, props.headOrientation, props.leftWrist, props.rightWrist, props.skeleton]);
 
   return <div className="live-avatar-preview" ref={hostRef} aria-label="Live tracked avatar preview" />;
 }
