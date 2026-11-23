@@ -136,7 +136,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
           title: `Quest performance · ${new Date().toLocaleString()}`,
           cast_member_instance_id: selectedCastMemberId,
           state_snapshot: {
-            capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,\n            skeleton_format: "storyforge.humanoid", skeleton_version: 1, coordinate_space: "actor-local-meters",
+            capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,
+            skeleton_format: "storyforge.humanoid", skeleton_version: 1, coordinate_space: "actor-local-meters",
             calibration: calibrationRef.current,
             physical_zone_m: { width: physicalWidth, depth: physicalDepth },
             virtual_zone_m: { width: virtualWidth, depth: virtualDepth },
