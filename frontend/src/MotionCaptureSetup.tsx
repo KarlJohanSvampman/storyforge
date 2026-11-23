@@ -22,7 +22,7 @@ type TrackingState = {
 type Calibration = { origin: Vec3; yaw: number };
 type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
-type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton: CanonicalSkeleton };
+type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton?: CanonicalSkeleton };
 type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
 type CaptureChunk = { id: string; chunk_index: number; download_url: string };
 
@@ -516,6 +516,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
           headOrientation={replaySample ? replaySample.head_orientation : tracking.headOrientation}
           leftWrist={left}
           rightWrist={right}
+          skeleton={replaySample?.skeleton}
         />
         <p className="muted-note">Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
       <div className="motion-capture-recording">
