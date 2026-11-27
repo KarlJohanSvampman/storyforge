@@ -29,6 +29,7 @@ type MappedPoint = { x: number; y: number; z: number };
 type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton?: CanonicalSkeleton };
 type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
 type CaptureChunk = { id: string; chunk_index: number; download_url: string };
+type RigProfileRevisionRecord = { revision: number; asset_version: number; profile: HumanoidRigProfile; updated_at: string; updated_by_user_id: string; rig_signature?: string | null };
 
 const EMPTY: TrackingState = {
   head: null, headOrientation: null, leftWrist: null, rightWrist: null,
@@ -93,6 +94,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
   const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
   const [rigProfileRevision, setRigProfileRevision] = useState(0);
+  const [rigProfileHistory, setRigProfileHistory] = useState<RigProfileRevisionRecord[]>([]);
   const [rigProfileSaveState, setRigProfileSaveState] = useState("No saved profile loaded");
   const rigProfileRevisionsByAssetRef = useRef<Record<string, number>>({});
   const rigProfileSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
@@ -109,6 +111,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   useEffect(() => {
     let alive = true;
     setRigProfileRevision(0);
+    setRigProfileHistory([]);
     setRigProfile(null);
     if (!selectedRigAssetId) {
       setRigProfileSaveState("Select a character with a bound production model to save a shared rig profile");
@@ -120,12 +123,16 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
       try {
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error(`Rig profile request failed (${response.status})`);
-        const saved = await response.json() as { revision: number; profile: HumanoidRigProfile } | null;
+        const saved = await response.json() as RigProfileRevisionRecord | null;
         if (!alive) return;
         if (saved) {
           rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = saved.revision;
           setRigProfileRevision(saved.revision);
           setRigProfile(saved.profile);
+          const historyResponse = await fetch(endpoint + "/versions");
+          const history = historyResponse.ok ? await historyResponse.json() as RigProfileRevisionRecord[] : [saved];
+          if (!alive) return;
+          setRigProfileHistory(history);
           setRigProfileSaveState(`Shared profile revision ${saved.revision}`);
           return;
         }
@@ -140,22 +147,25 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
             body: JSON.stringify({ profile: parsed, expected_revision: 0 }),
           });
           if (migrated.ok) {
-            const result = await migrated.json() as { revision: number; profile: HumanoidRigProfile };
+            const result = await migrated.json() as RigProfileRevisionRecord;
             if (!alive) return;
             rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = result.revision;
             setRigProfileRevision(result.revision);
             setRigProfile(result.profile);
+            setRigProfileHistory([result]);
             setRigProfileSaveState(`Migrated local profile · shared revision ${result.revision}`);
             return;
           }
           if (migrated.status === 409) {
             const latestResponse = await fetch(endpoint);
             if (latestResponse.ok) {
-              const latest = await latestResponse.json() as { revision: number; profile: HumanoidRigProfile } | null;
+              const latest = await latestResponse.json() as RigProfileRevisionRecord | null;
               if (alive && latest) {
                 rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = latest.revision;
                 setRigProfileRevision(latest.revision);
                 setRigProfile(latest.profile);
+                const historyResponse = await fetch(endpoint + "/versions");
+                if (historyResponse.ok) setRigProfileHistory(await historyResponse.json() as RigProfileRevisionRecord[]);
                 setRigProfileSaveState(`Loaded collaborator's profile · revision ${latest.revision}`);
                 return;
               }
@@ -205,8 +215,9 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.detail?.message || body?.detail || `Save failed (${response.status})`);
-      const saved = body as { revision: number };
+      const saved = body as RigProfileRevisionRecord;
       rigProfileRevisionsByAssetRef.current[assetId] = saved.revision;
+      if (assetId === selectedRigAssetId) setRigProfileHistory(current => [saved, ...current.filter(item => item.revision !== saved.revision)]);
       if (selectedRigAssetId === assetId) {
         setRigProfileRevision(saved.revision);
         setRigProfileSaveState(`Saved to production · revision ${saved.revision}`);
@@ -662,7 +673,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           <div><strong>Missing segments</strong><p>{rigStatus.missingSegments.join(", ") || "None"}</p></div>
           <div><strong>Detected bone names</strong><p>{rigStatus.boneNames.join(", ") || "No model bones detected"}</p></div>
         </details>
-        {rigStatus.boneNames.length > 0 && rigProfile && <><HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} /><p className="muted-note">{rigProfileSaveState}{rigProfileRevision > 0 ? ` · revision ${rigProfileRevision}` : ""}</p></>}
+        {rigStatus.boneNames.length > 0 && rigProfile && <><HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} /><p className="muted-note">{rigProfileSaveState}{rigProfileRevision > 0 ? ` · revision ${rigProfileRevision}` : ""}</p>{rigProfileHistory.length > 0 && <details className="motion-capture-rig-history"><summary>Profile history · {rigProfileHistory.length} revisions</summary>{rigProfileHistory.map(item => <div className="motion-capture-rig-history-row" key={item.revision}><span><strong>Revision {item.revision}</strong><small>{new Date(item.updated_at).toLocaleString()} · asset v{item.asset_version}</small></span><button type="button" className="quiet-button" disabled={item.revision === rigProfileRevision} onClick={() => saveRigProfile(item.profile)}>Restore</button></div>)}</details>}</>}
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
