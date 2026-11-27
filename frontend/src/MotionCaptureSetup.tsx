@@ -4,6 +4,8 @@ import LiveAvatarPreview from "./LiveAvatarPreview";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import type { SceneProductionAsset } from "./productionScene";
 import type { HumanoidRigPreviewStatus } from "./humanoidRigProfiles";
+import HumanoidRigProfileEditor from "./HumanoidRigProfileEditor";
+import type { HumanoidRigProfile } from "./humanoidRetargeter";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -89,12 +91,27 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const latestRef = useRef<TrackingState>(EMPTY);
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
+  const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
   const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
     message: "No bound character model · procedural preview",
     boneNames: [],
     matchedSegments: [],
     missingSegments: [],
   });
+  const selectedCharacterId = castMembers.find(member => member.id === selectedCastMemberId)?.character_id || selectedCastMemberId;
+  useEffect(() => {
+    if (!selectedCharacterId) { setRigProfile(null); return; }
+    try {
+      const saved = localStorage.getItem(`storyforge.rig-profile.v1:${selectedCharacterId}`);
+      setRigProfile(saved ? JSON.parse(saved) as HumanoidRigProfile : null);
+    } catch {
+      setRigProfile(null);
+    }
+  }, [selectedCharacterId]);
+  function saveRigProfile(profile: HumanoidRigProfile) {
+    setRigProfile(profile);
+    if (selectedCharacterId) localStorage.setItem(`storyforge.rig-profile.v1:${selectedCharacterId}`, JSON.stringify(profile));
+  }
   const [calibrated, setCalibrated] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [physicalWidth, setPhysicalWidth] = useState(2.5);
@@ -532,6 +549,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           rightWrist={right}
           skeleton={replaySample?.skeleton}
           onRigStatus={setRigStatus}
+          profileOverride={rigProfile}
+          onProfileDetected={profile => setRigProfile(current => current || profile)}
         />
         <p className="muted-note">{rigStatus.message}. Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
         <details className="motion-capture-rig-inspector">
@@ -540,6 +559,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           <div><strong>Missing segments</strong><p>{rigStatus.missingSegments.join(", ") || "None"}</p></div>
           <div><strong>Detected bone names</strong><p>{rigStatus.boneNames.join(", ") || "No model bones detected"}</p></div>
         </details>
+        {rigStatus.boneNames.length > 0 && rigProfile && <HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} />}
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
