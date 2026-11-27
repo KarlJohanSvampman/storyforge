@@ -16,7 +16,9 @@ type Props = {
   rightWrist: Point;
   skeleton?: CanonicalSkeleton | null;
   modelUrl?: string;
-  onRigStatus?: (status: HumanoidRigPreviewStatus) => void;\n  profileOverride?: HumanoidRigProfile | null;\n  onProfileDetected?: (profile: HumanoidRigProfile) => void;
+  onRigStatus?: (status: HumanoidRigPreviewStatus) => void;
+  profileOverride?: HumanoidRigProfile | null;
+  onProfileDetected?: (profile: HumanoidRigProfile) => void;
 };
 
 type AvatarParts = {
@@ -267,7 +269,8 @@ export default function LiveAvatarPreview(props: Props) {
       bounds.getSize(size);
       const height = size.y > 0.05 ? size.y : 1.7;
       const detection = detectHumanoidRigProfile(model);
-      const profile = { ...(props.profileOverride || detection.profile), targetHeightM: height, fitCanonicalHeight: true };\n      props.onProfileDetected?.(detection.profile);
+      const profile = { ...(props.profileOverride || detection.profile), targetHeightM: height, fitCanonicalHeight: true };
+      props.onProfileDetected?.(detection.profile);
       const retargeter = new HumanoidRetargeter(model, profile);
       const fittedHeight = height * (1.7 / height);
       model.position.y -= bounds.min.y * (fittedHeight / height);
