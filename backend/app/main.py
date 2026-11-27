@@ -17,7 +17,7 @@ from .performance_playback import router as performance_playback_router
 from .audio import router as audio_router
 from .audio_render import router as audio_render_router
 from .video_render import router as video_render_router
-from .production_assets import router as production_assets_router
+from .production_assets import router as production_assets_router\nfrom .rig_profiles import router as rig_profiles_router
 from .publications import router as publications_router
 from .public_release import router as public_release_router
 from .release_credits import router as release_credits_router
@@ -49,7 +49,7 @@ app.include_router(performance_playback_router)
 app.include_router(audio_router)
 app.include_router(audio_render_router)
 app.include_router(video_render_router)
-app.include_router(production_assets_router)
+app.include_router(production_assets_router)\napp.include_router(rig_profiles_router)
 app.include_router(publications_router)
 app.include_router(public_release_router)
 app.include_router(release_credits_router)
