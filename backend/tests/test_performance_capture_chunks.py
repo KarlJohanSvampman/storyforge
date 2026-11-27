@@ -108,3 +108,36 @@ def test_chunked_capture_rejects_invalid_samples_and_cross_project_access(monkey
     other_project = str(uuid.uuid4())
     denied = client.get(f"/api/projects/{other_project}/takes/{take['id']}/capture-chunks")
     assert denied.status_code == 404
+
+
+def test_canonical_skeleton_payload_validation():
+    valid = {
+        "format": "storyforge.humanoid",
+        "version": 1,
+        "coordinate_space": "actor-local-meters",
+        "joints": {
+            "pelvis": {"x": 0.0, "y": 0.8, "z": 0.0},
+            "left_elbow": {"x": -0.3, "y": 1.1, "z": 0.1},
+        },
+        "tracked": ["head", "left_wrist"],
+        "inferred": ["pelvis", "left_elbow"],
+    }
+    parsed = PerformanceCaptureChunkCreate.model_validate({
+        "chunk_index": 0,
+        "samples": [{"timestamp_ms": 0, "skeleton": valid}],
+    })
+    assert parsed.samples[0]["skeleton"]["version"] == 1
+
+    invalid = {**valid, "joints": {"pelvis": {"x": 0.0, "y": float("inf"), "z": 0.0}}}
+    with pytest.raises(ValidationError):
+        PerformanceCaptureChunkCreate.model_validate({
+            "chunk_index": 0,
+            "samples": [{"timestamp_ms": 0, "skeleton": invalid}],
+        })
+
+    wrong_space = {**valid, "coordinate_space": "world"}
+    with pytest.raises(ValidationError):
+        PerformanceCaptureChunkCreate.model_validate({
+            "chunk_index": 0,
+            "samples": [{"timestamp_ms": 0, "skeleton": wrong_space}],
+        })

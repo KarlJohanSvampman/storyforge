@@ -12,6 +12,7 @@ type ControllerType = "user" | "ai_agent" | "script_engine" | "system";
 type ControlMode = "direct" | "command" | "assisted" | "autonomous" | "scripted";
 type CastMember = {
   id: string; actor_name_snapshot: string; character_name_snapshot: string; role_label_snapshot: string;
+  character_id?: string;
   controller_type: ControllerType; controller_user_id: string | null; control_mode: ControlMode;
   authority_epoch: number; instance_status: string;
 };
@@ -451,7 +452,7 @@ export default function ProductionStudio({ projectId, phase, scenes, members, cu
       </section>
     </div>
 
-    {selectedRun && <MotionCaptureSetup projectId={projectId} sceneRunId={selectedRun.id} castMembers={selectedRun.cast_members} />}
+    {selectedRun && <MotionCaptureSetup projectId={projectId} sceneRunId={selectedRun.id} castMembers={selectedRun.cast_members} productionAssets={productionAssets} />}
 
     {selectedRun && <section className="production-panel production-cast-runtime">
       <div className="casting-panel-heading"><div><div className="section-kicker">CAST MEMBER INSTANCES</div><h3>Who is performing each role?</h3></div><UserRound size={17} /></div>

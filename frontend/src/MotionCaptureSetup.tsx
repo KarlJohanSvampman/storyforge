@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import LiveAvatarPreview from "./LiveAvatarPreview";
+import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
+import type { SceneProductionAsset } from "./productionScene";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -19,9 +21,9 @@ type TrackingState = {
   tracking: boolean;
 };
 type Calibration = { origin: Vec3; yaw: number };
-type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
+type CaptureCastMember = { id: string; character_id?: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
-type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null };
+type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton?: CanonicalSkeleton };
 type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
 type CaptureChunk = { id: string; chunk_index: number; download_url: string };
 
@@ -56,7 +58,7 @@ function percent(value: number, extent: number): number {
   return Math.max(0, Math.min(100, 50 + value / extent * 100));
 }
 
-export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers }: { projectId: string; sceneRunId: string; castMembers: CaptureCastMember[] }) {
+export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers, productionAssets = [] }: { projectId: string; sceneRunId: string; castMembers: CaptureCastMember[]; productionAssets?: SceneProductionAsset[] }) {
   const [captureTakeId, setCaptureTakeId] = useState("");
   const [captureStatus, setCaptureStatus] = useState<"idle" | "recording" | "uploading">("idle");
   const [captureTakes, setCaptureTakes] = useState<CaptureTake[]>([]);
@@ -136,6 +138,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
           cast_member_instance_id: selectedCastMemberId,
           state_snapshot: {
             capture_source: "webxr_quest_head_and_hands", sample_rate_hz: 30,
+            skeleton_format: "storyforge.humanoid", skeleton_version: 1, coordinate_space: "actor-local-meters",
             calibration: calibrationRef.current,
             physical_zone_m: { width: physicalWidth, depth: physicalDepth },
             virtual_zone_m: { width: virtualWidth, depth: virtualDepth },
@@ -372,6 +375,11 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
               head_orientation: next.headOrientation,
               left_wrist: mapPoint(next.leftWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
               right_wrist: mapPoint(next.rightWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              skeleton: reconstructCanonicalSkeleton(
+                mapPoint(next.head, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+                mapPoint(next.leftWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+                mapPoint(next.rightWrist, calibrationRef.current, physicalWidth, physicalDepth, virtualWidth, virtualDepth),
+              ),
             });
           }
           if (_time - lastUiUpdateRef.current >= 80) {
@@ -505,10 +513,17 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
         <LiveAvatarPreview
           key={selectedCastMemberId}
           characterName={castMembers.find(member => member.id === selectedCastMemberId)?.character_name_snapshot || "Performer"}
+          modelUrl={(() => {
+            const member = castMembers.find(item => item.id === selectedCastMemberId);
+            return productionAssets.find(asset => asset.target_type === "character" && !!member?.character_id && asset.target_id === member.character_id)?.download_url
+              || productionAssets.find(asset => asset.target_type === "character" && !!member?.character_id && asset.target_id === member.character_id)?.render_url
+              || undefined;
+          })()}
           head={head}
           headOrientation={replaySample ? replaySample.head_orientation : tracking.headOrientation}
           leftWrist={left}
           rightWrist={right}
+          skeleton={replaySample?.skeleton}
         />
         <p className="muted-note">Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
       <div className="motion-capture-recording">
