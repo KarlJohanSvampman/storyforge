@@ -17,7 +17,7 @@ A `HumanoidRigProfile` maps a rig's bone names to canonical start/end joints. Th
 4. Converts canonical joint endpoints into each bone parent's local space.
 5. Applies a quaternion correction from the bind direction to the performance direction.
 
-The included Mixamo profile is a starter mapping, not a guarantee that every Mixamo export has identical naming or hierarchy. Missing mappings are exposed through `missingBones`; callers should surface these to creators rather than silently claiming a complete retarget.
+The retargeting preview now uses `detectHumanoidRigProfile` to inspect a loaded skeleton and match common aliases from Mixamo, Blender/Rigify, Unity-style and generic humanoid rigs. It reports mapped and missing semantic segments in the capture workspace. Detection is best-effort: ambiguous or custom rigs should use a hand-authored `HumanoidRigProfile`. The original Mixamo profile remains available as a reference profile.
 
 The motion-capture workspace now resolves the selected cast member's bound character GLB from the project's production asset bindings. If its rig matches the included Mixamo profile, the live/replay canonical pose is applied to that imported model. The procedural preview remains visible when there is no bound model or no compatible mapped bone. This is an initial preview integration, not automatic rig detection or a final production retargeting pipeline.
 
@@ -35,9 +35,10 @@ For another rig, provide a profile with that asset's actual bone names and the c
 - This first adapter rotates mapped bones but does not yet solve twist distribution, hand/finger articulation, facial animation, root-motion policy, foot locking, or animation blending.
 - Height fitting is uniform and approximate; it does not independently normalize limb proportions.
 - The GLTF/GLB preview path is wired to project character bindings, but compatibility with real uploaded character assets still requires browser validation.
-- The current preview uses the Mixamo naming profile only. Other rigs need an explicit profile; semantic auto-detection is not implemented.
+- Auto-detection is heuristic and name-based; it does not inspect mesh weights or infer bone meaning from geometry. Custom rigs may need hand-authored profiles.
+- The inspector currently reports semantic segment coverage but does not yet provide an interactive bone-mapping editor.
 - The preview is a capture-workspace validation surface, not yet the full production scene retargeting pipeline.
 
 ## Next validation
 
-Upload at least two differently proportioned humanoid GLB assets, verify the selected character binding resolves to the expected model, replay the same take on both, and verify joint alignment, scale, facing direction, missing-bone fallback, and cleanup. Add and validate explicit profiles for non-Mixamo rigs before treating the adapter as production-ready.
+Upload representative Mixamo, Blender/Rigify and Unity-style humanoid GLB assets. Verify detected bone aliases, mapped/missing segment reports, replay alignment, scale, facing direction, fallback and cleanup. Add interactive profile editing and persistence after validating the heuristic detector on real assets.
