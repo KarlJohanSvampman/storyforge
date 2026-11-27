@@ -92,6 +92,10 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
   const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
+  const [rigProfileRevision, setRigProfileRevision] = useState(0);
+  const [rigProfileSaveState, setRigProfileSaveState] = useState("No saved profile loaded");
+  const rigProfileRevisionRef = useRef(0);
+  const rigProfileSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
     message: "No bound character model · procedural preview",
     boneNames: [],
@@ -99,18 +103,94 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
     missingSegments: [],
   });
   const selectedCharacterId = castMembers.find(member => member.id === selectedCastMemberId)?.character_id || selectedCastMemberId;
+  const selectedCharacterAsset = productionAssets.find(asset => asset.target_type === "character" && asset.target_id === selectedCharacterId);
+  const selectedRigAssetId = selectedCharacterAsset?.asset_id || null;
+
   useEffect(() => {
-    if (!selectedCharacterId) { setRigProfile(null); return; }
-    try {
-      const saved = localStorage.getItem(`storyforge.rig-profile.v1:${selectedCharacterId}`);
-      setRigProfile(saved ? JSON.parse(saved) as HumanoidRigProfile : null);
-    } catch {
-      setRigProfile(null);
+    let alive = true;
+    rigProfileRevisionRef.current = 0;
+    setRigProfileRevision(0);
+    setRigProfile(null);
+    if (!selectedRigAssetId) {
+      setRigProfileSaveState("Select a character with a bound production model to save a shared rig profile");
+      return () => { alive = false; };
     }
-  }, [selectedCharacterId]);
+    setRigProfileSaveState("Loading shared rig profile…");
+    const endpoint = `/api/projects/${projectId}/production-assets/${selectedRigAssetId}/rig-profile`;
+    void (async () => {
+      try {
+        const response = await fetch(endpoint);
+        if (!response.ok) throw new Error(`Rig profile request failed (${response.status})`);
+        const saved = await response.json() as { revision: number; profile: HumanoidRigProfile } | null;
+        if (!alive) return;
+        if (saved) {
+          rigProfileRevisionRef.current = saved.revision;
+          setRigProfileRevision(saved.revision);
+          setRigProfile(saved.profile);
+          setRigProfileSaveState(`Shared profile revision ${saved.revision}`);
+          return;
+        }
+        // One-time migration of profiles created by M2.3.8 in this browser.
+        const legacyKey = `storyforge.rig-profile.v1:${selectedCharacterId}`;
+        const legacy = localStorage.getItem(legacyKey);
+        if (legacy) {
+          const parsed = JSON.parse(legacy) as HumanoidRigProfile;
+          const migrated = await fetch(endpoint, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ profile: parsed, expected_revision: 0 }),
+          });
+          if (migrated.ok) {
+            const result = await migrated.json() as { revision: number; profile: HumanoidRigProfile };
+            if (!alive) return;
+            rigProfileRevisionRef.current = result.revision;
+            setRigProfileRevision(result.revision);
+            setRigProfile(result.profile);
+            setRigProfileSaveState(`Migrated local profile · shared revision ${result.revision}`);
+            return;
+          }
+        }
+        setRigProfileSaveState("No shared rig profile yet · automatic detection active");
+      } catch (error) {
+        if (!alive) return;
+        const legacy = selectedCharacterId ? localStorage.getItem(`storyforge.rig-profile.v1:${selectedCharacterId}`) : null;
+        if (legacy) {
+          try { setRigProfile(JSON.parse(legacy) as HumanoidRigProfile); } catch { /* Ignore malformed legacy browser data. */ }
+        }
+        setRigProfileSaveState(error instanceof Error ? `Shared profile unavailable: ${error.message}` : "Shared profile unavailable");
+      }
+    })();
+    return () => { alive = false; };
+  }, [projectId, selectedRigAssetId, selectedCharacterId]);
+
   function saveRigProfile(profile: HumanoidRigProfile) {
     setRigProfile(profile);
     if (selectedCharacterId) localStorage.setItem(`storyforge.rig-profile.v1:${selectedCharacterId}`, JSON.stringify(profile));
+    if (!selectedRigAssetId) {
+      setRigProfileSaveState("Saved locally only · bind a character asset for collaborator sync");
+      return;
+    }
+    const assetId = selectedRigAssetId;
+    const endpoint = `/api/projects/${projectId}/production-assets/${assetId}/rig-profile`;
+    setRigProfileSaveState("Saving shared profile…");
+    rigProfileSaveQueueRef.current = rigProfileSaveQueueRef.current.then(async () => {
+      const response = await fetch(endpoint, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          profile,
+          expected_revision: rigProfileRevisionRef.current,
+        }),
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(body?.detail?.message || body?.detail || `Save failed (${response.status})`);
+      const saved = body as { revision: number };
+      rigProfileRevisionRef.current = saved.revision;
+      setRigProfileRevision(saved.revision);
+      setRigProfileSaveState(`Saved to production · revision ${saved.revision}`);
+    }).catch(error => {
+      setRigProfileSaveState(error instanceof Error ? error.message : "Could not save shared rig profile");
+    });
   }
   const [calibrated, setCalibrated] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -559,7 +639,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           <div><strong>Missing segments</strong><p>{rigStatus.missingSegments.join(", ") || "None"}</p></div>
           <div><strong>Detected bone names</strong><p>{rigStatus.boneNames.join(", ") || "No model bones detected"}</p></div>
         </details>
-        {rigStatus.boneNames.length > 0 && rigProfile && <HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} />}
+        {rigStatus.boneNames.length > 0 && rigProfile && <><HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} /><p className="muted-note">{rigProfileSaveState}{rigProfileRevision > 0 ? ` · revision ${rigProfileRevision}` : ""}</p></>}
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
