@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { HumanoidRetargeter } from "./humanoidRetargeter";
+import { HumanoidRetargeter, type HumanoidRigProfile } from "./humanoidRetargeter";
 import { detectHumanoidRigProfile, type HumanoidRigPreviewStatus } from "./humanoidRigProfiles";
 
 type Point = { x: number; y: number; z: number } | null;
@@ -16,7 +16,7 @@ type Props = {
   rightWrist: Point;
   skeleton?: CanonicalSkeleton | null;
   modelUrl?: string;
-  onRigStatus?: (status: HumanoidRigPreviewStatus) => void;
+  onRigStatus?: (status: HumanoidRigPreviewStatus) => void;\n  profileOverride?: HumanoidRigProfile | null;\n  onProfileDetected?: (profile: HumanoidRigProfile) => void;
 };
 
 type AvatarParts = {
@@ -267,7 +267,7 @@ export default function LiveAvatarPreview(props: Props) {
       bounds.getSize(size);
       const height = size.y > 0.05 ? size.y : 1.7;
       const detection = detectHumanoidRigProfile(model);
-      const profile = { ...detection.profile, targetHeightM: height, fitCanonicalHeight: true };
+      const profile = { ...(props.profileOverride || detection.profile), targetHeightM: height, fitCanonicalHeight: true };\n      props.onProfileDetected?.(detection.profile);
       const retargeter = new HumanoidRetargeter(model, profile);
       const fittedHeight = height * (1.7 / height);
       model.position.y -= bounds.min.y * (fittedHeight / height);
@@ -276,15 +276,15 @@ export default function LiveAvatarPreview(props: Props) {
       retargeterRef.current = retargeter;
       model.visible = retargeter.boundBoneCount > 0;
       if (partsRef.current) partsRef.current.root.visible = retargeter.boundBoneCount === 0;
-      const boundBoneNames = new Set(detection.profile.bindings
+      const boundBoneNames = new Set(profile.bindings
         .map(binding => binding.bone)
         .filter(name => !retargeter.missingBones.includes(name)));
-      const matchedSegments = detection.profile.bindings
+      const matchedSegments = profile.bindings
         .filter(binding => boundBoneNames.has(binding.bone))
         .map(binding => binding.start + " → " + binding.end);
       const missingSegments = [
         ...detection.missingSegments,
-        ...detection.profile.bindings
+        ...profile.bindings
           .filter(binding => !boundBoneNames.has(binding.bone))
           .map(binding => binding.start + " → " + binding.end),
       ];
@@ -316,7 +316,7 @@ export default function LiveAvatarPreview(props: Props) {
       }
     });
     return () => { alive = false; };
-  }, [props.modelUrl]);
+  }, [props.modelUrl, props.profileOverride]);
 
   return <div className="live-avatar-preview" ref={hostRef} aria-label="Live tracked avatar preview" />;
 }
