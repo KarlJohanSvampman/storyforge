@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { HumanoidRetargeter, MIXAMO_HUMANOID_PROFILE } from "./humanoidRetargeter";
 
 type Point = { x: number; y: number; z: number } | null;
 type Quaternion = { x: number; y: number; z: number; w: number } | null;
@@ -12,6 +14,7 @@ type Props = {
   leftWrist: Point;
   rightWrist: Point;
   skeleton?: CanonicalSkeleton | null;
+  modelUrl?: string;
 };
 
 type AvatarParts = {
@@ -126,11 +129,16 @@ function updateAvatar(parts: AvatarParts, props: Props): void {
 export default function LiveAvatarPreview(props: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const partsRef = useRef<AvatarParts | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const modelRef = useRef<THREE.Object3D | null>(null);
+  const retargeterRef = useRef<HumanoidRetargeter | null>(null);
+  const latestPropsRef = useRef(props);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     scene.background = new THREE.Color(0x151d17);
     scene.fog = new THREE.Fog(0x151d17, 7, 18);
     const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
@@ -188,6 +196,13 @@ export default function LiveAvatarPreview(props: Props) {
       });
       renderer.dispose();
       if (host.contains(renderer.domElement)) host.removeChild(renderer.domElement);
+      if (modelRef.current) {
+        modelRef.current.parent?.remove(modelRef.current);
+        modelRef.current = null;
+      }
+      retargeterRef.current?.reset();
+      retargeterRef.current = null;
+      sceneRef.current = null;
       partsRef.current = null;
     };
     // The viewport is recreated only when the component mounts.
@@ -195,9 +210,76 @@ export default function LiveAvatarPreview(props: Props) {
   }, []);
 
   useEffect(() => {
+    latestPropsRef.current = props;
+    const pose = props.skeleton ?? reconstructCanonicalSkeleton(props.head, props.leftWrist, props.rightWrist);
     const parts = partsRef.current;
     if (parts) updateAvatar(parts, props);
+    try {
+      retargeterRef.current?.apply(pose);
+    } catch {
+      // Keep the procedural fallback visible if a malformed or incompatible pose arrives.
+    }
   }, [props.characterName, props.head, props.headOrientation, props.leftWrist, props.rightWrist, props.skeleton]);
+
+  useEffect(() => {
+    let alive = true;
+    const scene = sceneRef.current;
+    if (!scene || !props.modelUrl) {
+      retargeterRef.current?.reset();
+      retargeterRef.current = null;
+      if (modelRef.current) {
+        modelRef.current.parent?.remove(modelRef.current);
+        modelRef.current = null;
+      }
+      if (partsRef.current) partsRef.current.root.visible = true;
+      return;
+    }
+    const loader = new GLTFLoader();
+    loader.load(props.modelUrl, gltf => {
+      if (!alive) {
+        gltf.scene.traverse(object => {
+          if (object instanceof THREE.Mesh) {
+            object.geometry.dispose();
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach(material => material.dispose());
+          }
+        });
+        return;
+      }
+      if (modelRef.current) {
+        modelRef.current.parent?.remove(modelRef.current);
+        modelRef.current = null;
+      }
+      const model = gltf.scene;
+      model.name = "StoryForge retargeted character";
+      model.traverse(object => {
+        if (object instanceof THREE.Mesh) {
+          object.castShadow = true;
+          object.receiveShadow = true;
+        }
+      });
+      const bounds = new THREE.Box3().setFromObject(model);
+      const size = new THREE.Vector3();
+      bounds.getSize(size);
+      const height = size.y > 0.05 ? size.y : 1.7;
+      const profile = { ...MIXAMO_HUMANOID_PROFILE, targetHeightM: height, fitCanonicalHeight: true };
+      const retargeter = new HumanoidRetargeter(model, profile);
+      const fittedHeight = height * (1.7 / height);
+      model.position.y -= bounds.min.y * (fittedHeight / height);
+      scene.add(model);
+      modelRef.current = model;
+      retargeterRef.current = retargeter;
+      if (partsRef.current) partsRef.current.root.visible = retargeter.boundBoneCount === 0;
+      if (retargeter.boundBoneCount > 0) {
+        retargeter.apply(latestPropsRef.current.skeleton ?? reconstructCanonicalSkeleton(
+          latestPropsRef.current.head, latestPropsRef.current.leftWrist, latestPropsRef.current.rightWrist,
+        ));
+      }
+    }, undefined, () => {
+      if (alive && partsRef.current) partsRef.current.root.visible = true;
+    });
+    return () => { alive = false; };
+  }, [props.modelUrl]);
 
   return <div className="live-avatar-preview" ref={hostRef} aria-label="Live tracked avatar preview" />;
 }
