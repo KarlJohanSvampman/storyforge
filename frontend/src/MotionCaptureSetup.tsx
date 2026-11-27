@@ -94,7 +94,6 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
   const [rigProfileRevision, setRigProfileRevision] = useState(0);
   const [rigProfileSaveState, setRigProfileSaveState] = useState("No saved profile loaded");
-  const rigProfileRevisionRef = useRef(0);
   const rigProfileRevisionsByAssetRef = useRef<Record<string, number>>({});
   const rigProfileSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
@@ -109,7 +108,6 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
 
   useEffect(() => {
     let alive = true;
-    rigProfileRevisionRef.current = 0;
     setRigProfileRevision(0);
     setRigProfile(null);
     if (!selectedRigAssetId) {
@@ -125,7 +123,6 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
         const saved = await response.json() as { revision: number; profile: HumanoidRigProfile } | null;
         if (!alive) return;
         if (saved) {
-          rigProfileRevisionRef.current = saved.revision;
           rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = saved.revision;
           setRigProfileRevision(saved.revision);
           setRigProfile(saved.profile);
@@ -145,7 +142,6 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           if (migrated.ok) {
             const result = await migrated.json() as { revision: number; profile: HumanoidRigProfile };
             if (!alive) return;
-            rigProfileRevisionRef.current = result.revision;
             rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = result.revision;
             setRigProfileRevision(result.revision);
             setRigProfile(result.profile);
@@ -189,7 +185,6 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.detail?.message || body?.detail || `Save failed (${response.status})`);
       const saved = body as { revision: number };
-      rigProfileRevisionRef.current = saved.revision;
       rigProfileRevisionsByAssetRef.current[assetId] = saved.revision;
       if (selectedRigAssetId === assetId) {
         setRigProfileRevision(saved.revision);
