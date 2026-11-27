@@ -94,7 +94,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
   const [rigProfileRevision, setRigProfileRevision] = useState(0);
   const [rigProfileSaveState, setRigProfileSaveState] = useState("No saved profile loaded");
-  const rigProfileRevisionRef = useRef(0);\n  const rigProfileRevisionsByAssetRef = useRef<Record<string, number>>({});
+  const rigProfileRevisionRef = useRef(0);
+  const rigProfileRevisionsByAssetRef = useRef<Record<string, number>>({});
   const rigProfileSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
     message: "No bound character model · procedural preview",
@@ -124,7 +125,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
         const saved = await response.json() as { revision: number; profile: HumanoidRigProfile } | null;
         if (!alive) return;
         if (saved) {
-          rigProfileRevisionRef.current = saved.revision;\n          rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = saved.revision;
+          rigProfileRevisionRef.current = saved.revision;
+          rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = saved.revision;
           setRigProfileRevision(saved.revision);
           setRigProfile(saved.profile);
           setRigProfileSaveState(`Shared profile revision ${saved.revision}`);
@@ -143,7 +145,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           if (migrated.ok) {
             const result = await migrated.json() as { revision: number; profile: HumanoidRigProfile };
             if (!alive) return;
-            rigProfileRevisionRef.current = result.revision;\n            rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = result.revision;
+            rigProfileRevisionRef.current = result.revision;
+            rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = result.revision;
             setRigProfileRevision(result.revision);
             setRigProfile(result.profile);
             setRigProfileSaveState(`Migrated local profile · shared revision ${result.revision}`);
