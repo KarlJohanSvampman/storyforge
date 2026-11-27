@@ -549,6 +549,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           rightWrist={right}
           skeleton={replaySample?.skeleton}
           onRigStatus={setRigStatus}
+          profileOverride={rigProfile}
+          onProfileDetected={profile => setRigProfile(current => current || profile)}
         />
         <p className="muted-note">{rigStatus.message}. Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
         <details className="motion-capture-rig-inspector">
