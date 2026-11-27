@@ -30,6 +30,13 @@ export type HumanoidRigDetection = {
   boneNames: string[];
 };
 
+export type HumanoidRigPreviewStatus = {
+  message: string;
+  boneNames: string[];
+  matchedSegments: string[];
+  missingSegments: string[];
+};
+
 export function normalizeHumanoidBoneName(name: string): string {
   const leaf = name.split(/[|:]/).pop() || name;
   return leaf
