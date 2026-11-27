@@ -3,7 +3,8 @@ import * as THREE from "three";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { HumanoidRetargeter, MIXAMO_HUMANOID_PROFILE } from "./humanoidRetargeter";
+import { HumanoidRetargeter } from "./humanoidRetargeter";
+import { detectHumanoidRigProfile } from "./humanoidRigProfiles";
 
 type Point = { x: number; y: number; z: number } | null;
 type Quaternion = { x: number; y: number; z: number; w: number } | null;
@@ -15,6 +16,7 @@ type Props = {
   rightWrist: Point;
   skeleton?: CanonicalSkeleton | null;
   modelUrl?: string;
+  onRigStatus?: (status: string) => void;
 };
 
 type AvatarParts = {
@@ -225,6 +227,7 @@ export default function LiveAvatarPreview(props: Props) {
     let alive = true;
     const scene = sceneRef.current;
     if (!scene || !props.modelUrl) {
+      props.onRigStatus?.("No bound character model · procedural preview");
       retargeterRef.current?.reset();
       retargeterRef.current = null;
       if (modelRef.current) {
@@ -234,6 +237,7 @@ export default function LiveAvatarPreview(props: Props) {
       if (partsRef.current) partsRef.current.root.visible = true;
       return;
     }
+    props.onRigStatus?.("Loading character rig…");
     const loader = new GLTFLoader();
     loader.load(props.modelUrl, gltf => {
       if (!alive) {
@@ -262,21 +266,33 @@ export default function LiveAvatarPreview(props: Props) {
       const size = new THREE.Vector3();
       bounds.getSize(size);
       const height = size.y > 0.05 ? size.y : 1.7;
-      const profile = { ...MIXAMO_HUMANOID_PROFILE, targetHeightM: height, fitCanonicalHeight: true };
+      const detection = detectHumanoidRigProfile(model);
+      const profile = { ...detection.profile, targetHeightM: height, fitCanonicalHeight: true };
       const retargeter = new HumanoidRetargeter(model, profile);
       const fittedHeight = height * (1.7 / height);
       model.position.y -= bounds.min.y * (fittedHeight / height);
       scene.add(model);
       modelRef.current = model;
       retargeterRef.current = retargeter;
+      model.visible = retargeter.boundBoneCount > 0;
       if (partsRef.current) partsRef.current.root.visible = retargeter.boundBoneCount === 0;
+      if (retargeter.boundBoneCount > 0) {
+        const coverage = detection.matchedSegments.length + "/" + (detection.matchedSegments.length + detection.missingSegments.length);
+        const missing = detection.missingSegments.length ? " · missing " + detection.missingSegments.join(", ") : "";
+        props.onRigStatus?.(detection.profile.label + " rig · " + coverage + " segments mapped" + missing);
+      } else {
+        props.onRigStatus?.("No compatible humanoid bones detected · procedural preview");
+      }
       if (retargeter.boundBoneCount > 0) {
         retargeter.apply(latestPropsRef.current.skeleton ?? reconstructCanonicalSkeleton(
           latestPropsRef.current.head, latestPropsRef.current.leftWrist, latestPropsRef.current.rightWrist,
         ));
       }
     }, undefined, () => {
-      if (alive && partsRef.current) partsRef.current.root.visible = true;
+      if (alive) {
+        if (partsRef.current) partsRef.current.root.visible = true;
+        props.onRigStatus?.("Could not load character model · procedural preview");
+      }
     });
     return () => { alive = false; };
   }, [props.modelUrl]);
