@@ -4,7 +4,7 @@ import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonica
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { HumanoidRetargeter } from "./humanoidRetargeter";
-import { detectHumanoidRigProfile } from "./humanoidRigProfiles";
+import { detectHumanoidRigProfile, type HumanoidRigPreviewStatus } from "./humanoidRigProfiles";
 
 type Point = { x: number; y: number; z: number } | null;
 type Quaternion = { x: number; y: number; z: number; w: number } | null;
@@ -16,7 +16,7 @@ type Props = {
   rightWrist: Point;
   skeleton?: CanonicalSkeleton | null;
   modelUrl?: string;
-  onRigStatus?: (status: string) => void;
+  onRigStatus?: (status: HumanoidRigPreviewStatus) => void;
 };
 
 type AvatarParts = {
@@ -227,7 +227,7 @@ export default function LiveAvatarPreview(props: Props) {
     let alive = true;
     const scene = sceneRef.current;
     if (!scene || !props.modelUrl) {
-      props.onRigStatus?.("No bound character model · procedural preview");
+      props.onRigStatus?.({ message: "No bound character model · procedural preview", boneNames: [], matchedSegments: [], missingSegments: [] });
       retargeterRef.current?.reset();
       retargeterRef.current = null;
       if (modelRef.current) {
@@ -237,7 +237,7 @@ export default function LiveAvatarPreview(props: Props) {
       if (partsRef.current) partsRef.current.root.visible = true;
       return;
     }
-    props.onRigStatus?.("Loading character rig…");
+    props.onRigStatus?.({ message: "Loading character rig…", boneNames: [], matchedSegments: [], missingSegments: [] });
     const loader = new GLTFLoader();
     loader.load(props.modelUrl, gltf => {
       if (!alive) {
@@ -276,12 +276,33 @@ export default function LiveAvatarPreview(props: Props) {
       retargeterRef.current = retargeter;
       model.visible = retargeter.boundBoneCount > 0;
       if (partsRef.current) partsRef.current.root.visible = retargeter.boundBoneCount === 0;
+      const boundBoneNames = new Set(detection.profile.bindings
+        .map(binding => binding.bone)
+        .filter(name => !retargeter.missingBones.includes(name)));
+      const matchedSegments = detection.profile.bindings
+        .filter(binding => boundBoneNames.has(binding.bone))
+        .map(binding => binding.start + " → " + binding.end);
+      const missingSegments = [
+        ...detection.missingSegments,
+        ...detection.profile.bindings
+          .filter(binding => !boundBoneNames.has(binding.bone))
+          .map(binding => binding.start + " → " + binding.end),
+      ];
       if (retargeter.boundBoneCount > 0) {
-        const coverage = detection.matchedSegments.length + "/" + (detection.matchedSegments.length + detection.missingSegments.length);
-        const missing = detection.missingSegments.length ? " · missing " + detection.missingSegments.join(", ") : "";
-        props.onRigStatus?.(detection.profile.label + " rig · " + coverage + " segments mapped" + missing);
+        const coverage = retargeter.boundBoneCount + "/" + (detection.matchedSegments.length + detection.missingSegments.length);
+        props.onRigStatus?.({
+          message: detection.profile.label + " rig · " + coverage + " segments mapped",
+          boneNames: detection.boneNames,
+          matchedSegments,
+          missingSegments,
+        });
       } else {
-        props.onRigStatus?.("No compatible humanoid bones detected · procedural preview");
+        props.onRigStatus?.({
+          message: "No compatible humanoid bones detected · procedural preview",
+          boneNames: detection.boneNames,
+          matchedSegments: [],
+          missingSegments: detection.missingSegments,
+        });
       }
       if (retargeter.boundBoneCount > 0) {
         retargeter.apply(latestPropsRef.current.skeleton ?? reconstructCanonicalSkeleton(
@@ -291,7 +312,7 @@ export default function LiveAvatarPreview(props: Props) {
     }, undefined, () => {
       if (alive) {
         if (partsRef.current) partsRef.current.root.visible = true;
-        props.onRigStatus?.("Could not load character model · procedural preview");
+        props.onRigStatus?.({ message: "Could not load character model · procedural preview", boneNames: [], matchedSegments: [], missingSegments: [] });
       }
     });
     return () => { alive = false; };
