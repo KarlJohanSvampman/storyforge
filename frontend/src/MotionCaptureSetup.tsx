@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import LiveAvatarPreview from "./LiveAvatarPreview";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
+import type { SceneProductionAsset } from "./productionScene";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -20,7 +21,7 @@ type TrackingState = {
   tracking: boolean;
 };
 type Calibration = { origin: Vec3; yaw: number };
-type CaptureCastMember = { id: string; character_name_snapshot: string; actor_name_snapshot: string };
+type CaptureCastMember = { id: string; character_id?: string; character_name_snapshot: string; actor_name_snapshot: string };
 type MappedPoint = { x: number; y: number; z: number };
 type CaptureSample = { timestamp_ms: number; head: Vec3 | null; head_orientation: Quaternion | null; left_wrist: Vec3 | null; right_wrist: Vec3 | null; skeleton?: CanonicalSkeleton };
 type CaptureTake = { id: string; take_number: number; title: string; status: string; duration_ms: number | null; sample_count: number };
@@ -57,7 +58,7 @@ function percent(value: number, extent: number): number {
   return Math.max(0, Math.min(100, 50 + value / extent * 100));
 }
 
-export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers }: { projectId: string; sceneRunId: string; castMembers: CaptureCastMember[] }) {
+export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers, productionAssets = [] }: { projectId: string; sceneRunId: string; castMembers: CaptureCastMember[]; productionAssets?: SceneProductionAsset[] }) {
   const [captureTakeId, setCaptureTakeId] = useState("");
   const [captureStatus, setCaptureStatus] = useState<"idle" | "recording" | "uploading">("idle");
   const [captureTakes, setCaptureTakes] = useState<CaptureTake[]>([]);
@@ -512,6 +513,12 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers 
         <LiveAvatarPreview
           key={selectedCastMemberId}
           characterName={castMembers.find(member => member.id === selectedCastMemberId)?.character_name_snapshot || "Performer"}
+          modelUrl={(() => {
+            const member = castMembers.find(item => item.id === selectedCastMemberId);
+            return productionAssets.find(asset => asset.target_type === "character" && !!member?.character_id && asset.target_id === member.character_id)?.download_url
+              || productionAssets.find(asset => asset.target_type === "character" && !!member?.character_id && asset.target_id === member.character_id)?.render_url
+              || undefined;
+          })()}
           head={head}
           headOrientation={replaySample ? replaySample.head_orientation : tracking.headOrientation}
           leftWrist={left}
