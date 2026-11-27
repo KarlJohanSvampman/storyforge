@@ -148,6 +148,22 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
             setRigProfileSaveState(`Migrated local profile · shared revision ${result.revision}`);
             return;
           }
+          if (migrated.status === 409) {
+            const latestResponse = await fetch(endpoint);
+            if (latestResponse.ok) {
+              const latest = await latestResponse.json() as { revision: number; profile: HumanoidRigProfile } | null;
+              if (alive && latest) {
+                rigProfileRevisionsByAssetRef.current[selectedRigAssetId] = latest.revision;
+                setRigProfileRevision(latest.revision);
+                setRigProfile(latest.profile);
+                setRigProfileSaveState(`Loaded collaborator's profile · revision ${latest.revision}`);
+                return;
+              }
+            }
+          }
+          setRigProfile(parsed);
+          setRigProfileSaveState("Legacy profile retained locally · shared migration needs attention");
+          return;
         }
         setRigProfileSaveState("No shared rig profile yet · automatic detection active");
       } catch (error) {
@@ -164,6 +180,11 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
 
   function saveRigProfile(profile: HumanoidRigProfile) {
     setRigProfile(profile);
+    const assignedBones = profile.bindings.map(binding => binding.bone);
+    if (new Set(assignedBones).size !== assignedBones.length) {
+      setRigProfileSaveState("Resolve duplicate bone assignments before saving the shared profile");
+      return;
+    }
     if (selectedCharacterId) localStorage.setItem(`storyforge.rig-profile.v1:${selectedCharacterId}`, JSON.stringify(profile));
     if (!selectedRigAssetId) {
       setRigProfileSaveState("Saved locally only · bind a character asset for collaborator sync");
