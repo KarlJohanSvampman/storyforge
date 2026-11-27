@@ -1254,6 +1254,23 @@ class ProductionAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ProductionAssetRigProfile(Base):
+    """Append-only rig profile revisions attached to one immutable character asset version."""
+    __tablename__ = "production_asset_rig_profiles"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "revision", name="uq_production_asset_rig_profiles_revision"),
+        CheckConstraint("revision >= 1", name="ck_production_asset_rig_profiles_revision"),
+        Index("ix_production_asset_rig_profiles_asset_created", "asset_id", "created_at"),
+    )
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    asset_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("production_assets.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    rig_signature: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    profile_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    updated_by_user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class ProductionAssetBinding(Base):
     """Current project assignment of an immutable asset version to a character or location."""
     __tablename__ = "production_asset_bindings"

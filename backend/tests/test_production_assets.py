@@ -124,3 +124,91 @@ def test_asset_binding_transform_is_validated_and_persisted(monkeypatch, tmp_pat
 
     invalid = client.patch(url + f"/bindings/{binding['id']}/transform", json={"scale": [1, 0, 1]})
     assert invalid.status_code == 422
+
+
+def _sample_rig_profile():
+    return {
+        "id": "custom-humanoid-v1",
+        "label": "Custom humanoid",
+        "bindings": [
+            {"bone": "Spine", "start": "pelvis", "end": "spine"},
+            {"bone": "Chest", "start": "spine", "end": "chest"},
+            {"bone": "Neck", "start": "chest", "end": "neck"},
+            {"bone": "Head", "start": "neck", "end": "head"},
+        ],
+        "fitCanonicalHeight": True,
+    }
+
+
+def test_character_rig_profile_is_shared_versioned_and_asset_scoped(monkeypatch, tmp_path):
+    monkeypatch.setenv("STORYFORGE_ASSET_DIR", str(tmp_path))
+    project_id, _ = _production_sequence("Persistent rig profiles")
+    character_id = _character(project_id)
+    url = f"/api/projects/{project_id}/production-assets"
+    uploaded = client.post(url, data={
+        "name": "Lead character", "asset_kind": "character", "target_id": character_id,
+    }, files={"file": ("lead.glb", _glb(), "model/gltf-binary")})
+    assert uploaded.status_code == 201, uploaded.text
+    asset = uploaded.json()
+    profile_url = url + f"/{asset['id']}/rig-profile"
+
+    assert client.get(profile_url).json() is None
+    saved = client.put(profile_url, json={
+        "profile": _sample_rig_profile(), "expected_revision": 0,
+        "rig_signature": "sha256:fixture",
+    })
+    assert saved.status_code == 200, saved.text
+    first = saved.json()
+    assert first["revision"] == 1
+    assert first["asset_version"] == 1
+    assert first["profile"]["bindings"][0]["bone"] == "Spine"
+
+    changed_profile = _sample_rig_profile()
+    changed_profile["label"] = "Adjusted humanoid"
+    updated = client.put(profile_url, json={
+        "profile": changed_profile, "expected_revision": 1,
+        "rig_signature": "sha256:fixture",
+    })
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["revision"] == 2
+    assert updated.json()["profile"]["label"] == "Adjusted humanoid"
+
+    stale = client.put(profile_url, json={
+        "profile": _sample_rig_profile(), "expected_revision": 1,
+    })
+    assert stale.status_code == 409
+
+    history = client.get(profile_url + "/versions")
+    assert history.status_code == 200
+    assert [row["revision"] for row in history.json()] == [2, 1]
+
+    # A new immutable character asset version gets its own independent profile history.
+    next_asset = client.post(url, data={
+        "name": "Lead character", "asset_kind": "character", "target_id": character_id,
+    }, files={"file": ("lead-v2.glb", _glb(), "model/gltf-binary")})
+    assert next_asset.status_code == 201
+    assert next_asset.json()["version"] == 2
+    assert client.get(url + f"/{next_asset.json()['id']}/rig-profile").json() is None
+
+
+def test_character_rig_profile_rejects_invalid_or_non_character_profiles(monkeypatch, tmp_path):
+    monkeypatch.setenv("STORYFORGE_ASSET_DIR", str(tmp_path))
+    project_id, _ = _production_sequence("Rig profile validation")
+    character_id = _character(project_id)
+    url = f"/api/projects/{project_id}/production-assets"
+    uploaded = client.post(url, data={
+        "name": "Lead character", "asset_kind": "character", "target_id": character_id,
+    }, files={"file": ("lead.glb", _glb(), "model/gltf-binary")})
+    asset_id = uploaded.json()["id"]
+    profile_url = url + f"/{asset_id}/rig-profile"
+
+    duplicate_bone = _sample_rig_profile()
+    duplicate_bone["bindings"][1]["bone"] = "Spine"
+    rejected = client.put(profile_url, json={"profile": duplicate_bone, "expected_revision": 0})
+    assert rejected.status_code == 422
+
+    prop = client.post(url, data={"name": "Prop", "asset_kind": "prop"},
+        files={"file": ("prop.glb", _glb(), "model/gltf-binary")})
+    assert prop.status_code == 201
+    rejected_prop = client.get(url + f"/{prop.json()['id']}/rig-profile")
+    assert rejected_prop.status_code == 422

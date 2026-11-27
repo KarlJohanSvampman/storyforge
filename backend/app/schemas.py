@@ -1864,6 +1864,76 @@ class ProductionAssetBindingRead(BaseModel):
     asset: ProductionAssetRead
 
 
+
+
+HumanoidJoint = Literal[
+    "pelvis", "spine", "chest", "neck", "head",
+    "left_shoulder", "left_elbow", "left_wrist", "left_hand",
+    "right_shoulder", "right_elbow", "right_wrist", "right_hand",
+    "left_hip", "left_knee", "left_ankle", "left_foot",
+    "right_hip", "right_knee", "right_ankle", "right_foot",
+]
+
+
+class HumanoidRigBoneBinding(BaseModel):
+    bone: str = Field(min_length=1, max_length=200)
+    start: HumanoidJoint
+    end: HumanoidJoint
+
+    @field_validator("bone")
+    @classmethod
+    def clean_bone_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Bone name cannot be blank.")
+        return cleaned
+
+
+class HumanoidRigProfileData(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    label: str = Field(min_length=1, max_length=120)
+    bindings: list[HumanoidRigBoneBinding] = Field(default_factory=list, max_length=32)
+    target_height_m: float | None = Field(default=None, gt=0.05, le=20, alias="targetHeightM")
+    fit_canonical_height: bool | None = Field(default=None, alias="fitCanonicalHeight")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def validate_bindings(self):
+        segment_pairs = [(item.start, item.end) for item in self.bindings]
+        if len(segment_pairs) != len(set(segment_pairs)):
+            raise ValueError("A canonical segment can only be mapped once.")
+        bone_names = [item.bone for item in self.bindings]
+        if len(bone_names) != len(set(bone_names)):
+            raise ValueError("A rig bone can only be assigned to one canonical segment.")
+        allowed_pairs = {
+            ("pelvis", "spine"), ("spine", "chest"), ("chest", "neck"), ("neck", "head"),
+            ("left_shoulder", "left_elbow"), ("left_elbow", "left_wrist"),
+            ("right_shoulder", "right_elbow"), ("right_elbow", "right_wrist"),
+            ("left_hip", "left_knee"), ("left_knee", "left_ankle"),
+            ("right_hip", "right_knee"), ("right_knee", "right_ankle"),
+        }
+        if any(pair not in allowed_pairs for pair in segment_pairs):
+            raise ValueError("Rig profile contains an unsupported canonical segment mapping.")
+        return self
+
+
+class HumanoidRigProfileSave(BaseModel):
+    profile: HumanoidRigProfileData
+    expected_revision: int = Field(ge=0)
+    rig_signature: str | None = Field(default=None, max_length=128)
+
+
+class HumanoidRigProfileRead(BaseModel):
+    asset_id: uuid.UUID
+    asset_version: int
+    revision: int
+    rig_signature: str | None
+    profile: HumanoidRigProfileData
+    updated_by_user_id: uuid.UUID
+    updated_at: datetime
+
+
 class PublishedReleaseCreate(BaseModel):
     video_asset_id: uuid.UUID
     storyboard_id: uuid.UUID
