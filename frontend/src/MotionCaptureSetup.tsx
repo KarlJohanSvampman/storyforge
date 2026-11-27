@@ -3,6 +3,7 @@ import * as THREE from "three";
 import LiveAvatarPreview from "./LiveAvatarPreview";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import type { SceneProductionAsset } from "./productionScene";
+import type { HumanoidRigPreviewStatus } from "./humanoidRigProfiles";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -88,7 +89,12 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const latestRef = useRef<TrackingState>(EMPTY);
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
-  const [rigStatus, setRigStatus] = useState("No bound character model · procedural preview");
+  const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
+    message: "No bound character model · procedural preview",
+    boneNames: [],
+    matchedSegments: [],
+    missingSegments: [],
+  });
   const [calibrated, setCalibrated] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [physicalWidth, setPhysicalWidth] = useState(2.5);
@@ -527,7 +533,13 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           skeleton={replaySample?.skeleton}
           onRigStatus={setRigStatus}
         />
-        <p className="muted-note">{rigStatus}. Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
+        <p className="muted-note">{rigStatus.message}. Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
+        <details className="motion-capture-rig-inspector">
+          <summary>Rig inspection · {rigStatus.boneNames.length} bones detected</summary>
+          <div><strong>Mapped segments</strong><p>{rigStatus.matchedSegments.join(", ") || "None"}</p></div>
+          <div><strong>Missing segments</strong><p>{rigStatus.missingSegments.join(", ") || "None"}</p></div>
+          <div><strong>Detected bone names</strong><p>{rigStatus.boneNames.join(", ") || "No model bones detected"}</p></div>
+        </details>
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
