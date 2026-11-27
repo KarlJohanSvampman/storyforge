@@ -183,14 +183,18 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
         body: JSON.stringify({
           profile,
           expected_revision: rigProfileRevisionsByAssetRef.current[assetId] ?? 0,
+          rig_signature: rigStatus.boneNames.slice().sort().join("|").slice(0, 128) || null,
         }),
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(body?.detail?.message || body?.detail || `Save failed (${response.status})`);
       const saved = body as { revision: number };
       rigProfileRevisionRef.current = saved.revision;
-      setRigProfileRevision(saved.revision);
-      setRigProfileSaveState(`Saved to production · revision ${saved.revision}`);
+      rigProfileRevisionsByAssetRef.current[assetId] = saved.revision;
+      if (selectedRigAssetId === assetId) {
+        setRigProfileRevision(saved.revision);
+        setRigProfileSaveState(`Saved to production · revision ${saved.revision}`);
+      }
     }).catch(error => {
       setRigProfileSaveState(error instanceof Error ? error.message : "Could not save shared rig profile");
     });
