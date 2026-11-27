@@ -88,6 +88,7 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const latestRef = useRef<TrackingState>(EMPTY);
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
+  const [rigStatus, setRigStatus] = useState("No bound character model · procedural preview");
   const [calibrated, setCalibrated] = useState(false);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [physicalWidth, setPhysicalWidth] = useState(2.5);
@@ -524,8 +525,9 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           leftWrist={left}
           rightWrist={right}
           skeleton={replaySample?.skeleton}
+          onRigStatus={setRigStatus}
         />
-        <p className="muted-note">Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
+        <p className="muted-note">{rigStatus}. Head and tracked wrists drive the preview. Elbows and lower body are provisional procedural estimates, not captured full-body motion.</p>
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
