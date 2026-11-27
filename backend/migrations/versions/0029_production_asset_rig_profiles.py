@@ -1,8 +1,9 @@
-"""Versioned humanoid rig profiles for immutable character asset versions."""
+"Versioned humanoid rig profiles for immutable character asset versions."
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0029_production_asset_rig_profiles"
+# Alembic's default version_num column is VARCHAR(32).
+revision = "0029_asset_rig_profiles"
 down_revision = "0028_performance_capture_chunks"
 branch_labels = None
 depends_on = None
