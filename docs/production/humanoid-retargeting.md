@@ -54,3 +54,17 @@ The editor warns about duplicate bone assignments. A mapping is only usable by t
 
 
 Profile JSON imports are validated against the supported canonical segment pairs before being applied. Bone names are resolved against the currently loaded character asset at retarget time, so a profile imported for a different rig may show missing mappings until corrected in the editor.
+
+
+## Shared, versioned rig profiles (M2.3.9)
+
+Rig profiles are now stored by the backend against a specific immutable character production-asset version. A character asset re-upload creates a new asset ID/version and therefore starts with no inherited rig profile; the previous asset and its profile history remain available. This prevents a bone map from silently being applied to a changed skeleton.
+
+The project-scoped API exposes:
+- `GET /api/projects/{project_id}/production-assets/{asset_id}/rig-profile` — current profile, or `null` when none has been saved.
+- `PUT /api/projects/{project_id}/production-assets/{asset_id}/rig-profile` — append a new profile revision using `expected_revision` for optimistic concurrency.
+- `GET /api/projects/{project_id}/production-assets/{asset_id}/rig-profile/versions` — revision history (most recent first).
+
+Only character assets accept rig profiles. The same project membership and write permissions as production assets apply; viewers cannot save, and published projects remain read-only. Concurrent stale saves return HTTP 409 instead of silently overwriting a collaborator's changes. Each revision records its author, timestamp, asset version and optional detected-rig signature.
+
+The capture workspace loads the shared profile for the currently bound character asset and saves edits through this API. M2.3.8 browser-local profiles are migrated to the shared store on first load where possible; local storage remains a fallback if the API is temporarily unavailable. JSON import/export remains available for portability.
