@@ -3,7 +3,9 @@ import * as THREE from "three";
 import LiveAvatarPreview from "./LiveAvatarPreview";
 import { reconstructCanonicalSkeleton, type CanonicalSkeleton } from "./canonicalSkeleton";
 import type { SceneProductionAsset } from "./productionScene";
-import type { HumanoidRigPreviewStatus } from "./humanoidRigProfiles";\nimport HumanoidRigProfileEditor from "./HumanoidRigProfileEditor";\nimport type { HumanoidRigProfile } from "./humanoidRetargeter";
+import type { HumanoidRigPreviewStatus } from "./humanoidRigProfiles";
+import HumanoidRigProfileEditor from "./HumanoidRigProfileEditor";
+import type { HumanoidRigProfile } from "./humanoidRetargeter";
 
 type Vec3 = { x: number; y: number; z: number };
 type Quaternion = { x: number; y: number; z: number; w: number };
@@ -89,7 +91,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
   const latestRef = useRef<TrackingState>(EMPTY);
   const lastUiUpdateRef = useRef(0);
   const [tracking, setTracking] = useState<TrackingState>(EMPTY);
-  const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);\n  const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
+  const [rigProfile, setRigProfile] = useState<HumanoidRigProfile | null>(null);
+  const [rigStatus, setRigStatus] = useState<HumanoidRigPreviewStatus>({
     message: "No bound character model · procedural preview",
     boneNames: [],
     matchedSegments: [],
@@ -553,7 +556,8 @@ export default function MotionCaptureSetup({ projectId, sceneRunId, castMembers,
           <div><strong>Mapped segments</strong><p>{rigStatus.matchedSegments.join(", ") || "None"}</p></div>
           <div><strong>Missing segments</strong><p>{rigStatus.missingSegments.join(", ") || "None"}</p></div>
           <div><strong>Detected bone names</strong><p>{rigStatus.boneNames.join(", ") || "No model bones detected"}</p></div>
-        </details>\n        {rigStatus.boneNames.length > 0 && rigProfile && <HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} />}
+        </details>
+        {rigStatus.boneNames.length > 0 && rigProfile && <HumanoidRigProfileEditor profile={rigProfile} boneNames={rigStatus.boneNames} onChange={saveRigProfile} />}
       <div className="motion-capture-recording">
         <div className="motion-capture-zone-heading"><strong>Performance take</strong><span>{captureStatus === "recording" ? "Recording · ~30 Hz" : captureStatus === "uploading" ? "Saving chunks…" : replayPlaying ? "Playback" : "Ready"}</span></div>
         <div className="motion-capture-actions">
