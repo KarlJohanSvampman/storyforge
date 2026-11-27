@@ -2,7 +2,7 @@
 import uuid
 
 from fastapi import APIRouter, HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from .models import ProductionAssetRigProfile
