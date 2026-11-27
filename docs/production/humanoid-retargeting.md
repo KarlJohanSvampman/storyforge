@@ -42,3 +42,12 @@ For another rig, provide a profile with that asset's actual bone names and the c
 ## Next validation
 
 Upload representative Mixamo, Blender/Rigify and Unity-style humanoid GLB assets. Verify detected bone aliases, mapped/missing segment reports, replay alignment, scale, facing direction, fallback and cleanup. Add interactive profile editing and persistence after validating the heuristic detector on real assets.
+
+
+## Interactive rig profile editor (M2.3.8)
+
+The motion-capture workspace includes a manual bone-mapping editor for detected character rigs. Each canonical StoryForge segment can be assigned to a detected bone, or left unmapped. Custom assignments override the automatic name-based profile and are applied immediately to the live avatar preview.
+
+Profiles are stored in browser local storage under the character ID (or cast-member ID when no character ID is available). This is a local per-browser convenience, not server-side production metadata; it does not synchronize between collaborators or devices. Use the editor's JSON export/import controls to move a profile between browsers or projects. The exported schema is `storyforge.humanoid-rig-profile`, version 1.
+
+The editor warns about duplicate bone assignments. A mapping is only usable by the current retargeter when the selected bone has a child bone that establishes its segment direction. The inspector reports missing/unusable mappings. Custom mappings should be checked against a real character asset before production use.
